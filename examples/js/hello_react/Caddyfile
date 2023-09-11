@@ -1,0 +1,16 @@
+# Listen on port 80 and 443 (for HTTPS)
+:80, :443 {
+
+  # Serve static files from this directory
+
+  route /eywa/* {
+    reverse_proxy localhost:8080
+  }
+  route /graphql/* {
+    reverse_proxy localhost:8080
+  }
+
+  route {
+    reverse_proxy localhost:3000
+  }
+}

@@ -1,0 +1,18 @@
+type Query {
+  getAccountDataset:DatasetVersion
+  @resolve(fn: "neyho.eywa.dataset/account-dataset")
+}
+
+type Mutation {
+  deployDataset(version: DatasetVersionInput):DatasetVersion
+  @resolve(fn: "neyho.eywa.dataset/deploy-dataset")
+
+  deleteDataset:Boolean
+  @hook(fn: "neyho.eywa.dataset/prepare-deletion-context" metric: -1)
+  @hook(fn: "neyho.eywa.dataset/destroy-linked-versions")
+}
+
+type Subscription {
+  refreshedGlobalDataset:DatasetVersion
+  @resolve(fn: "neyho.eywa.dataset/deploy-update-subscription")
+}

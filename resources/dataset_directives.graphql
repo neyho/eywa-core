@@ -1,0 +1,14 @@
+directive @resolve (
+  "Clojure resolver"
+  fn: String
+  metric: Int
+) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
+
+directive @hook (
+  """Hooks that is attached to field resolver. Metric is optioinal
+  argument that can position hook before field resolver to enable modifying
+  input data or validating something by using negative metric (-1, -2, -3) or
+  after field resolver if positive metric is used (1, 2, 3)"""
+  fn: String
+  metric: Int
+) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION

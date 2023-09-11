@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+<configuration scan="true" scanPeriod="10 seconds">
+<!-- <configuration> -->
+  <statusListener class="ch.qos.logback.core.status.OnConsoleStatusListener"/>
+  <property name="DEV_HOME" value="./"/>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>(%d{HH:mm:ss.SSS}) ([%thread]) %highlight(%level) (%logger{36}) - %msg%n</pattern>
+    </encoder>
+  </appender>
+  <appender name="server" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${DEV_HOME}/logs/server.log</file>
+    <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %level %logger{36} - %msg%n</pattern>
+    </encoder>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>${DEV_HOME}logs/http.%d{yyyy-MM-dd}.log</fileNamePattern>
+      <maxHistory>7</maxHistory>
+      <totalSizeCap>600MB</totalSizeCap>
+    </rollingPolicy>
+  </appender>
+  <appender name="graphql" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${DEV_HOME}/logs/graphql.log</file>
+    <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %level %logger{36} - %msg%n</pattern>
+    </encoder>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>${DEV_HOME}logs/graphql.%d{yyyy-MM-dd}.log</fileNamePattern>
+      <maxHistory>7</maxHistory>
+      <totalSizeCap>100MB</totalSizeCap>
+    </rollingPolicy>
+  </appender>
+  
+  <!-- SERVER -->
+  <logger name="com.walmartlabs.lacinia.pedestal.subscriptions" level="info">
+    <appender-ref ref="server"/>
+  </logger>
+  <logger name="neyho.eywa.server.interceptors.authentication" level="error">
+    <appender-ref ref="server"/>
+  </logger>
+  <logger name="neyho.eywa.lacinia" level="info">
+    <appender-ref ref="server"/>
+  </logger>
+  <logger name="neyho.eywa.administration" level="info">
+    <appender-ref ref="server"/>
+  </logger>
+  <logger name="neyho.eywa.server" level="trace">
+    <appender-ref ref="server"/>
+  </logger>
+  <!-- GRAPHQL -->
+  <logger name="neyho.eywa.dataset" level="info">
+    <appender-ref ref="graphql"/>
+  </logger>
+  <logger name="neyho.eywa.core" level="info">
+    <appender-ref ref="server"/>
+  </logger>
+  <logger name="ch.qos.logback" level="error"/>
+  <root level="info">
+    <!-- <appender-ref ref="STDOUT"/> -->
+  </root>
+</configuration>
