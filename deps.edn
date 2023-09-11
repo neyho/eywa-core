@@ -47,6 +47,10 @@
  {:dev
   {:extra-paths ["src/dev" "frontend/dist"]}
   ;;
+  :cider
+  {:extra-deps {cider/cider-nrepl {:mvn/version "0.30.0"}}
+   :main-opts ["-m" "nrepl.cmdline" "--middleware" "[cider.nrepl/cider-middleware]"]}
+  ;;
   :hr
   {:jvm-opts ["-Duser.country=HR"
               "-Duser.language=hr"
