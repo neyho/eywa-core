@@ -1,26 +1,24 @@
-(ns user
-  (:require 
-    neyho.eywa.transit
-    neyho.eywa
-    neyho.eywa.properties
-    neyho.eywa.lacinia
-    neyho.eywa.server
-    neyho.eywa.server.jetty
-    neyho.eywa.data
-    neyho.eywa.db.postgres
-    neyho.eywa.avatars.postgres
-    neyho.eywa.authorization
-    neyho.eywa.administration
-    neyho.eywa.dataset
-    neyho.eywa.dataset.core
-    neyho.eywa.dataset.default-model
-    neyho.eywa.dataset.postgres
-    neyho.eywa.dataset.postgres.query
-    [neyho.eywa.server.interceptors.authentication :refer [init-default-encryption]])
-  (:gen-class :main true))
-
-
+(require '[neyho.eywa.properties])
 (neyho.eywa.properties/load-properties)
+
+
+(require 'neyho.eywa.transit)
+(require 'neyho.eywa)
+(require 'neyho.eywa.lacinia)
+(require 'neyho.eywa.server)
+(require 'neyho.eywa.server.jetty)
+(require 'neyho.eywa.data)
+(require 'neyho.eywa.db.postgres)
+(require 'neyho.eywa.avatars.postgres)
+(require 'neyho.eywa.authorization)
+(require 'neyho.eywa.administration)
+(require 'neyho.eywa.dataset)
+(require 'neyho.eywa.dataset.core)
+(require 'neyho.eywa.dataset.default-model)
+(require 'neyho.eywa.dataset.postgres)
+(require 'neyho.eywa.dataset.postgres.query)
+(require '[neyho.eywa.server.interceptors.authentication :refer [init-default-encryption]])
+
 
 
 (defn setup
@@ -49,3 +47,14 @@
 
 
 ; (-main)
+
+
+(comment
+  (setup)
+  (-main)
+  (neyho.eywa.administration/setup
+    {:users
+     [{:name "test" :password "test" :active true
+       :roles [neyho.eywa.data/*ROOT*]}]
+     :roles [neyho.eywa.data/*ROOT*]})
+  (neyho.eywa.dataset/load-role-schema))
