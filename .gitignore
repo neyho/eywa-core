@@ -12,13 +12,13 @@ target/
 dumps/
 tmp/
 assets/
+eywa.properties
 
 resources/app/eywa/js/*
 ws/robotics/dev/css/ui.css
 ws/administration/dev/css/ui.css
 
 # Clients
-
 # Workspace files are user-specific
 .idea
 tags
