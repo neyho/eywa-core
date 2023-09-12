@@ -2,6 +2,7 @@
   (:require 
     neyho.eywa.transit
     neyho.eywa
+    neyho.eywa.properties
     neyho.eywa.lacinia
     neyho.eywa.server
     neyho.eywa.server.jetty
@@ -17,6 +18,9 @@
     neyho.eywa.dataset.postgres.query
     [neyho.eywa.server.interceptors.authentication :refer [init-default-encryption]])
   (:gen-class :main true))
+
+
+(neyho.eywa.properties/load-properties)
 
 
 (defn setup
