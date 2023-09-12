@@ -2033,8 +2033,6 @@
                             (core/get-model this)
                             (core/map->ERDModel nil))
             projection (core/project current-model model)]
-        (comment
-          (def this (postgres/from-env)))
         (binding [*model* current-model]
           (transform-database
             con projection

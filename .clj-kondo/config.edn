@@ -1,0 +1,2 @@
+{:linters {:clojure-lsp/unused-public-var {:level :off}}
+ :skip-comments true}
