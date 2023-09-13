@@ -2093,7 +2093,7 @@
        (as-> (<-transit (slurp (io/resource "dataset/aaa.edm"))) model 
          (core/mount db model)
          (core/reload db model))
-       (dataset/sync-entity au/permission administration/permissions)
+       (dataset/stack-entity au/permission administration/permissions)
        (log/info "Mounted aaa.edm dataset")
        (binding [core/*return-type* :edn] 
          (dataset/sync-entity au/user *EYWA*)
@@ -2104,7 +2104,7 @@
            (core/mount db model)
            (core/reload db model))
          (log/info "Mounted dataset.edm dataset")
-         (dataset/sync-entity au/permission dataset/permissions)
+         (dataset/stack-entity au/permission dataset/permissions)
          (dataset/load-role-schema)
          (log/info "Deploying AAA dataset")
          (core/deploy! db (<-transit (slurp (io/resource "dataset/aaa.edm"))))

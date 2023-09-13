@@ -88,51 +88,67 @@
     :name "EYWA"}
    {:euuid c/administration
     :name "Administration"
+    :roles [*ROOT*]
     :parent {:euuid c/eywa}}
    {:euuid c/users
     :name "Users"
+    :roles [*ROOT*]
     :parent {:euuid c/administration}}
    {:euuid c/user-add
     :name "User Add"
+    :roles [*ROOT*]
     :parent {:euuid c/users}}
    {:euuid c/user-modify
     :name "User Edit"
+    :roles [*ROOT*]
     :parent {:euuid c/users}}
    {:euuid c/user-delete
     :name "User Delete"
+    :roles [*ROOT*]
     :parent {:euuid c/users}}
    {:euuid c/groups
     :name "Groups"
+    :roles [*ROOT*]
     :parent {:euuid c/administration}}
    {:euuid c/group-add
     :name "Group Add"
+    :roles [*ROOT*]
     :parent {:euuid c/groups}}
    {:euuid c/group-modify
     :name "Group Edit"
+    :roles [*ROOT*]
     :parent {:euuid c/groups}}
    {:euuid c/group-delete
     :name "Group Delete"
+    :roles [*ROOT*]
     :parent {:euuid c/groups}}
    {:euuid c/group-members
     :name "Group Members"
+    :roles [*ROOT*]
     :parent {:euuid c/groups}}
    {:euuid c/roles
     :name "Roles"
+    :roles [*ROOT*]
     :parent {:euuid c/administration}}
    {:euuid c/role-add
     :name "Role Add"
+    :roles [*ROOT*]
     :parent {:euuid c/roles}}
    {:euuid c/role-modify
     :name "Role Edit"
+    :roles [*ROOT*]
     :parent {:euuid c/roles}}
    {:euuid c/role-delete
     :name "Role Delete"
+    :roles [*ROOT*]
     :parent {:euuid c/roles}}
    {:euuid c/role-members
     :name "Role Members"
+    :roles [*ROOT*]
     :parent {:euuid c/roles}}
    {:euuid c/role-permissions
     :name "Role Members"
+    :roles [*ROOT*]
     :parent {:euuid c/roles}}])
 
 
