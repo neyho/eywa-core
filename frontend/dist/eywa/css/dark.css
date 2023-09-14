@@ -2100,10 +2100,10 @@ input[type="password"] {
 .eywa_ui_elements__L616_C19 {
   display: flex;
 }
-.eywa_ui_elements__L699_C42 {
+.eywa_ui_elements__L707_C42 {
   box-shadow: 0px 3px 14px 2px rgb(0 0 0 / 56%);
 }
-.eywa_ui_elements__L721_C20 {
+.eywa_ui_elements__L729_C20 {
   align-items: center;
   border-radius: 32px;
   display: flex;
@@ -2111,7 +2111,7 @@ input[type="password"] {
   justify-content: center;
   width: 32px;
 }
-.eywa_ui_elements__L728_C19 {
+.eywa_ui_elements__L736_C19 {
   align-items: center;
   border-radius: 26px;
   color: #929292;
@@ -2122,30 +2122,30 @@ input[type="password"] {
   transition: color,background-color .2s ease-in-out;
   width: 26px;
 }
-.eywa_ui_elements__L728_C19 svg {
+.eywa_ui_elements__L736_C19 svg {
   height: 14px;
   width: 14px;
 }
-.eywa_ui_elements__L740_C20:hover {
+.eywa_ui_elements__L748_C20:hover {
   background-color: #06b6d4;
   color: #fff8f3;
 }
-.eywa_ui_elements__L743_C21:hover {
+.eywa_ui_elements__L751_C21:hover {
   background-color: #ef4444;
   color: #fff8f3;
 }
-.eywa_ui_elements__L760_C17 {
+.eywa_ui_elements__L768_C17 {
   position: absolute;
   right: -16px;
   top: -16px;
 }
-.eywa_ui_elements__L760_C17 .wrapper {
+.eywa_ui_elements__L768_C17 .wrapper {
   align-items: center;
   display: flex;
   flex-direction: row;
   justify-content: flex-end;
 }
-.eywa_ui_elements__L779_C15 {
+.eywa_ui_elements__L787_C15 {
   background-color: #eaeaea;
   border-radius: 5px;
   display: flex;
@@ -2156,43 +2156,43 @@ input[type="password"] {
   position: relative;
   transition: box-shadow .2s ease-in-out;
 }
-.eywa_ui_elements__L779_C15 .card-actions {
+.eywa_ui_elements__L787_C15 .card-actions {
   opacity: 0;
   transition: opacity .4s ease-in-out;
 }
-.eywa_ui_elements__L779_C15:hover .card-actions {
+.eywa_ui_elements__L787_C15:hover .card-actions {
   opacity: 1;
 }
-.eywa_ui_elements__L779_C15 .avatar {
+.eywa_ui_elements__L787_C15 .avatar {
   left: -10px;
   position: absolute;
   top: -10px;
   transition: all .1s ease-in-out;
 }
-.eywa_ui_elements__L779_C15:hover {
+.eywa_ui_elements__L787_C15:hover {
   box-shadow: 1px 4px 11px 1px #ababab;
 }
-.eywa_ui_elements__L812_C20 {
+.eywa_ui_elements__L820_C20 {
   border-radius: 20em;
   margin-right: 0.5rem;
 }
-.eywa_ui_elements__L920_C18 {
+.eywa_ui_elements__L927_C18 {
   align-items: center;
   display: flex;
   justify-content: center;
 }
-.eywa_ui_elements__L934_C20 {
+.eywa_ui_elements__L941_C20 {
   height: 1.75rem;
   position: absolute;
   right: 0.2em;
   top: 0.2em;
 }
-.eywa_ui_elements__L940_C21 {
+.eywa_ui_elements__L947_C21 {
   align-items: center;
   display: flex;
   justify-content: center;
 }
-.eywa_ui_elements__L981_C23 {
+.eywa_ui_elements__L988_C23 {
   box-sizing: border-box;
   display: flex;
   flex-grow: 1;
@@ -2200,29 +2200,29 @@ input[type="password"] {
   max-height: 10%;
   padding-top: 1rem;
 }
-.eywa_ui_elements__L997_C25 {
+.eywa_ui_elements__L1004_C25 {
   align-items: flex-end;
   display: flex;
   justify-content: center;
 }
-.eywa_ui_elements__L1005_C23 {
+.eywa_ui_elements__L1012_C23 {
   display: flex;
   flex-grow: 1;
   height: 1.75rem;
   justify-content: flex-end;
   max-height: 10%;
 }
-.eywa_ui_elements__L1012_C25 {
+.eywa_ui_elements__L1019_C25 {
   align-items: center;
   display: flex;
   justify-content: center;
 }
-.eywa_ui_elements__L1020_C25 {
+.eywa_ui_elements__L1027_C25 {
   display: flex;
   flex-direction: column;
   flex-grow: 10;
 }
-.eywa_ui_elements__L1032_C17 {
+.eywa_ui_elements__L1039_C17 {
   display: flex;
   justify-content: center;
 }
@@ -5996,30 +5996,39 @@ input[type="password"] {
   color: #68fda757;
   font-weight: 700;
 }
-.eywa_app__L392_C21 {
+.eywa_app__L388_C37 {
+  cursor: pointer;
+  font-weight: 600;
+  margin-left: 1rem;
+  width: 5rem;
+}
+.eywa_app__L388_C37:hover {
+  color: #68fda7;
+}
+.eywa_app__L406_C21 {
   align-self: stretch;
   padding-top: 1rem;
 }
-.eywa_app__L422_C34 {
+.eywa_app__L436_C34 {
   display: flex;
   flex-direction: column;
   margin-bottom: 0.3em;
 }
-.eywa_app__L466_C39 {
+.eywa_app__L480_C39 {
   display: flex;
   justify-content: center;
   padding: 0.75rem;
 }
-.eywa_app__L491_C47 {
+.eywa_app__L505_C47 {
   display: flex;
   justify-content: center;
   margin: 0.75rem;
 }
-.eywa_app__L518_C16 {
+.eywa_app__L533_C16 {
   display: flex;
   flex-direction: column;
 }
-.eywa_app__L545_C17 {
+.eywa_app__L560_C17 {
   border-radius: 0.75rem;
   display: flex;
   flex-grow: 1;

@@ -54,9 +54,10 @@
 (comment
   (setup)
   (-main)
-  (neyho.eywa.administration/setup
-    {:users
-     [{:name "test" :password "test" :active true
-       :roles [neyho.eywa.data/*ROOT*]}]
-     :roles [neyho.eywa.data/*ROOT*]})
-  (neyho.eywa.dataset/load-role-schema))
+  (do
+    (neyho.eywa.administration/setup
+      {:users
+       [{:name "test" :password "test" :active true
+         :roles [neyho.eywa.data/*ROOT*]}]
+       :roles [neyho.eywa.data/*ROOT*]})
+    (neyho.eywa.dataset/load-role-schema)))
