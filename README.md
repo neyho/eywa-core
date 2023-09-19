@@ -22,7 +22,7 @@ Check out [setup.md](./doc/setup.md)
 First run your setup so you are ready to acctually run project. Currently supported database is Postgres,
 although support for MySQL, SQLite and others is on roadmap. 
 
-Requirement is to have Postgres, so if you don't installation i recommend using docker to download Postgres
+Requirement is to have Postgres, so if you don't have installation i recommend using docker to download Postgres
 image and afterwards run:
 ```
 docker run --name EYWA_DEV -p 5432:5432 -e POSTGRES_PASSWORD=password postgres

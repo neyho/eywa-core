@@ -225,6 +225,19 @@
       (async/close! sub))))
 
 
+(comment
+  (def version
+    (get-entity
+      du/dataset-version
+      {:euuid #uuid "5620617e-74e9-4f19-abe6-ecd6d771a790"}
+      {:euuid nil
+       :dataset [{:selections
+                  {:euuid nil
+                   :name nil}}]
+       :model nil
+       :name nil})))
+
+
 (defn deploy-dataset
   [{:keys [user username]
     :as context}

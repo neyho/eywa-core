@@ -199,8 +199,7 @@
         ",\n " 
         [(str from-field " bigint not null references \"" from-table "\"(_eid) on delete cascade")
          (str to-field " bigint not null references \"" to-table "\"(_eid) on delete cascade")
-         (str "unique(" from-field "," to-field ")")])
-      )))
+         (str "unique(" from-field "," to-field ")")]))))
 
 
 (defn generate-relation-indexes-ddl
@@ -417,19 +416,20 @@
                   ;;        WHEN 'pending' THEN 'pending'
                   ;;        ELSE your_column
                   ;;    END;
-                  (str
-                    "update " old-table " set " column " ="
-                    "\n  case " column  "\n    "
-                    (clojure.string/join
-                      "\n    "
-                      (reduce-kv
-                        (fn [r euuid old-name]
-                          (if-let [new-name (get nv euuid)]
-                            (conj r (str "     when '" old-name "' then '" new-name "'"))
-                            r))
-                        (list (str "   else " column))
-                        ov))
-                    "\n   end;")
+                  (if (empty? ov) ""
+                    (str
+                      "update " old-table " set " column " ="
+                      "\n  case " column  "\n    "
+                      (clojure.string/join
+                        "\n    "
+                        (reduce-kv
+                          (fn [r euuid old-name]
+                            (if-let [new-name (get nv euuid)]
+                              (conj r (str "     when '" old-name "' then '" new-name "'"))
+                              r))
+                          (list (str " else " column))
+                          ov))
+                      "\n   end;"))
 
                   (format "alter table \"%s\" alter column %s type %s using %s::text::%s"
                           old-table column new-enum-name column new-enum-name)
@@ -2189,7 +2189,6 @@
                       attribute-type :type}]
                 (let [attribute-column (normalize-name attribute-name)
                       constraint-name (str entity-table \_ attribute-column "_fkey")
-                      _ (println entity-table " attribute: " attribute-name attribute-type)
                       refered-table (case attribute-type
                                       "user" (user-table)
                                       "group" (group-table)
