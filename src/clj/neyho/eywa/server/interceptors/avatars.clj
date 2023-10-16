@@ -11,6 +11,7 @@
 
 (comment
   (def hex "TlBZAHAEagZlbnRpdHlbChC68j7ZTlOFen4M1Yz2+GoJYXR0cmlidXRlW7KIZWhd4UmjmSqH+2DtGXFqBnJlY29yZFvCfWgS5EpDALZQaUQ3XWGTagRzYWx0aQRlR2tZ")
+  (def hex "TlBZAHAEagZlbnRpdHlb7cqx2+5vR0S/6kR4KIkyI2oJYXR0cmlidXRlW1zFi3Bol0kZu0905frqVaRqBnJlY29yZFvFpnkiNR5Mo5XC+lKno+K1agRzYWx0aQRkMUVa")
   (def record
     (select-keys
       (nippy/thaw (b64/decode (.getBytes hex)))
@@ -47,13 +48,9 @@
                 :as context}]
             (let [{:keys [avatar]} path-params
                   avatar (get-avatar avatar)]
-              (assoc context :response (if-not avatar
-                                         {:status 404
-                                          :body "Not found!"}
-                                         {:status 200
-                                          :cache-control "max-age=60480"
-                                          :headers {"Cache-Control" "max-age=60480"}
-                                          :body avatar}))))})
-
-
-
+              ;; TODO - huh what to decide here... Should i return 404 not found
+              ;; If i do i get CORS errors on frontend. Damn
+              (assoc context :response {:status 200
+                                        :cache-control "max-age=60480"
+                                        :headers {"Cache-Control" "max-age=60480"}
+                                        :body avatar})))})

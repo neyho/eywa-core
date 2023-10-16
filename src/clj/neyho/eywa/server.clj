@@ -343,3 +343,7 @@
                    http/create-server)]
      (log/infof "Starting EYWA server at %s:%s" host port)
      (reset! server (http/start _server)))))
+
+
+(comment
+  (start))
