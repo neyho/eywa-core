@@ -17,6 +17,24 @@
 (defn upload [file key] (-upload *storage* file key))
 
 
+(extend-type nil
+  StorageProtocol
+  (-available? [_])
+  (-search
+    ([_] (-search nil nil))
+    ([_ _]))
+  (-upload
+    ([_ _ _])
+    ([_ _ _ _]))
+  (-download
+    ([_ _])
+    ([_ _ _])
+    ([_ _ _ _]))
+  (-delete
+    ([_])
+    ([_ _ _])))
+
+
 (defn download
   ([key] (-download *storage* key))
   ([key version] (-download *storage* key version))

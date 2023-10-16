@@ -181,7 +181,6 @@
            coerce-body
            avatars]
      :route-name :eywa.avatars/get]
-    ; ["/eywa/token" :post [content-neg-intc (body-params/body-params) keyword-params get-token] :route-name :eywa.token/reflector]
     ["/eywa/token" :get [authenticate user-token] :route-name :eywa.token/reflector]
     ["/eywa/whoami" :get [authenticate coerce-body content-neg-intc user-data] :route-name :eywa.identity/get]
     ["/eywa/access" :get [authenticate coerce-body content-neg-intc access-tree] :route-name :eywa.access/get]
@@ -251,6 +250,9 @@
     (catch Throwable _ "EYWA N/A")))
 
 
+(defonce _response (atom nil))
+
+
 (def eywa-web-interceptor
   (let [eywa-spa {:status 200
                   :headers {"Content-Type" "text/html"}
@@ -263,8 +265,11 @@
                             (let [path (subs path 1)]
                               (if (io/resource path)
                                 (assoc context :response
-                                       (-> (response/resource-response path)
-                                           (head/head-response request)))
+                                       (let [response (-> (response/resource-response path)
+                                                          (head/head-response request)
+                                                          #_(assoc-in [:headers "Cache-Control"] "max-age=500000"))]
+                                         (reset! _response response)
+                                         response))
                                 (chain/terminate
                                   (assoc context
                                          :response {:status 404
@@ -318,6 +323,7 @@
                      graphql-routes))
           context-configurator jetty/context-configuration}}]
    (stop)
+   (log/info "Starting EYWA server")
    (let [router (route/router routes :map-tree)
          _server (->
                    {::http/type :jetty
@@ -331,18 +337,18 @@
                      (middlewares/content-type {:mime-types {}})
                      route/query-params
                      (route/method-param)
-                     (sec-headers/secure-headers {:content-security-policy-settings {:object-src "none"}})
+                     ; (sec-headers/secure-headers {:content-security-policy-settings {:object-src "none"}})
                      eywa-web-interceptor
                      router
-                     (middlewares/resource "public")
+                     ; (middlewares/resource "public")
                      (interceptor/interceptor http/not-found)]
                     ; ::http/secure-headers {:content-security-policy-settings {:object-src "none"}}
                     ; ::http/file-path "web/public"
                     }
                    http/dev-interceptors
                    http/create-server)]
-     (log/infof "Starting EYWA server at %s:%s" host port)
-     (reset! server (http/start _server)))))
+     (reset! server (http/start _server))
+     (log/infof "EYWA server started @ %s:%s" host port))))
 
 
 (comment

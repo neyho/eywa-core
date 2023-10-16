@@ -48,9 +48,13 @@
                 :as context}]
             (let [{:keys [avatar]} path-params
                   avatar (get-avatar avatar)]
-              ;; TODO - huh what to decide here... Should i return 404 not found
-              ;; If i do i get CORS errors on frontend. Damn
-              (assoc context :response {:status 200
-                                        :cache-control "max-age=60480"
-                                        :headers {"Cache-Control" "max-age=60480"}
-                                        :body avatar})))})
+              (assoc context
+                     :response (if-not avatar
+                                 {:status 200
+                                  :cache-control "max-age=60480"
+                                  :headers {"Cache-Control" "max-age=60480"}
+                                  :body avatar}
+                                 {:status 200
+                                  :cache-control "max-age=60480"
+                                  :headers {"Cache-Control" "max-age=60480"}
+                                  :body avatar}))))})
