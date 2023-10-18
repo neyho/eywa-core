@@ -200,9 +200,7 @@
                               ;; and put it to avatars
                               [(dissoc fd k) (assoc a k (get fd k))]
                               (letfn [(->postgres [v]
-                                        (log/tracef
-                                          :message "[%s]Casting %s to Postgres type %s"
-                                          k v t)
+                                        (log/tracef "[%s]Casting %s to Postgres type %s" k v t)
                                         (when v
                                           (doto (PGobject.)
                                             (.setType t)
@@ -399,6 +397,47 @@
              entity data)))))))
 
 
+; (defn pull-references [tx reference-table references]
+;   (let [table-constraint-mapping 
+;         (reduce-kv
+;           (fn [result constraints _]
+;             (update result 
+;               (set (keys constraints))
+;               (fnil conj [])
+;               constraints))
+;           nil
+;           references)]
+;     (reduce-kv
+;       (fn [result constraint-keys values]
+;         (let [multi? (> (count constraint-keys) 1)
+;               pattern (if multi? 
+;                         (str \( (clojure.string/join ", " (repeat (count constraint-keys) \?)) \))
+;                         (str "?"))
+;               query (str
+;                       "select _eid from " \" reference-table \" " where "
+;                       \( (clojure.string/join "," (map name constraint-keys)) \)
+;                       " in (" (clojure.string/join ", " (repeat (count values) pattern)) ")")
+;               values' (if multi?
+;                         (map (apply juxt constraint-keys) values)
+;                         (map #(get % (first constraint-keys)) values))]
+;           (log/tracef
+;             "[%s]Pulling references %s for values %s\nQuery: %s"
+;             reference-table
+;             (str/join ", " constraint-keys)
+;             (str/join ", " values') 
+;             query)
+;           (log/tracef "Values:\n%s" (pprint values))
+;           (merge
+;             result
+;             (zipmap
+;               values
+;               (map :_eid (postgres/execute!
+;                            tx (into [query] values') 
+;                            core/*return-type*))))))
+;       nil
+;       table-constraint-mapping)))
+
+
 (defn pull-references [tx reference-table references]
   (let [table-constraint-mapping 
         (reduce-kv
@@ -415,9 +454,12 @@
               pattern (if multi? 
                         (str \( (clojure.string/join ", " (repeat (count constraint-keys) \?)) \))
                         (str "?"))
+              ;; order is not guaranteed
+              columns (map name constraint-keys)
               query (str
-                      "select _eid from " \" reference-table \" " where "
-                      \( (clojure.string/join "," (map name constraint-keys)) \)
+                      "select " (str/join ", " (conj columns "_eid"))
+                      " from " \" reference-table \" " where "
+                      \( (clojure.string/join "," columns) \)
                       " in (" (clojure.string/join ", " (repeat (count values) pattern)) ")")
               values' (if multi?
                         (map (apply juxt constraint-keys) values)
@@ -428,13 +470,20 @@
             (str/join ", " constraint-keys)
             (str/join ", " values') 
             query)
-          (merge
-            result
-            (zipmap
-              values
-              (map :_eid (postgres/execute!
-                           tx (into [query] values') 
-                           core/*return-type*))))))
+          (let [data (postgres/execute!
+                       tx (into [query] values') 
+                       core/*return-type*)
+                data' (reduce
+                        (fn [r d]
+                          (assoc r (dissoc d :_eid) (:_eid d)))
+                        nil
+                        data)]
+            ; (log/tracef "Normalized reference data\n%s" (pprint data'))
+            (reduce
+              (fn [result constraint-data]
+                (assoc result constraint-data (get data' constraint-data)))
+              result
+              values))))
       nil
       table-constraint-mapping)))
 
@@ -444,6 +493,7 @@
   (reduce-kv
     (fn [analysis reference-table references]
       (let [pulled-references (pull-references tx reference-table references)]
+        (log/tracef "Pulled references for table: %s\n%s" reference-table (pprint pulled-references))
         (reduce-kv
           (fn [analysis constraint value]
             (let [rows (get-in analysis [:reference reference-table constraint])]
@@ -488,11 +538,13 @@
                 columns-fn #(str \" (name %) \")
                 ks' (map columns-fn ks)
                 values-? (str \( (str/join ", " (repeat (count ks) \?)) \))
+                ;;
                 constraint (if (contains? ks :euuid)
                              [:euuid]
                              (some
                                #(when (every? ks %) %)
                                (get constraint entity-table)))
+                ;;
                 on-values (map columns-fn constraint)
                 ;;
                 query
@@ -511,8 +563,8 @@
                       (str " ON CONFLICT (" on-sql ") DO UPDATE SET " do-set)))
                   " RETURNING _eid, euuid")
                 _ (log/tracef
-                    :message "[%s]Storing entity group %s\nData:\n%s\nQuery:\n%s"
-                    entity-table constraint row-data query)
+                    "[%s]Storing entity group %s\nData:\n%s\nQuery:\n%s"
+                    entity-table constraint (pr-str row-data) query)
                 result (postgres/execute!
                          tx (into [query] (flatten row-data))
                          *return-type*)
@@ -791,6 +843,8 @@
            avatars))))))
 
 
+
+
 (defn set-entity 
   ([entity-id data]
    (with-open [connection (jdbc/get-connection (:datasource *db*))]
@@ -809,6 +863,7 @@
                (mapv #(get-in entity [table %]) root)
                (get-in entity [table root])))]
      (let [analysis (analyze-data entity-id data stack?)]
+       (log/tracef "Storing based on analysis\n%s" (pprint analysis))
        (as-> analysis result
          (prepare-references tx result)
          (store-entity-records tx result)
@@ -1273,117 +1328,112 @@
                   (into data data')])
                
                ;; Handle fields
-               (do
-                 ; (log/trace
-                 ;   :query.selection :processing/field
-                 ;   :field field
-                 ;   :constraints constraints)
-                 (case field
-                   :_where 
-                   (let [[statements' data'] (query-selection->sql (assoc schema :args constraints))] 
-                     [(into statements statements')
-                      (into data data')])
-                   :_and 
-                   (update
-                     (reduce
-                       (fn [[statements data] [statements' data']]
-                         [(into statements statements')
-                          (into data data')])
-                       [[] data]
-                       (map #(query-selection->sql (assoc schema :args %)) constraints))
-                     0
-                     (fn [statements']
-                       (conj statements 
-                         (str 
-                           "(" 
-                           (clojure.string/join 
-                             " and "
-                             statements')
-                           ")"))))
-                   :_or 
-                   (update
-                     (reduce
-                       (fn [[statements data] [statements' data']]
-                         [(into statements statements')
-                          (into data data')])
-                       [[] data]
-                       (map #(query-selection->sql (assoc schema :args %)) constraints))
-                     0
-                     (fn [statements'] 
-                       (conj statements
-                         (str 
-                           "(" 
-                           (clojure.string/join 
-                             " or "
-                             statements')
-                           ")"))))
-                   ;; Ignore limit distinct offset
-                   (:_limit :_offset :_order_by :_distinct)
-                   (do
-                     ; (log/trace
-                     ;   :query.selection :ignore/field
-                     ;   :field field
-                     ;   :constraints constraints)
-                     [statements data])
-                   ;; Default handlers
-                   (if (keyword? constraints) 
-                     (case constraints
-                       :is_null [(conj statements (format "%s is null" field')) data]
-                       :is_not_null [(conj statements (format "%s is not null" field')) data])
-                     (reduce-kv
-                       (fn [[statements' data'] cn cv]
-                         ; (log/trace
-                         ;   :constraint/name cn
-                         ;   :constraint/value cv)
-                         (if (or
-                               (and
-                                 (vector? cv)
-                                 (not-empty cv))
-                               (and
-                                 (not (vector? cv))
-                                 (some? cv)))
-                           (let [statement (case cn
-                                             :_in (format 
-                                                    "%s in (%s)" 
-                                                    field'
-                                                    (clojure.string/join "," (repeat (count cv) \?))) 
-                                             :_not_in (format 
-                                                        "%s not in (%s)" 
-                                                        field'
-                                                        (clojure.string/join "," (repeat (count cv) \?)))
-                                             :_le (str field' " < ?")
-                                             :_ge (str field' " > ?")
-                                             :_eq (str field' " = ?")
-                                             :_neq (str field' " != ?")
-                                             :_lt (str field' " <= ?")
-                                             :_gt (str field' " >= ?")
-                                             :_like (str field' " like ?")
-                                             :_ilike (str field' " ilike ?")
-                                             :_limit (str field' " limit ?")
-                                             :_offset (str field' " offset ?")
-                                             ;; If nested condition than
-                                             (do
-                                               (log/error
-                                                 "Nested condition error:\nConstraint: %s\nValue: %s\nSchema:\n%s"
-                                                 cn
-                                                 cv
-                                                 (pprint schema))
-                                               (throw (Exception. "Nested problem"))))
-                                 data (case cn
-                                        (:_in :_not_in) (into data' 
-                                                              (if-let [e (get encoders field)] 
-                                                                (map e cv)
-                                                                cv))
-                                        (conj data' (if-let [e (get encoders field)] 
-                                                      (e cv)
-                                                      cv)))]
-                             [(conj statements' statement) data])
-                           (case cn
-                             :_eq [(conj statements' (format "%s is null" field')) data']
-                             :_neq [(conj statements' (format "%s is not null" field')) data']
-                             [statements' data'])))
-                       [statements data]
-                       constraints))))))))
+               (case field
+                 :_where 
+                 (let [[statements' data'] (query-selection->sql (assoc schema :args constraints))] 
+                   [(into statements statements')
+                    (into data data')])
+                 :_and 
+                 (update
+                   (reduce
+                     (fn [[statements data] [statements' data']]
+                       [(into statements statements')
+                        (into data data')])
+                     [[] data]
+                     (map #(query-selection->sql (assoc schema :args %)) constraints))
+                   0
+                   (fn [statements']
+                     (conj statements 
+                           (str 
+                             "(" 
+                             (clojure.string/join 
+                               " and "
+                               statements')
+                             ")"))))
+                 :_or 
+                 (update
+                   (reduce
+                     (fn [[statements data] [statements' data']]
+                       [(into statements statements')
+                        (into data data')])
+                     [[] data]
+                     (map #(query-selection->sql (assoc schema :args %)) constraints))
+                   0
+                   (fn [statements'] 
+                     (conj statements
+                           (str 
+                             "(" 
+                             (clojure.string/join 
+                               " or "
+                               statements')
+                             ")"))))
+                 ;; Ignore limit distinct offset
+                 (:_limit :_offset :_order_by :_distinct)
+                 (do
+                   ; (log/trace
+                   ;   :query.selection :ignore/field
+                   ;   :field field
+                   ;   :constraints constraints)
+                   [statements data])
+                 ;; Default handlers
+                 (if (keyword? constraints) 
+                   (case constraints
+                     :is_null [(conj statements (format "%s is null" field')) data]
+                     :is_not_null [(conj statements (format "%s is not null" field')) data])
+                   (reduce-kv
+                     (fn [[statements' data'] cn cv]
+                       ; (log/trace
+                       ;   :constraint/name cn
+                       ;   :constraint/value cv)
+                       (if (or
+                             (and
+                               (vector? cv)
+                               (not-empty cv))
+                             (and
+                               (not (vector? cv))
+                               (some? cv)))
+                         (let [statement (case cn
+                                           :_in (format 
+                                                  "%s in (%s)" 
+                                                  field'
+                                                  (clojure.string/join "," (repeat (count cv) \?))) 
+                                           :_not_in (format 
+                                                      "%s not in (%s)" 
+                                                      field'
+                                                      (clojure.string/join "," (repeat (count cv) \?)))
+                                           :_le (str field' " < ?")
+                                           :_ge (str field' " > ?")
+                                           :_eq (str field' " = ?")
+                                           :_neq (str field' " != ?")
+                                           :_lt (str field' " <= ?")
+                                           :_gt (str field' " >= ?")
+                                           :_like (str field' " like ?")
+                                           :_ilike (str field' " ilike ?")
+                                           :_limit (str field' " limit ?")
+                                           :_offset (str field' " offset ?")
+                                           ;; If nested condition than
+                                           (do
+                                             (log/error
+                                               "Nested condition error:\nConstraint: %s\nValue: %s\nSchema:\n%s"
+                                               cn
+                                               cv
+                                               (pprint schema))
+                                             (throw (Exception. "Nested problem"))))
+                               data (case cn
+                                      (:_in :_not_in) (into data' 
+                                                            (if-let [e (get encoders field)] 
+                                                              (map e cv)
+                                                              cv))
+                                      (conj data' (if-let [e (get encoders field)] 
+                                                    (e cv)
+                                                    cv)))]
+                           [(conj statements' statement) data])
+                         (case cn
+                           :_eq [(conj statements' (format "%s is null" field')) data']
+                           :_neq [(conj statements' (format "%s is not null" field')) data']
+                           [statements' data'])))
+                     [statements data]
+                     constraints)))))))
        [[] data]
        operators))))
 
@@ -1595,7 +1645,7 @@
                 query (pull-query 
                         (update cursor-schema :args dissoc :_limit :_offset) 
                         (get found-records (keyword as)) parents)
-                _ (log/trace
+                _ (log/tracef
                     "[%s] Sending pull query:\n%s"
                     table query)
                 relations (cond-> 
