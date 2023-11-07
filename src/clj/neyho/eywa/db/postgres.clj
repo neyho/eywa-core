@@ -102,9 +102,12 @@
   [^neyho.eywa.Postgres admin database backup]
   (let [db (connect admin)]
     (with-open [con (jdbc/get-connection (:datasource db))]
-      (jdbc/execute-one!
+      (jdbc/execute!
         con
-        [(format "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='%s';create database %s with template '%s'" database backup database)]))
+        [(format "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='%s'" database)])
+      (jdbc/execute!
+        con
+        [(format "create database %s with template '%s'" backup database)]))
     true))
 
 
@@ -113,7 +116,7 @@
   (def admin (connect admin))
   (with-open [con (jdbc/get-connection (:datasource db))])
   (def database "a1_mk")
-  (backup admin "a1_mk" "a1_mk_25082023")
+  (backup admin "ivs_10052022" "ivs_07112023")
   )
 
 

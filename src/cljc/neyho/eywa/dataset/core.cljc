@@ -2,7 +2,15 @@
   (:require
     clojure.set
     clojure.data
+    ;; DEPRECATED - only for version 1
+    #?(:cljs
+       [helix.core :refer [create-context]])
     [clojure.core.async :as async]))
+
+
+;; DEPRECATED - only for version 1
+#?(:cljs (defonce ^:dynamic *dataset* (create-context)))
+
 
 (defn deep-merge
   "Recursively merges maps."
@@ -97,7 +105,14 @@
   (update-entity-unique-constraints [this f]
     (update-in this [:configuration :constraints :unique] f))
   (get-entity-unique-constraints [this]
-    (get-in this [:configuration :constraints :unique]))
+    (let [active-attributes (set (map :euuid (filter :active (:attributes this))))]
+      (reduce
+        (fn [r constraint-group]
+          (if-some [filtered-group (not-empty (filter active-attributes constraint-group))]
+            (conj r (vec filtered-group))
+            r))
+        []
+        (get-in this [:configuration :constraints :unique]))))
   ;;
   ERDEntityAttributeProtocol
   (generate-attribute-id [_]

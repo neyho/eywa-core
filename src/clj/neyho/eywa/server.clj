@@ -9,7 +9,7 @@
     [ring.middleware.head :as head]
     [io.pedestal.http :as http]
     [io.pedestal.http.cors :as cors]
-    [io.pedestal.http.secure-headers :as sec-headers]
+    ; [io.pedestal.http.secure-headers :as sec-headers]
     [io.pedestal.interceptor :as interceptor]
     [io.pedestal.interceptor.chain :as chain]
     [io.pedestal.http.route :as route]
@@ -267,7 +267,7 @@
                                 (assoc context :response
                                        (let [response (-> (response/resource-response path)
                                                           (head/head-response request)
-                                                          #_(assoc-in [:headers "Cache-Control"] "max-age=500000"))]
+                                                          (assoc-in [:headers "Cache-Control"] "max-age=500000"))]
                                          (reset! _response response)
                                          response))
                                 (chain/terminate
