@@ -52,6 +52,7 @@
 
 
 (comment
+  (tear-down)
   (setup)
   (-main)
   (do

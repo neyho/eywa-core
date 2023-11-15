@@ -1015,7 +1015,6 @@
                           "transit" (update result field freeze)
                           (assoc result field 
                                  (fn [v] 
-                                   ; (log/trace (str "TYPE: " [field t v]))
                                    (doto (PGobject.)
                                      (.setType t)
                                      (.setValue (name v))))))))
@@ -1728,7 +1727,7 @@
                                        (str
                                          (when (= found-records {})
                                            (modifiers-selection->sql {:args args}))))]
-                      (log/trace "[%s] Root query:\n%s" table root-query)
+                      (log/tracef "[%s] Root query:\n%s" table root-query)
                       (postgres/execute!
                         con
                         [root-query]
@@ -1904,7 +1903,7 @@
   ([schema]
    (with-open [connection (jdbc/get-connection (:datasource *db*))] 
      (search-entity-roots connection schema)))
-  ([con schema]
+  ([connection schema]
    ; (log/tracef "Searching entity roots for schema:\n%s" (pprint schema))
    ;; Prepare tables target table by inner joining all required tables
    (let [focused-schema (focus-order schema)
@@ -1940,7 +1939,7 @@
                            "Query for roots:\n%s\nData:\n%s"
                            query (pprint data))
                          (postgres/execute!
-                           con (into [query] data)
+                           connection (into [query] data)
                            core/*return-type*)))]
      ;; when there are some results
      (if (not-empty r)
@@ -1969,7 +1968,7 @@
            ;     :schema schema)
            roots (search-entity-roots connection schema)]
        (when (some? roots)
-         (log/trace "[%s] Found roots: %s" entity-id (str/join ", " roots))
+         (log/tracef "[%s] Found roots: %s" entity-id (str/join ", " roots))
          (pull-roots connection schema roots))))))
 
 
@@ -2001,12 +2000,39 @@
          [])))))
 
 
+(comment
+  (def selection
+    {:UserGroup/euuid [nil],
+     :UserGroup/name [nil],
+     :UserGroup/avatar [nil],
+     :UserGroup/active [nil],
+     :UserGroup/users
+     [{:args {:_where {:type {:_eq :PERSON}}},
+       :selections
+       {:User/euuid [nil],
+        :User/name [nil],
+        :User/type [nil],
+        :User/avatar [nil]}}]})
+  (def args {:euuid #uuid "fbcf3bb9-7728-4b80-8b09-b27cca84e663"})
+  (def entity-id neyho.eywa.administration.uuids/user-group)
+  (def args
+    (reduce-kv
+      (fn [args k v]
+        (assoc args k {:_eq v}))
+      nil
+      args))
+  (def schema (selection->schema entity-id selection args))
+  (def connection (jdbc/get-connection (:datasource *db*)))
+  (search-entity-roots connection schema)
+  (.close connection))
+
+
 (defn get-entity 
   ([entity-id args selection]
    (assert (some? args) "No arguments to get entity for...")
    ; (println "ARGS: " (pr-str args))
    ; (println "SEL: " (pr-str selection))
-   (log/trace
+   (log/tracef
      "[%s] Getting entity\nArgs:%s\nSelection:\n%s"
      entity-id (pprint args) (pprint selection))
    (let [args (reduce-kv
@@ -2020,7 +2046,7 @@
          (when (not-empty roots) 
            (let [roots' (pull-roots connection schema roots)
                  response (first roots')]
-             (log/trace
+             (log/tracef
                "[%s] Returning response\n%s"
                entity-id (pprint response))
              response)))))))

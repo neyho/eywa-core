@@ -227,7 +227,7 @@
   (get-relations [this] "Returns vector of relations")
   (get-relations-between [this entity1 entity2] "Returns all found relations that exist between entity1 entity2")
   (add-relation [this relation])
-  (create-relation [this from to] [this from to type] [this from to type path] "Creates relation from entity to entity")
+  (create-relation [this from to] [this from to type] [this from to type path] [euuid this from to type path] "Creates relation from entity to entity")
   (set-relation [this relation] "Sets relation in model ignoring previous values")
   (update-relation [this euuid function] "Updates relation in model by merging new values upon old ones")
   (remove-relation [this relation] "Removes relation between entities"))

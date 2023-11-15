@@ -65,3 +65,7 @@
 
 (defn tear-down [config]
   (-> config eywa s/tear-down))
+
+
+(comment
+  (backup-account "ivs_10052022"))
