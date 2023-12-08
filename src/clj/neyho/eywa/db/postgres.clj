@@ -111,13 +111,46 @@
     true))
 
 
-(comment
-  (def admin (assoc (admin-from-env) :db "eywa"))
-  (def admin (connect admin))
-  (with-open [con (jdbc/get-connection (:datasource db))])
-  (def database "a1_mk")
-  (backup admin "ivs_10052022" "ivs_07112023")
-  )
+
+(defonce connection-agent (agent {:running? true}))
+
+
+(defn monitor-connection
+  [{:keys [running? period]
+    :or {running? true
+         period 10000}
+    :as data} database]
+  (if-not running? data
+    (do
+      (when-not (postgres-connected? (:datasource neyho.eywa.db/*db*))
+        (try
+          (when (nil? database)
+            (throw
+              (ex-info
+                "Database not specified"
+                data)))
+          (when-let [db (connect database)]
+            (alter-var-root #'neyho.eywa.db/*db* (constantly db))
+            nil)
+          (catch Throwable e
+            (log/errorf e "Couldn't connect to DB"))))
+      (send-off *agent* monitor-connection database)
+      (Thread/sleep period))))
+
+
+(defn start-connection-monitor
+  [database]
+  (send-off connection-agent (fn [_] {:running? true :period 10000}))
+  (send-off connection-agent monitor-connection database))
+
+
+(defn stop-connection-monitor
+  []
+  (send-off connection-agent (fn [x] (assoc x :running? false)))
+  (when-some [db neyho.eywa.db/*db*]
+    (when (postgres-connected? db)
+      (.close (:datasource db))
+      (alter-var-root #'neyho.eywa.db/*db* (constantly nil)))))
 
 
 (defn init
@@ -126,4 +159,5 @@
   ([database]
    (when-let [db (connect database)]
      (alter-var-root #'neyho.eywa.db/*db* (constantly db))
-     db)))
+     nil)
+   (start-connection-monitor database)))

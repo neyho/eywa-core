@@ -414,7 +414,7 @@
 
 
 
-(defn focus-entity-relations 
+(defn focus-entity-relations
   "Function returns entity rel focused on entity, inverting
   all relations that are not outgoing from input entity"
   ([model entity]

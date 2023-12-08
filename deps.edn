@@ -32,11 +32,12 @@
   com.walmartlabs/lacinia-pedestal             {:mvn/version "1.1"}
   ;; Logging - chosen because it follows pedestal and lacinia
   ;; they are both using clojure.tools.logging
-  ch.qos.logback/logback-classic               {:mvn/version "1.2.3"}
+  ch.qos.logback/logback-classic               {:mvn/version "1.4.13"}
   org.clojure/tools.logging                    {:mvn/version "1.2.4"}
   ;;
   camel-snake-kebab/camel-snake-kebab          {:mvn/version "0.4.1"}
-  com.github.gersak/vura                       {:mvn/version "0.5.7-SNAPSHOT"}
+  com.github.gersak/vura                       {:mvn/version "0.5.8"}
+  ; com.github.gersak/vura                       {:local/root "../../vura"}
   babashka/fs                                  {:mvn/version "0.2.12"}}
 
  :paths ["src/clj" "src/cljc" "src/cljs" "src/css" "resources"]
