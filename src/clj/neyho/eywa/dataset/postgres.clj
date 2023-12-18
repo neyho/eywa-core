@@ -2085,8 +2085,10 @@
   (core/setup
     ([this]
      (let [admin (postgres/admin-from-env)
-           _ (postgres/create-db admin (:db this))
-           db (postgres/init this)]
+           db (postgres/create-db admin (:db this))]
+       ;; Set this new database as default db
+       (alter-var-root #'neyho.eywa.db/*db* (constantly db))
+       ;;
        (log/infof "Initializing tables for host\n%s" (pr-str db))
        (core/create-deploy-history db)
        (log/info "Created __deploy_history")
