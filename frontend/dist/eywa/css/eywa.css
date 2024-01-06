@@ -1789,28 +1789,29 @@ h4 {
   top: 4em;
 }
 .eywa_css_login__L20_C3 h1 {
-  font-size: 6rem;
+  font-size: 48px;
   font-weight: 700;
-  line-height: 1;
+  line-height: 64px;
 }
 .eywa_css_login__L20_C3 h4 {
-  font-size: 1.25rem;
-  line-height: 1.75rem;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 24px;
 }
-.eywa_css_login__L30_C3 {
+.eywa_css_login__L36_C3 {
   align-items: center;
-  background-color: var(--bg-opaque);
-  border-color: var(--border-normal);
+  background-color: #101010d9;
+  border: 1px solid #232323;
   display: flex;
   flex-direction: column;
   padding: 2.5rem;
   position: relative;
 }
-.eywa_css_login__L30_C3 .row {
+.eywa_css_login__L36_C3 .row {
   position: relative;
   width: 15em;
 }
-.eywa_css_login__L30_C3 .row .ficon {
+.eywa_css_login__L36_C3 .row .ficon {
   color: #797979;
   height: 1.5rem;
   left: 0.5rem;
@@ -1818,10 +1819,10 @@ h4 {
   top: 0.5rem;
   width: 1.5rem;
 }
-.eywa_css_login__L30_C3 .row:not(:last-child) {
+.eywa_css_login__L36_C3 .row:not(:last-child) {
   margin-bottom: 0.5rem;
 }
-.eywa_css_login__L49_C3 {
+.eywa_css_login__L55_C3 {
   background-color: #101010;
   border: 1px solid;
   border-color: #232323;
@@ -1832,14 +1833,14 @@ h4 {
   transition: border-color .3s ease-in-out;
   width: 100%;
 }
-.eywa_css_login__L49_C3:hover:not(:focus) {
+.eywa_css_login__L55_C3:hover:not(:focus) {
   border-color: #689579;
 }
-.eywa_css_login__L49_C3:focus {
+.eywa_css_login__L55_C3:focus {
   animation: login-input-click .3s ease-in-out;
   border-color: #797979;
 }
-.eywa_css_login__L63_C3 {
+.eywa_css_login__L69_C3 {
   background-color: #101010;
   border: 1px solid #232323;
   color: #B9B9B9;
@@ -1848,7 +1849,7 @@ h4 {
   text-transform: uppercase;
   width: 15em;
 }
-.eywa_css_login__L63_C3:hover {
+.eywa_css_login__L69_C3:hover {
   border-color: #689579;
 }
 .eywa_ui_elements__L45_C18 {
