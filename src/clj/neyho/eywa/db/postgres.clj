@@ -25,7 +25,10 @@
                      (.setUsername user)
                      (.setPassword password)
                      (.addDataSourceProperty "connectionInitSql" "SET TIME ZONE 'UTC'")
-                     (.setMaximumPoolSize max-connections))]
+                     (.setMaximumPoolSize max-connections)
+                     (.setConnectionTestQuery "select 1")
+                     (.setConnectionTimeout 30000)
+                     (.setValidationTimeout 5000))]
     (when-not (postgres-connected? datasource)
       (throw (ex-info "Couldn't connect to Postgres" data)))
     (log/infof "[%s]Connected to %s PostgresDB" user url)
@@ -148,7 +151,7 @@
   []
   (send-off connection-agent (fn [x] (assoc x :running? false)))
   (when-some [db neyho.eywa.db/*db*]
-    (when (postgres-connected? db)
+    (when (postgres-connected? (:datasource db))
       (.close (:datasource db))
       (alter-var-root #'neyho.eywa.db/*db* (constantly nil)))))
 
