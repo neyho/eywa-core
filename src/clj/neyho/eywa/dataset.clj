@@ -6,6 +6,7 @@
     [clojure.java.io :as io]
     [clojure.tools.logging :as log]
     [clojure.core.async :as async]
+    neyho.eywa
     [neyho.eywa.data :refer [*ROOT*]]
     [neyho.eywa.administration.uuids :as au]
     [neyho.eywa.authorization :refer [role-permissions]]

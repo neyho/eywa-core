@@ -27,6 +27,7 @@
                      (.addDataSourceProperty "connectionInitSql" "SET TIME ZONE 'UTC'")
                      (.setMaximumPoolSize max-connections)
                      (.setConnectionTestQuery "select 1")
+                     (.setKeepaliveTime 5000)
                      (.setConnectionTimeout 30000)
                      (.setValidationTimeout 5000))]
     (when-not (postgres-connected? datasource)

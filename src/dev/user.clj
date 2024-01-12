@@ -48,17 +48,4 @@
     {:context-configurator neyho.eywa.server.jetty/context-configuration}))
 
 
-; (-main)
-
-
-(comment
-  (tear-down)
-  (setup)
-  (-main)
-  (do
-    (neyho.eywa.administration/setup
-      {:users
-       [{:name "test" :password "test" :active true
-         :roles [neyho.eywa.data/*ROOT*]}]
-       :roles [neyho.eywa.data/*ROOT*]})
-    (neyho.eywa.dataset/load-role-schema)))
+(-main)

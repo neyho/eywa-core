@@ -18,7 +18,7 @@
   ;; POSTGRES
   org.postgresql/postgresql         {:mvn/version "42.2.19"}
   com.github.seancorfield/next.jdbc {:mvn/version "1.2.772"}
-  com.zaxxer/HikariCP               {:mvn/version "3.4.5"}
+  com.zaxxer/HikariCP               {:mvn/version "5.1.0"}
   ;; SERVER
   org.bouncycastle/bcprov-jdk15on              {:mvn/version "1.68" :scope "test"}
   org.bouncycastle/bcpkix-jdk15on              {:mvn/version "1.68" :scope "test"}
@@ -44,9 +44,11 @@
 
 
  :aliases
- ;;
  {:dev
   {:extra-paths ["src/dev" "frontend/dist"]}
+  ;;
+  :db
+  {:extra-paths ["src/db"]}
   ;;
   :cider
   {:extra-deps {cider/cider-nrepl {:mvn/version "0.30.0"}}
