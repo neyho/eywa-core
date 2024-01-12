@@ -1,4 +1,27 @@
-(ns postgres
+(require '[neyho.eywa.properties])
+(neyho.eywa.properties/load-properties)
+
+;;
+(require '[clojure.string :as str])
+(require 'neyho.eywa.transit)
+(require 'neyho.eywa)
+(require 'neyho.eywa.lacinia)
+(require 'neyho.eywa.server)
+(require 'neyho.eywa.server.jetty)
+(require '[neyho.eywa.data :refer [*ROOT*]])
+(require 'neyho.eywa.db.postgres)
+(require 'neyho.eywa.avatars.postgres)
+(require 'neyho.eywa.authorization)
+(require '[neyho.eywa.administration :as iam])
+(require 'neyho.eywa.dataset)
+(require 'neyho.eywa.dataset.core)
+(require 'neyho.eywa.dataset.default-model)
+(require 'neyho.eywa.dataset.postgres)
+(require 'neyho.eywa.dataset.postgres.query)
+(require '[neyho.eywa.administration.uuids :as au])
+
+
+#_(ns postgres
   (:require
     [clojure.string :as str]
     [neyho.eywa.data :refer [*ROOT*]]
