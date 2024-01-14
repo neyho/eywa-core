@@ -1357,25 +1357,6 @@ h4 {
     -ms-overflow-style: none
 }
 
-.eywa_administration_roles__L82_C16 {
-  cursor: pointer;
-  display: flex;
-  padding-top: 0.25rem;
-}
-.eywa_administration_roles__L82_C16 .action {
-  height: 1.25rem;
-  margin: 0.5rem;
-  width: 1.25rem;
-}
-.eywa_administration_roles__L258_C23 {
-  height: 100%;
-  padding: 2rem;
-  width: 100%;
-}
-.eywa_administration_roles__L260_C26 {
-  height: 100%;
-  width: 100%;
-}
 .eywa_loader__L77_C20 {
   background-color: transparent;
   height: 100%;
@@ -1396,6 +1377,25 @@ h4 {
   display: flex;
   flex-grow: 1;
   justify-content: flex-end;
+}
+.eywa_administration_groups_table__L54_C16 {
+  cursor: pointer;
+  display: flex;
+  padding-top: 0.25rem;
+}
+.eywa_administration_groups_table__L54_C16 .action {
+  height: 1.25rem;
+  margin: 0.5rem;
+  width: 1.25rem;
+}
+.eywa_administration_groups_table__L242_C23 {
+  height: 100%;
+  padding: 2rem;
+  width: 100%;
+}
+.eywa_administration_groups_table__L244_C26 {
+  height: 100%;
+  width: 100%;
 }
 .eywa_data_explorer_content__L88_C26 {
   font-size: 0.76rem;
@@ -1421,7 +1421,7 @@ h4 {
   display: flex;
   justify-content: center;
 }
-.eywa_administration_common__L136_C3 .option {
+.eywa_administration_common__L138_C3 .option {
   align-items: center;
   border: 1px solid var(--border-normal);
   border-radius: 1px;
@@ -1435,59 +1435,59 @@ h4 {
   text-decoration: none;
   user-select: none;
 }
-.eywa_administration_common__L136_C3 .option.PERSON, .eywa_administration_common__L136_C3 .option.ACCESS {
+.eywa_administration_common__L138_C3 .option.PERSON, .eywa_administration_common__L138_C3 .option.ACCESS {
   border-radius: 16px;
 }
-.eywa_administration_common__L136_C3 .option .avatar {
+.eywa_administration_common__L138_C3 .option .avatar {
   border-radius: 1px;
   height: 18px;
   margin-right: 6px;
   overflow: hidden;
   width: 18px;
 }
-.eywa_administration_common__L136_C3 .option.selected {
+.eywa_administration_common__L138_C3 .option.selected {
   border-color: var(--border-highlighted);
 }
-.eywa_administration_common__L136_C3 .option.PERSON .avatar, .eywa_administration_common__L136_C3 .option.ACCESS .avatar {
+.eywa_administration_common__L138_C3 .option.PERSON .avatar, .eywa_administration_common__L138_C3 .option.ACCESS .avatar {
   border-radius: 50px;
 }
-.eywa_administration_common__L179_C21 .option {
+.eywa_administration_common__L181_C21 .option {
   cursor: pointer;
 }
-.eywa_administration_common__L183_C21 {
+.eywa_administration_common__L185_C21 {
   color: var(--text-normal);
   position: relative;
   text-decoration: none;
 }
-.eywa_administration_common__L183_C21 .actions {
+.eywa_administration_common__L185_C21 .actions {
   display: flex;
   position: absolute;
   right: 1rem;
   top: 0px;
   z-index: 10;
 }
-.eywa_administration_common__L183_C21 .actions .action {
+.eywa_administration_common__L185_C21 .actions .action {
   background-color: var(--box-action-bg);
   color: var(--box-action-color);
   cursor: pointer;
   padding: 0.25rem;
   transition: color .3s ease-in-out;
 }
-.eywa_administration_common__L183_C21 .actions .action:hover {
+.eywa_administration_common__L185_C21 .actions .action:hover {
   color: var(--box-action-color-hover);
 }
-.eywa_administration_common__L183_C21 .actions .action.selected {
+.eywa_administration_common__L185_C21 .actions .action.selected {
   color: var(--box-action-color-selected);
 }
-.eywa_administration_common__L183_C21 .actions .action svg {
+.eywa_administration_common__L185_C21 .actions .action svg {
   height: 1rem;
   width: 1rem;
 }
-.eywa_administration_common__L183_C21 .options {
+.eywa_administration_common__L185_C21 .options {
   display: flex;
   padding-top: 0.25rem;
 }
-.eywa_administration_common__L209_C21 {
+.eywa_administration_common__L211_C21 {
   color: var(--text-normal);
   font-size: 0.875rem;
   line-height: 1.5rem;
@@ -1497,7 +1497,7 @@ h4 {
   transition: height .2s ease-in-out;
   z-index: 20;
 }
-.eywa_administration_common__L224_C21 {
+.eywa_administration_common__L228_C21 {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -1850,6 +1850,35 @@ h4 {
 .eywa_css_login__L69_C3:hover {
   border-color: #689579;
 }
+.eywa_administration_roles_card__L270_C27 {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 1.5rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+.eywa_administration_roles_card__L394_C19 {
+  display: flex;
+  flex-grow: 1;
+  justify-content: center;
+}
+.eywa_administration_roles_card__L394_C19 .role-list .simplebar-content-wrapper {
+  padding-bottom: 1rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 1rem;
+}
+.eywa_administration_roles_card__L394_C19 .role-list .roles {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  justify-content: center;
+}
+.eywa_administration_roles_card__L394_C19 .role-list .role-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
 .eywa_ui_elements__L47_C18 {
   transition: box-shadow 0.3s ease-in-out;
 }
@@ -1918,9 +1947,12 @@ h4 {
 .eywa_ui_elements__L252_C18 {
   justify-content: space-between;
 }
-.eywa_ui_elements__L300_C32 .simplebar-content {
+.eywa_ui_elements__L299_C32 .simplebar-content {
   display: flex;
   flex-direction: column;
+}
+.eywa_ui_elements__L299_C32 .simplebar-content-wrapper {
+  padding-right: 0.5rem;
 }
 .eywa_ui_elements__L310_C30 .simplebar-content {
   display: flex;
@@ -2043,11 +2075,11 @@ h4 {
   flex-direction: column;
   flex-grow: 10;
 }
-.eywa_ui_layout__L173_C19 {
+.eywa_ui_layout__L190_C19 {
   display: flex;
   justify-content: center;
 }
-.eywa_ui_layout__L243_C32 {
+.eywa_ui_layout__L260_C32 {
   height: 100%;
   position: relative;
   width: 100%;
@@ -2081,6 +2113,35 @@ h4 {
   position: fixed;
   top: 0;
   visibility: hidden;
+}
+.eywa_administration_groups_card__L212_C25 {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 1.5rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+.eywa_administration_groups_card__L304_C19 {
+  display: flex;
+  flex-grow: 1;
+  justify-content: center;
+}
+.eywa_administration_groups_card__L304_C19 .group-list .simplebar-content-wrapper {
+  padding-bottom: 1rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 1rem;
+}
+.eywa_administration_groups_card__L304_C19 .group-list .groups {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  justify-content: center;
+}
+.eywa_administration_groups_card__L304_C19 .group-list .group-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 .eywa_css_elements__L7_C3.warn {
   background-color: #fbbf24;
@@ -2797,6 +2858,7 @@ h4 {
 .eywa_css_elements__L554_C3 .subsection {
   border-color: var(--border-normal);
   border-top-width: 1px;
+  user-select: none;
 }
 .eywa_css_elements__L554_C3.opened .main-section {
   background: var(--bg-card-focused);
@@ -2829,6 +2891,7 @@ h4 {
 .eywa_css_elements__L554_C3 .right .content .info .row .value {
   font-size: 0.6875rem;
   line-height: 1.125rem;
+  user-select: text;
 }
 .eywa_css_elements__L554_C3 .main-section {
   cursor: pointer;
@@ -2852,6 +2915,7 @@ h4 {
   border-radius: 0.125rem;
   border-width: 1px;
   transition: background-color .3s ease-in-out;
+  user-select: none;
 }
 .eywa_css_elements__L554_C3 .right .content .info {
   display: flex;
@@ -2879,7 +2943,7 @@ h4 {
   border-radius: 0.125rem;
   border-width: 1px;
   display: flex;
-  flex: 180 0 auto;
+  flex: 100 0 auto;
   flex-grow: 1;
   font-size: 0.6875rem;
   font-weight: 600;
@@ -2889,7 +2953,7 @@ h4 {
   padding-left: 1rem;
   padding-right: 1rem;
   text-transform: uppercase;
-  width: 180px;
+  width: 100px;
 }
 .eywa_css_elements__L554_C3 .subsection.opened > .declaration {
   padding: 1.5rem;
@@ -3191,10 +3255,6 @@ h4 {
   color: var(--text-highlight);
   text-decoration: none;
 }
-.eywa_administration_roles_common__L31_C3 .row {
-  display: flex;
-  height: 2rem;
-}
 .eywa_administration_roles_common__L31_C3 .component:not(.root):before {
   border-bottom-width: 1px;
   border-color: var(--border-normal);
@@ -3213,6 +3273,10 @@ h4 {
   padding-left: 1rem;
   position: relative;
 }
+.eywa_administration_roles_common__L31_C3 .edge {
+  display: flex;
+  height: 2rem;
+}
 .eywa_administration_roles_common__L31_C3 {
   color: var(--text-inactive);
   text-decoration: none;
@@ -3220,12 +3284,12 @@ h4 {
 .eywa_administration_roles_common__L31_C3 .component.root {
   padding-left: 0;
 }
-.eywa_administration_roles_common__L31_C3 .component .row {
-  align-items: center;
-  display: flex;
-}
 .eywa_administration_roles_common__L31_C3:not(.root) {
   margin-left: 1rem;
+}
+.eywa_administration_roles_common__L31_C3 .component .edge {
+  align-items: center;
+  display: flex;
 }
 .eywa_administration_roles_common__L31_C3 .component:last-child {
   border-left: none;
@@ -4103,8 +4167,8 @@ h4 {
 }
 .eywa_css_fields__L9_C3 {
   display: flex;
-  flex: 180 0 auto;
-  width: 180px;
+  flex: 100 0 auto;
+  width: 100px;
 }
 .eywa_css_fields__L9_C3 > .content {
   width: 100%;
@@ -4297,7 +4361,7 @@ h4 {
 .eywa_css_fields__L172_C3 .verbal {
   cursor: pointer;
   flex-grow: 1;
-  min-width: 10rem;
+  min-width: 5rem;
   padding-left: 0.5rem;
   padding-right: 0.5rem;
   user-select: none;
@@ -4571,22 +4635,22 @@ h4 {
   align-items: flex-start;
   display: flex;
 }
-.eywa_administration_users_table__L55_C16 {
+.eywa_administration_users_table__L57_C16 {
   cursor: pointer;
   display: flex;
   padding-top: 0.25rem;
 }
-.eywa_administration_users_table__L55_C16 .action {
+.eywa_administration_users_table__L57_C16 .action {
   height: 1.25rem;
   margin: 0.5rem;
   width: 1.25rem;
 }
-.eywa_administration_users_table__L185_C21 {
+.eywa_administration_users_table__L193_C21 {
   height: 100%;
   padding: 2rem;
   width: 100%;
 }
-.eywa_administration_users_table__L187_C24 {
+.eywa_administration_users_table__L195_C24 {
   height: 100%;
   width: 100%;
 }
@@ -4631,11 +4695,6 @@ h4 {
   flex-grow: 1;
   font-size: 1.25rem;
   line-height: 1.75rem;
-}
-.eywa_administration_roles_delete__L50_C18 {
-  display: flex;
-  flex-grow: 1;
-  justify-content: flex-end;
 }
 .eywa_css_explorer__L8_C3 {
   background-color: var(--background-normal);
@@ -6619,25 +6678,6 @@ h4 {
   padding-left: 2rem;
   padding-right: 2rem;
 }
-.eywa_administration_groups__L61_C16 {
-  cursor: pointer;
-  display: flex;
-  padding-top: 0.25rem;
-}
-.eywa_administration_groups__L61_C16 .action {
-  height: 1.25rem;
-  margin: 0.5rem;
-  width: 1.25rem;
-}
-.eywa_administration_groups__L243_C23 {
-  height: 100%;
-  padding: 2rem;
-  width: 100%;
-}
-.eywa_administration_groups__L245_C26 {
-  height: 100%;
-  width: 100%;
-}
 .eywa_robotics_git_common__L75_C20 {
   display: flex;
   flex-direction: column;
@@ -6868,6 +6908,25 @@ h4 {
   flex-grow: 1;
   justify-content: flex-end;
 }
+.eywa_administration_roles_table__L53_C16 {
+  cursor: pointer;
+  display: flex;
+  padding-top: 0.25rem;
+}
+.eywa_administration_roles_table__L53_C16 .action {
+  height: 1.25rem;
+  margin: 0.5rem;
+  width: 1.25rem;
+}
+.eywa_administration_roles_table__L235_C23 {
+  height: 100%;
+  padding: 2rem;
+  width: 100%;
+}
+.eywa_administration_roles_table__L237_C26 {
+  height: 100%;
+  width: 100%;
+}
 .eywa_app__L53_C17 {
   border-radius: 0.75rem;
   display: flex;
@@ -6889,30 +6948,31 @@ h4 {
   display: flex;
   justify-content: center;
 }
-.eywa_administration_users_card__L252_C27 {
+.eywa_administration_users_card__L255_C27 {
   display: flex;
   flex-direction: column;
   padding-bottom: 1.5rem;
   padding-left: 1.5rem;
   padding-right: 1.5rem;
 }
-.eywa_administration_users_card__L372_C19 {
+.eywa_administration_users_card__L367_C19 {
   display: flex;
   flex-grow: 1;
   justify-content: center;
 }
-.eywa_administration_users_card__L372_C19 .user-list .simplebar-content-wrapper {
+.eywa_administration_users_card__L367_C19 .user-list .simplebar-content-wrapper {
   padding-bottom: 1rem;
   padding-left: 0.75rem;
   padding-right: 0.75rem;
   padding-top: 1rem;
 }
-.eywa_administration_users_card__L372_C19 .user-list .users {
+.eywa_administration_users_card__L367_C19 .user-list .users {
   display: flex;
   flex-direction: row;
   gap: 1rem;
+  justify-content: center;
 }
-.eywa_administration_users_card__L372_C19 .user-list .user-column {
+.eywa_administration_users_card__L367_C19 .user-list .user-column {
   display: flex;
   flex-direction: column;
   gap: 1rem;
