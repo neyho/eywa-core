@@ -115,6 +115,13 @@
     true))
 
 
+(comment
+  (def admin (connect (admin-from-env)))
+  (def admin (admin-from-env))
+  (def database "a1_mk")
+  (def backup "a1_mk_28012024"))
+
+
 
 (defonce connection-agent (agent {:running? true}))
 

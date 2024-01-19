@@ -336,8 +336,17 @@
             ;; than create new enum type with defined values
             (and (= type "enum") (some? dt))
             (conj (generate-enum-type-ddl new-enum-name values))
+            ;; If type is one of
+            ;; Set all current values to null
+            (and dt
+                 (#{"avatar"} dt)
+                 (#{"json"} type))
+            (conj
+              (do
+                (log/debugf "Setting all avatar values to NULL")
+                (format "update \"%s\" set %s = NULL" old-table column)))
             ;; Type has changed so you better cast to target type
-            dt 
+            dt  
             (conj
               (do
                 (log/debugf "Changing table %s column %s type %s -> %s" old-table column dt type)
@@ -362,6 +371,8 @@
                   (= "int" type) (str " using(trim(" column ")::integer)")
                   (= "float" type) (str " using(trim(" column ")::float)")
                   (= "string" type) (str " using(" column "::text)")
+                  (= "json" type) (str " using(" column "::jsonb)")
+                  (= "transit" type) (str " using(" column "::text)")
                   (= "avatar" type) (str " using(" column "::text)")
                   (= "encrypted" type) (str " using(" column "::text)")
                   (= "hashed" type) (str " using(" column "::text)")

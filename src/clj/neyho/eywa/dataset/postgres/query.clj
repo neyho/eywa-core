@@ -1937,7 +1937,7 @@
        (if (some? roots)
          (letfn [(construct-statement
                    [table _eids]
-                   (log/infof "[%s]Constructing purge for eids #%d: %s" table (count _eids) (str/join ", " _eids))
+                   (log/debugf "[%s]Constructing purge for eids #%d: %s" table (count _eids) (str/join ", " _eids))
                    [(str "delete from \"" table "\" where _eid=any(?)") (int-array _eids)])
                  ; [(str "delete from \"" table "\" where _eid in (select _eid from \"" table "\" where _eid=any(?))") (int-array _eids)])
                  (process-statement [r k v]
@@ -1946,7 +1946,7 @@
                  response (construct-response schema db roots)
                  delete-statements (reduce-kv process-statement [] db)]
              (doseq [query delete-statements]
-               (log/infof "[%s]Purgin entity rows with %s" entity-id query)
+               (log/debugf "[%s]Purgin entity rows with %s" entity-id query)
                (postgres/execute! connection query *return-type*))
              response))
          [])))))
