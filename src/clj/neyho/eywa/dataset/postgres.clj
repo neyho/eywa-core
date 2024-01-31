@@ -570,6 +570,25 @@
         (execute-one! tx [sql])))))
 
 
+
+(defn column-exists?
+  [tx table column]
+  (let [sql (str
+              "select exists ("
+              "select 1 from pg_attribute where attrelid = '" table "'::regclass"
+              " and attname = '" column "'"
+              " and attnum > 0"
+              " and not attisdropped"
+              ");")]
+    (:exists (execute-one! tx [sql]))))
+
+
+(comment
+  (do (def tx nil) (def table "ict_category") (def column "parent"))
+  (with-open [con (jdbc/get-connection (:datasource *db*))]
+    (column-exists? con "ict_category" "parent")))
+
+
 ;; 1. Generate new entities by creating tables
 ;;  - Create new types if needed by enum attributes
 ;; 2. Add audit attributes if present (modified_by,modified_on)
@@ -633,21 +652,44 @@
         (log/info "Checking changed trans entity relations..."))
       (doseq [r cr] (transform-relation tx r))
       ;; Change recursive relation
-      (when (not-empty crr) 
+      (when (not-empty crr)
         (log/info "Checking changed recursive relations..."))
       (doseq [{{tname :name 
                 :as e} :to 
                tl :to-label
-               diff :diff} crr
+               diff :diff
+               euuid :euuid} crr
               :let [table (entity->table-name e)
-                    _ (log/debugf "RECURSIVE RELATION\n%s" diff)
-                    sql (when diff
-                          (format
-                            "alter table %s rename column %s to %s"
-                            table (column-name tl) (column-name (:to-label diff))))]]
-        (when sql
-          (log/debugf "Updating recursive relation for entity %s\n%s" tname sql)
-          (execute-one! tx [sql])))
+                    ; _ (log/debugf "RECURSIVE RELATION\n%s" diff)
+                    previous-column (when-some [label (not-empty (:to-label diff))]
+                                      (column-name label))]]
+        (when-not (and (some? tl) (not-empty tl)) 
+          (throw
+            (ex-info 
+              (str "Can't change recursive relation for entity " tname " that has empty label")
+              {:entity e
+               :relation {:euuid euuid
+                          :label (:to-label diff)}
+               :type ::core/error-recursive-no-label})))
+        (if (empty? previous-column)
+          (do
+            (log/debugf
+              "Previous deploy didn't have to label for recursive relation %s at entity %s"
+              euuid tname)
+            (when tl
+              (when-not (column-exists? tx table tl)
+                (let [sql (format
+                            "alter table %s add %s bigint references \"%s\"(_eid) on delete cascade"
+                            table tl table)]
+                  (log/debug "Creating recursive relation for entity %s\n%s" tname sql)
+                  (execute-one! tx [sql])))))
+          ;; Apply changes
+          (when diff
+            (let [sql (format
+                        "alter table %s rename column %s to %s"
+                        table previous-column (column-name tl))]
+              (log/debugf "Updating recursive relation for entity %s\n%s" tname sql)
+              (execute-one! tx [sql])))))
       ;; Generate new relations
       (when (not-empty nr) (log/info "Generating new relations..."))
       (doseq [{{tname :name} :to {fname :name} :from :as relation} nr

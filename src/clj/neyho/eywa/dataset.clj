@@ -15,6 +15,7 @@
     [neyho.eywa.db :as db :refer [*db*]]
     [neyho.eywa.dataset.uuids :as du]
     [neyho.eywa.lacinia :as lacinia]
+    [com.walmartlabs.lacinia.resolve :as resolve]
     [com.walmartlabs.lacinia.selection :as selection]
     [com.walmartlabs.lacinia.executor :as executor]))
 
@@ -271,6 +272,13 @@
             ;   "Returning data for selection:\n%s"
             ;   (with-out-str (clojure.pprint/pprint selection)))
             (db/get-entity *db* du/dataset-version {:euuid euuid} selection)))
+        (catch clojure.lang.ExceptionInfo e
+          (log/errorf
+            e "Couldn't deploy dataset version %s@%s"
+            (-> version :dataset :name) (:name version))
+          (resolve/with-error
+            nil
+            (assoc (ex-data e) :message (ex-message e))))
         (catch Throwable e
           (log/errorf
             e "Couldn't deploy dataset version %s@%s"
@@ -290,7 +298,10 @@
           ;     (dataset/tear-down-module connector version)))
           ; (dataset/unmount connector version)
           #_(server/restart account)
-          (throw e))))))
+          (resolve/with-error
+            nil
+            {:message (.getMessage e)
+             :type ::dataset/error-unknown}))))))
 
 
 ;; @hook
