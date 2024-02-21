@@ -1,6 +1,6 @@
 {:deps
- {nrepl/nrepl                            {:mvn/version "0.9.0"}
-  org.clojure/tools.namespace            {:mvn/version "1.1.0"}
+ {nrepl/nrepl                            {:mvn/version "1.1.1"}
+  org.clojure/tools.namespace            {:mvn/version "1.5.0"}
   ;; Administration
   buddy/buddy                     {:mvn/version "2.0.0"
                                    :exclusions
@@ -9,36 +9,36 @@
                                     clout/clout]}
   ;;
   environ/environ                 {:mvn/version "1.2.0"}
-  com.taoensso/nippy              {:mvn/version "3.2.0"}
+  com.taoensso/nippy              {:mvn/version "3.3.0"}
 
   ;; CORE
-  nano-id/nano-id            {:mvn/version "1.0.0"}
-  org.clojure/core.async     {:mvn/version "1.5.648"}
-  org.clojure/data.json      {:mvn/version "2.4.0"}
+  nano-id/nano-id            {:mvn/version "1.1.0"}
+  org.clojure/core.async     {:mvn/version "1.6.681"}
+  org.clojure/data.json      {:mvn/version "2.5.0"}
   ;; POSTGRES
-  org.postgresql/postgresql         {:mvn/version "42.2.19"}
-  com.github.seancorfield/next.jdbc {:mvn/version "1.2.772"}
+  org.postgresql/postgresql         {:mvn/version "42.7.2"}
+  com.github.seancorfield/next.jdbc {:mvn/version "1.3.909"}
   com.zaxxer/HikariCP               {:mvn/version "5.1.0"}
   ;; SERVER
-  org.bouncycastle/bcprov-jdk15on              {:mvn/version "1.68" :scope "test"}
-  org.bouncycastle/bcpkix-jdk15on              {:mvn/version "1.68" :scope "test"}
-  org.clojure/data.codec                       {:mvn/version "0.1.1"}
-  org.clojure/data.zip                         {:mvn/version "1.0.0"}
-  org.clojure/data.csv                         {:mvn/version "1.0.0"}
-  io.pedestal/pedestal.service                 {:mvn/version "0.5.10"}
-  io.pedestal/pedestal.route                   {:mvn/version "0.5.10"}
-  io.pedestal/pedestal.jetty                   {:mvn/version "0.5.10"}
-  com.walmartlabs/lacinia                      {:mvn/version "1.2-alpha-4"}
-  com.walmartlabs/lacinia-pedestal             {:mvn/version "1.1"}
+  org.bouncycastle/bcprov-jdk15on              {:mvn/version "1.70" :scope "test"}
+  org.bouncycastle/bcpkix-jdk15on              {:mvn/version "1.70" :scope "test"}
+  org.clojure/data.codec                       {:mvn/version "0.2.0"}
+  org.clojure/data.zip                         {:mvn/version "1.1.0"}
+  org.clojure/data.csv                         {:mvn/version "1.1.0"}
+  io.pedestal/pedestal.service                 {:mvn/version "0.6.3"}
+  io.pedestal/pedestal.route                   {:mvn/version "0.6.3"}
+  io.pedestal/pedestal.jetty                   {:mvn/version "0.6.3"}
+  com.walmartlabs/lacinia                      {:mvn/version "1.2.2"}
+  com.walmartlabs/lacinia-pedestal             {:mvn/version "1.2"}
   ;; Logging - chosen because it follows pedestal and lacinia
   ;; they are both using clojure.tools.logging
-  ch.qos.logback/logback-classic               {:mvn/version "1.4.13"}
-  org.clojure/tools.logging                    {:mvn/version "1.2.4"}
+  ch.qos.logback/logback-classic               {:mvn/version "1.5.0"}
+  org.clojure/tools.logging                    {:mvn/version "1.3.0"}
   ;;
-  camel-snake-kebab/camel-snake-kebab          {:mvn/version "0.4.1"}
+  camel-snake-kebab/camel-snake-kebab          {:mvn/version "0.4.3"}
   com.github.gersak/vura                       {:mvn/version "0.5.8"}
   ; com.github.gersak/vura                       {:local/root "../../vura"}
-  babashka/fs                                  {:mvn/version "0.2.12"}}
+  babashka/fs                                  {:mvn/version "0.5.20"}}
 
  :paths ["src/clj" "src/cljc" "src/cljs" "src/css" "resources"]
 

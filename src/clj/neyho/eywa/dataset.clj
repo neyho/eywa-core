@@ -241,67 +241,69 @@
 
 
 (defn deploy-dataset
-  [{:keys [user username]
-    :as context}
-   {version :version}
-   _]
-  (binding [dataset/*user* user]
-    (let [selection (executor/selections-tree context)] 
-      (log/infof
-        "User %s deploying dataset %s@%s"
-        username (-> version :dataset :name) (:name version))
-      (try
-        ; (let [{:keys [euuid]} (dataset/deploy! connector version)]
-        ;; TODO - Rethink this. Should we use teard-down and setup instead
-        ;; of plain deploy! recall!
-        (let [{:keys [euuid]} (dataset/setup-module *db* version)]
-          (try
-            (init-module version)
-            (catch Throwable _))
-          (reload)
-          (load-role-schema)
-          (async/put!
-            wc {:topic :refreshedGlobalDataset
-                :data {:name "Global" 
-                       :model (dataset/get-model *db*)}})
-          (log/infof
-            "User %s deployed version %s@%s"
-            username (-> version :dataset :name) (:name version))
-          (when (not-empty selection) 
-            ; (log/tracef
-            ;   "Returning data for selection:\n%s"
-            ;   (with-out-str (clojure.pprint/pprint selection)))
-            (db/get-entity *db* du/dataset-version {:euuid euuid} selection)))
-        (catch clojure.lang.ExceptionInfo e
-          (log/errorf
-            e "Couldn't deploy dataset version %s@%s"
-            (-> version :dataset :name) (:name version))
-          (resolve/with-error
-            nil
-            (assoc (ex-data e) :message (ex-message e))))
-        (catch Throwable e
-          (log/errorf
-            e "Couldn't deploy dataset version %s@%s"
-            (-> version :dataset :name) (:name version))
-          ;; TODO - Decide if upon unsuccessfull deploy do we delete old table (commented)
-          ; (let [{versions :versions} 
-          ;       (graphql/get-entity
-          ;         connector
-          ;         datasets-uuid
-          ;         {:euuid euuid}
-          ;         {:name nil
-          ;          :versions [{:args {:_order_by [{:modified_on :desc}]}
-          ;                      :selections {:name nil
-          ;                                   :euuid nil
-          ;                                   :model nil}}]})]
-          ;   (when (empty? versions)
-          ;     (dataset/tear-down-module connector version)))
-          ; (dataset/unmount connector version)
-          #_(server/restart account)
-          (resolve/with-error
-            nil
-            {:message (.getMessage e)
-             :type ::dataset/error-unknown}))))))
+  ([model] (deploy-dataset nil model nil))
+  ([context model] (deploy-dataset context model nil))
+  ([{:keys [user username]
+     :as context}
+    {version :version}
+    _]
+   (binding [dataset/*user* user]
+     (let [selection (executor/selections-tree context)] 
+       (log/infof
+         "User %s deploying dataset %s@%s"
+         username (-> version :dataset :name) (:name version))
+       (try
+         ; (let [{:keys [euuid]} (dataset/deploy! connector version)]
+         ;; TODO - Rethink this. Should we use teard-down and setup instead
+         ;; of plain deploy! recall!
+         (let [{:keys [euuid]} (dataset/setup-module *db* version)]
+           (try
+             (init-module version)
+             (catch Throwable _))
+           (reload)
+           (load-role-schema)
+           (async/put!
+             wc {:topic :refreshedGlobalDataset
+                 :data {:name "Global" 
+                        :model (dataset/get-model *db*)}})
+           (log/infof
+             "User %s deployed version %s@%s"
+             username (-> version :dataset :name) (:name version))
+           (when (not-empty selection) 
+             ; (log/tracef
+             ;   "Returning data for selection:\n%s"
+             ;   (with-out-str (clojure.pprint/pprint selection)))
+             (db/get-entity *db* du/dataset-version {:euuid euuid} selection)))
+         (catch clojure.lang.ExceptionInfo e
+           (log/errorf
+             e "Couldn't deploy dataset version %s@%s"
+             (-> version :dataset :name) (:name version))
+           (resolve/with-error
+             nil
+             (assoc (ex-data e) :message (ex-message e))))
+         (catch Throwable e
+           (log/errorf
+             e "Couldn't deploy dataset version %s@%s"
+             (-> version :dataset :name) (:name version))
+           ;; TODO - Decide if upon unsuccessfull deploy do we delete old table (commented)
+           ; (let [{versions :versions} 
+           ;       (graphql/get-entity
+           ;         connector
+           ;         datasets-uuid
+           ;         {:euuid euuid}
+           ;         {:name nil
+           ;          :versions [{:args {:_order_by [{:modified_on :desc}]}
+           ;                      :selections {:name nil
+           ;                                   :euuid nil
+           ;                                   :model nil}}]})]
+           ;   (when (empty? versions)
+           ;     (dataset/tear-down-module connector version)))
+           ; (dataset/unmount connector version)
+           #_(server/restart account)
+           (resolve/with-error
+             nil
+             {:message (.getMessage e)
+              :type ::dataset/error-unknown})))))))
 
 
 ;; @hook
@@ -360,7 +362,10 @@
    db))
 
 (comment
-  (def db *db*))
+  (do
+    (def file "./first_ai_test.edm")
+    (def model (neyho.eywa.transit/<-trasit (slurp file)))
+    (deploy-dataset nil model nil)))
 
 
 (defn init

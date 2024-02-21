@@ -719,6 +719,7 @@
         many)))
    analysis))
 
+
 (defn update-avatars
   ([tx analysis]
    (let [{avatars :avatar

@@ -22,8 +22,8 @@
 
 
 
-(def ^:dynamic *private-key* nil)
-(def ^:dynamic *public-key* nil)
+(defonce ^:dynamic *private-key* nil)
+(defonce ^:dynamic *public-key* nil)
 
 
 (defn init-encryption
@@ -242,6 +242,7 @@
          (chain/terminate
            (assoc context
                   :response {:status 403
+                             :headers {"WWW-Authenticate" "Bearer"}
                              :body "Not authorized"})))))})
 
 
@@ -254,6 +255,7 @@
        (chain/terminate
          (assoc context
                 :response {:status 403
+                           :headers {"WWW-Authenticate" "Bearer"}
                            :body "Not authorized"}))))})
 
 
@@ -297,6 +299,7 @@
          (assoc context
                 :response
                 {:status 403
+                 :headers {"WWW-Authenticate" "Bearer"}
                  :body "Not authorized"}))))})
 
 (def user-data
@@ -422,13 +425,13 @@
 (def logout
   {:name :logout
    :enter
-   (fn [context]
+   (fn [{{{:keys [app]} :query-params} :request :as context}]
      (let [{{:keys [eywa/username]} :eywa.user/context} context]
        (log/debugf "%s logging out" username)
        (chain/terminate 
          (assoc context :response
                 {:status 301
-                 :headers {"Location" (str "/index.html")
+                 :headers {"Location" (str (when app (str "/app/" app)) "/index.html")
                            "Cache-Control" "no-cache"
                            "Set-Cookie" "EYWA=;path=/;max-age=-1;httpOnly;Secure;"}
                  :body "Not authorized!"}))))})

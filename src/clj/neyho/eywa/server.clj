@@ -187,11 +187,6 @@
     ["/eywa/logout" :get [authenticate coerce-body content-neg-intc logout] :route-name :eywa.logout/get]})
 
 
-(comment
-  (start)
-  (io/resource "eywa/js/main.js"))
-
-
 (def graphiql-spa
   (try
     {:status 200
