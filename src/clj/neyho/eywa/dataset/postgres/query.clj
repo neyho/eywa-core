@@ -2034,6 +2034,8 @@
         (when (not-empty roots)
           (pull-roots connection schema {(keyword as) roots}))))))
 
+
+
 (defn search-entity-tree
   "Function searches entity tree and returns results by requested selection."
   [entity-id on {order-by :_order_by :as args} selection]
@@ -2064,73 +2066,40 @@
                  (targeting-args? args)
                  (some targeting-args? (vals fields))
                  (some targeting-schema? (vals relations))))]
-        ;; If there some targets are found with search-entity-roots
-        (if-let [targets (when (targeting-schema? schema)
-                           (when-let [found-roots
-                                      (search-entity-roots
-                                       connection
-                                       (update schema :args dissoc :_distinct :_limit :_offset))]
-                             (not-empty (get found-roots (keyword as)))))]
-          ;; Than 
-          (let [sql (format
-                     "with recursive tree(_eid,link,path,cycle) as (
-                      select 
-                      g._eid, g.%s, array[g._eid], false
-                      from %s g where g._eid in (%s)
-                      union all
-                      select g._eid, g.%s, g._eid || path, g._eid=any(path)
-                      from %s g, tree o
-                      where g._eid=o.link and not cycle
-                      ) select distinct on (_eid) * from tree"
-                     on' table (clojure.string/join ", " targets)
-                     on' table)
-                tree (postgres/execute! connection [sql] *return-type*)
-                maybe-roots (set (map :_eid tree))
-                roots (map :_eid (remove (comp maybe-roots :link) tree))
-                ranked-selection (fn [roots]
-                                   (let [roots' (clojure.string/join ", " roots)]
-                                     (if (not-empty order-by)
-                                       (format
-                                        "(select _eid, %s, row_number() over (%s) as _rank from %s where _eid in (%s))"
-                                        on' (modifiers-selection->sql {:args {:_order_by order-by}}) table roots')
-                                       (format "(select _eid, %s, _eid as _rank from %s where _eid in (%s))" on' table roots'))))
-                sql-final [(format
-                            "with recursive tree(_eid,link,path,prank,cycle) as (
-                             select 
-                             g._eid, g.%s, array[g._eid],array[g._rank], false
-                             from %s g
-                             union all
-                             select g._eid, g.%s, path || g._eid, prank || g._rank, g._eid=any(path)
-                             from %s g, tree o
-                             where g.%s =o._eid and not cycle
-                             ) select * from tree order by prank asc %s"
-                            on' (ranked-selection roots)
-                            on' (ranked-selection maybe-roots) on'
-                            (modifiers-selection->sql {:args (dissoc args :_order_by)}))]]
-            (log/tracef
-             "[%s] Get entity tree roots\n%s"
-             entity-id  (first sql-final))
-            (when (some? roots)
-              (pull-roots
-               connection (shave-schema-arguments schema)
-               {(keyword as)
-                (distinct
-                 (map
-                  :_eid
-                  (postgres/execute! connection sql-final *return-type*)))})))
-          (let [ranked-init-selection (if (not-empty order-by)
-                                        (format
-                                         "(select _eid, %s, row_number() over (%s) as _rank from %s where %s is null)"
-                                         on' (modifiers-selection->sql {:args {:_order_by order-by}}) table on')
-                                        (format "(select _eid, %s, _eid as _rank from %s where %s is null)" on' table on'))
-                ranked-selection (if (not-empty order-by)
-                                   (format
-                                    "(select _eid, %s, row_number() over (%s) as _rank from %s)"
-                                    on' (modifiers-selection->sql {:args {:_order_by order-by}}) table)
-                                   (format "(select _eid, %s, _eid as _rank from %s)" on' table))
-                sql-final [(format
-                            (format
-                             "with recursive tree(_eid,link,path,prank,cycle) as (
+        (let [targeting? (targeting-schema? schema)
+              targets (when targeting?
+                        (when-let [found-roots
+                                   (search-entity-roots
+                                     connection
+                                     (update schema :args dissoc :_distinct :_limit :_offset))]
+                          (not-empty (get found-roots (keyword as)))))]
+          (cond
+            ;; If there some targets are found with search-entity-roots
+            (not-empty targets)
+            (let [sql (format
+                        "with recursive tree(_eid,link,path,cycle) as (
+                        select 
+                        g._eid, g.%s, array[g._eid], false
+                        from %s g where g._eid in (%s)
+                        union all
+                        select g._eid, g.%s, g._eid || path, g._eid=any(path)
+                        from %s g, tree o
+                        where g._eid=o.link and not cycle
+                        ) select distinct on (_eid) * from tree"
+                        on' table (clojure.string/join ", " targets)
+                        on' table)
+                  tree (postgres/execute! connection [sql] *return-type*)
+                  maybe-roots (set (map :_eid tree))
+                  roots (map :_eid (remove (comp maybe-roots :link) tree))
+                  ranked-selection (fn [roots]
+                                     (let [roots' (clojure.string/join ", " roots)]
+                                       (if (not-empty order-by)
+                                         (format
+                                           "(select _eid, %s, row_number() over (%s) as _rank from %s where _eid in (%s))"
+                                           on' (modifiers-selection->sql {:args {:_order_by order-by}}) table roots')
+                                         (format "(select _eid, %s, _eid as _rank from %s where _eid in (%s))" on' table roots'))))
+                  sql-final [(format
+                               "with recursive tree(_eid,link,path,prank,cycle) as (
                                select 
                                g._eid, g.%s, array[g._eid],array[g._rank], false
                                from %s g
@@ -2139,19 +2108,59 @@
                                from %s g, tree o
                                where g.%s =o._eid and not cycle
                                ) select * from tree order by prank asc %s"
-                             on' ranked-init-selection
-                             on' ranked-selection on'
-                             (modifiers-selection->sql {:args (dissoc args :_order_by)})))]]
-            (log/tracef
-             "[%s] Get entity tree roots\n%s"
-             entity-id  (first sql-final))
-            (pull-roots
-             connection (shave-schema-aggregates schema)
-             {(keyword as)
-              (distinct
-               (map
-                :_eid
-                (postgres/execute! connection sql-final *return-type*)))})))))))
+                               on' (ranked-selection roots)
+                               on' (ranked-selection maybe-roots) on'
+                               (modifiers-selection->sql {:args (dissoc args :_order_by)}))]]
+              (log/tracef
+                "[%s] Get entity tree roots\n%s"
+                entity-id  (first sql-final))
+              (when (some? roots)
+                (pull-roots
+                  connection (shave-schema-arguments schema)
+                  {(keyword as)
+                   (distinct
+                     (map
+                       :_eid
+                       (postgres/execute! connection sql-final *return-type*)))})))
+            ;; If schema is targeted but no results are found
+            (and targeting? (empty? targets))
+            nil
+            :else
+            ;; If targets aren't found
+            (let [ranked-init-selection (if (not-empty order-by)
+                                          (format
+                                            "(select _eid, %s, row_number() over (%s) as _rank from %s where %s is null)"
+                                            on' (modifiers-selection->sql {:args {:_order_by order-by}}) table on')
+                                          (format "(select _eid, %s, _eid as _rank from %s where %s is null)" on' table on'))
+                  ranked-selection (if (not-empty order-by)
+                                     (format
+                                       "(select _eid, %s, row_number() over (%s) as _rank from %s)"
+                                       on' (modifiers-selection->sql {:args {:_order_by order-by}}) table)
+                                     (format "(select _eid, %s, _eid as _rank from %s)" on' table))
+                  sql-final [(format
+                               (format
+                                 "with recursive tree(_eid,link,path,prank,cycle) as (
+                                 select 
+                                 g._eid, g.%s, array[g._eid],array[g._rank], false
+                                 from %s g
+                                 union all
+                                 select g._eid, g.%s, path || g._eid, prank || g._rank, g._eid=any(path)
+                                 from %s g, tree o
+                                 where g.%s =o._eid and not cycle
+                                 ) select * from tree order by prank asc %s"
+                                 on' ranked-init-selection
+                                 on' ranked-selection on'
+                                 (modifiers-selection->sql {:args (dissoc args :_order_by)})))]]
+              (log/tracef
+                "[%s] Get entity tree roots\n%s"
+                entity-id  (first sql-final))
+              (pull-roots
+                connection (shave-schema-aggregates schema)
+                {(keyword as)
+                 (distinct
+                   (map
+                     :_eid
+                     (postgres/execute! connection sql-final *return-type*)))}))))))))
 
 ;; TODO - rething about reimplementing this differently. Instead of cursor aggregation
 ;; think about global search like aggregation
