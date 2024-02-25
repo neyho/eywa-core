@@ -967,7 +967,8 @@
   (letfn [(reference-object [euuid]
             (let [entity (core/get-entity model euuid)]
               {:type (entity->gql-object (:name entity))
-               :args {:_where {:type (entity->search-operator entity)}}}))]
+               :args {:_where {:type (entity->search-operator entity)}
+                      :_maybe {:type (entity->search-operator entity)}}}))]
     (let [entities (core/get-entities model)
           _who :modified_by
           _when :modified_on]
@@ -1085,11 +1086,14 @@
                                                              :args {:_offset {:type 'Int}
                                                                     :_limit {:type 'Int}
                                                                     :_where {:type (entity->search-operator to)}
+                                                                    :_maybe {:type (entity->search-operator to)}
                                                                     :_order_by {:type (entity->order-by-operator to)}}}
                                               ("m2o" "o2o") {:type t
-                                                             :args {:_where {:type (entity->search-operator to)}}}
+                                                             :args {:_where {:type (entity->search-operator to)}
+                                                                    :_maybe {:type (entity->search-operator to)}}}
                                               "tree" {:type t 
                                                       :args {:_where {:type (entity->search-operator entity)}
+                                                             :_maybe {:type (entity->search-operator entity)}
                                                              (attribute->gql-field to-label) {:type :is_null_enum}}}
                                               {:type t})))
                                    fields))

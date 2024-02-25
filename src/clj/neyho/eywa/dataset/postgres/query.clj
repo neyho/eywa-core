@@ -1,33 +1,33 @@
 (ns neyho.eywa.dataset.postgres.query
   (:require
-   clojure.set
-   [clojure.pprint :as pp]
-   [clojure.core.async :as async]
-   [clojure.string :as str]
-   [clojure.data.json :as json]
-   [nano-id.core :refer [nano-id] :as nano]
-   [buddy.hashers :as hashers]
-   [clojure.tools.logging :as log]
+    clojure.set
+    [clojure.pprint :as pp]
+    [clojure.core.async :as async]
+    [clojure.string :as str]
+    [clojure.data.json :as json]
+    [nano-id.core :refer [nano-id] :as nano]
+    [buddy.hashers :as hashers]
+    [clojure.tools.logging :as log]
     ; [io.pedestal.log :as log]
-   [taoensso.nippy :as nippy]
-   [camel-snake-kebab.core :as csk]
-   [next.jdbc :as jdbc]
-   [next.jdbc.prepare :as p]
-   [neyho.eywa.storage :as storage :refer [*storage*]]
-   [neyho.eywa.transit :refer [<-transit ->transit]]
-   [clojure.data.codec.base64 :as b64]
+    [taoensso.nippy :as nippy]
+    [camel-snake-kebab.core :as csk]
+    [next.jdbc :as jdbc]
+    [next.jdbc.prepare :as p]
+    [neyho.eywa.storage :as storage :refer [*storage*]]
+    [neyho.eywa.transit :refer [<-transit ->transit]]
+    [clojure.data.codec.base64 :as b64]
     ; [neyho.eywa.administration.avatars :as avatars]
-   [neyho.eywa.avatars :as avatars]
-   [neyho.eywa.db :refer [*db*] :as db]
-   [neyho.eywa.db.postgres.next :as postgres]
-   [neyho.eywa.dataset.core
-    :refer [*return-type*]
-    :as core]
-   [neyho.eywa.dataset :as dataset])
+    [neyho.eywa.avatars :as avatars]
+    [neyho.eywa.db :refer [*db*] :as db]
+    [neyho.eywa.db.postgres.next :as postgres]
+    [neyho.eywa.dataset.core
+     :refer [*return-type*]
+     :as core]
+    [neyho.eywa.dataset :as dataset])
   (:import
-   [org.postgresql.util #_PSQLException PGobject]
-   java.nio.charset.StandardCharsets
-   [java.sql PreparedStatement]))
+    [org.postgresql.util #_PSQLException PGobject]
+    java.nio.charset.StandardCharsets
+    [java.sql PreparedStatement]))
 
 (defn pprint
   [data]
@@ -978,7 +978,7 @@
                                 (fn [result k _]
                                   (reduce clojure.set/union
                                           (if (valid-fields k) (conj result k) result)
-                                          (map join-args (vals (select-keys args [:_where :_and :_or])))))
+                                          (map join-args (vals (select-keys args [:_where :_and :_or :_maybe])))))
                                 result
                                 args)))]
                       (join-args args))
@@ -1275,11 +1275,129 @@
                    (process-order-by schema (get operators :_order_by))))))))]
      (if (empty? s) "" (clojure.string/join " " s)))))
 
+
+(comment
+  (def schema
+    {:args
+     {:_order_by {:modified_on :desc},
+      :_offset 0,
+      :_limit 10,
+      :_where {:_or {:id {:_ilike "test"}, :subject {:_ilike "test"}}}},
+     :encoders nil,
+     :decoders nil,
+     :relations
+     {:client
+      {:args
+       {:_maybe {:_or {:name {:_like "test"}}, :oib {:_like "test"}}},
+       :encoders nil,
+       :decoders nil,
+       :relations nil,
+       :entity/table "client",
+       :counted? false,
+       :fields {:euuid nil},
+       :type :one,
+       :recursions #{},
+       :to/field "client_id",
+       :entity/as "data_188636",
+       :to/table "client",
+       :relation/table "task_32w13z00wx0x021y_clie",
+       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
+       :relation/as "link_188634",
+       :aggregate nil,
+       :from/table "task",
+       :from/field "task_id",
+       :to #uuid "f7d826be-bb9f-4f8e-a5c5-3b3a57571a56"},
+      #_:assignee_group
+      #_{:args {:_maybe {:name {:_ilike "test"}}},
+       :encoders nil,
+       :decoders nil,
+       :relations nil,
+       :entity/table "user_group",
+       :counted? false,
+       :fields {:euuid nil},
+       :type :one,
+       :recursions #{},
+       :to/field "_eid",
+       :entity/as "data_188639",
+       :to/table "user_group",
+       :relation/table "task",
+       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
+       :relation/as "link_188637",
+       :aggregate nil,
+       :from/table "task",
+       :from/field "assignee_group",
+       :to #uuid "95afb558-3d28-45e5-9fbf-a2625afc5675"},
+      :assignee
+      {:args {:_maybe {:name {:_ilike "test"}}},
+       :encoders nil,
+       :decoders nil,
+       :relations nil,
+       :entity/table "user",
+       :counted? false,
+       :fields {:euuid nil},
+       :type :one,
+       :recursions #{},
+       :to/field "_eid",
+       :entity/as "data_188642",
+       :to/table "user",
+       :relation/table "task",
+       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
+       :relation/as "link_188640",
+       :aggregate nil,
+       :from/table "task",
+       :from/field "assignee",
+       :to #uuid "edcab1db-ee6f-4744-bfea-447828893223"},
+      :services
+      {:args {:_maybe {:name {:_ilike "test"}}},
+       :encoders nil,
+       :decoders nil,
+       :relations nil,
+       :entity/table "ict_service",
+       :counted? false,
+       :fields {:euuid nil},
+       :type :many,
+       :recursions #{},
+       :to/field "ict_service_id",
+       :entity/as "data_188645",
+       :to/table "ict_service",
+       :relation/table "ict_serv_310w3y22zwwx1zyx_task",
+       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
+       :relation/as "link_188643",
+       :aggregate nil,
+       :from/table "task",
+       :from/field "task_id",
+       :to #uuid "556303dc-b508-48a4-bf13-4557f47396b8"}},
+     :entity/table "task",
+     :counted? false,
+     :fields
+     {:euuid nil,
+      :description nil,
+      :id nil,
+      :time_remaining nil,
+      :ready_for_approval nil,
+      :subject nil,
+      :data nil},
+     :recursions #{:parent},
+     :entity/as "data_188646",
+     :aggregate nil})
+
+
+  (def schema
+    )
+  
+  (def schema {:args [:subject {:_ilike "test"}], :encoders nil, :decoders nil, :relations nil, :entity/table "task", :counted? false, :fields {:euuid nil, :id nil, :data nil, :subject nil, :description nil, :ready_for_approval nil, :time_remaining nil}, :recursions #{:parent}, :entity/as "data_92299", :aggregate nil})
+  (def data [])
+  (query-selection->sql schema))
+
+
+(def ^:dynamic *ignore-maybe* true)
+(def ^:dynamic *deep* true)
+
 ;; TODO - IMPORTANT check wyh query-selection->sql is not passing on data
 (defn query-selection->sql
   ([schema] (query-selection->sql schema []))
   ([{operators :args encoders :encoders prefix :entity/as relations :relations :as schema} data]
-   (let [is-relation?  (set (keys relations))]
+   (let [is-relation? (set (keys relations))]
      (reduce
       (fn [[statements data] [field constraints]]
         (let [field' (if (not-empty prefix) (str prefix \. (name field)) (name field))]
@@ -1293,16 +1411,31 @@
              ;;
             (if (is-relation? field)
                ;; When specified field is nested relation
-              (let [[statements' data'] (query-selection->sql (get-in schema [:relations field]))]
-                [(into statements statements')
-                 (into data data')])
+              (if-not *deep* [statements data]
+                (let [[statements' data'] (query-selection->sql (get-in schema [:relations field]))]
+                  [(into statements statements')
+                   (into data data')]))
 
                ;; Handle fields
               (case field
+                ;;
                 :_where
-                (let [[statements' data'] (query-selection->sql (assoc schema :args constraints))]
-                  [(into statements statements')
-                   (into data data')])
+                (if-not *deep* [statements data]
+                  (let [[statements' data'] (query-selection->sql (assoc schema :args constraints))]
+                    [(conj statements [:and statements'])
+                     (into data data')]))
+                ;; Ignore for now...
+                :_maybe
+                (if *ignore-maybe* [statements data]
+                  (binding [*deep* false]
+                    (let [[statements' data'] (query-selection->sql
+                                                (-> schema 
+                                                    (assoc :args constraints)
+                                                    (dissoc :relations)))]
+                      [(conj statements [:or statements'])
+                       (into data data')])))
+                ;;
+                ;;
                 :_and
                 (update
                  (reduce
@@ -1310,7 +1443,11 @@
                     [(into statements statements')
                      (into data data')])
                   [[] data]
-                  (map #(query-selection->sql (assoc schema :args %)) constraints))
+                  (map
+                    (fn [[f c]]
+                      (let [schema' (assoc schema :args {f c})]
+                        (query-selection->sql schema')))
+                    constraints))
                  0
                  (fn [statements']
                    (conj statements
@@ -1320,30 +1457,35 @@
                            " and "
                            statements')
                           ")"))))
+                ;;
                 :_or
                 (update
-                 (reduce
-                  (fn [[statements data] [statements' data']]
-                    [(into statements statements')
-                     (into data data')])
-                  [[] data]
-                  (map #(query-selection->sql (assoc schema :args %)) constraints))
-                 0
-                 (fn [statements']
-                   (conj statements
-                         (str
-                          "("
-                          (clojure.string/join
-                           " or "
-                           statements')
-                          ")"))))
+                  (reduce
+                    (fn [[statements data] [statements' data']]
+                      [(into statements statements')
+                       (into data data')])
+                    [[] data]
+                    (map
+                      (fn [[f c]]
+                        (let [schema' (assoc schema :args {f c})]
+                          (query-selection->sql schema')))
+                      constraints))
+                  0
+                  (fn [statements']
+                    (conj statements
+                          (str
+                            "("
+                            (clojure.string/join
+                              " or "
+                              statements')
+                            ")"))))
                  ;; Ignore limit distinct offset
                 (:_limit :_offset :_order_by :_distinct)
                 (do
-                   ; (log/trace
-                   ;   :query.selection :ignore/field
-                   ;   :field field
-                   ;   :constraints constraints)
+                  ; (log/trace
+                  ;   :query.selection :ignore/field
+                  ;   :field field
+                  ;   :constraints constraints)
                   [statements data])
                 ;; Default handlers
                 (if (keyword? constraints)
@@ -1401,6 +1543,51 @@
       [[] data]
       operators))))
 
+
+(defn search-stack-args
+  "Function takes table pile and root entity id and produces where statement"
+  ([schema] (search-stack-args schema " and "))
+  ([schema j]
+   (letfn [(args-stack [{:keys [relations] :as schema}]
+             (let [[statements data] (query-selection->sql schema)
+                   [statements' data']
+                   (reduce
+                    (fn [[s d] r]
+                      (let [[s' d'] (args-stack r)]
+                        [(if (not-empty s') (into s s') s)
+                         (if (not-empty d') (into d d') d)]))
+                    [[] []]
+                    (vals relations))]
+               [((fnil into []) statements statements')
+                ((fnil into []) data data')]))]
+     (let [[stack data] (args-stack schema)]
+       (log/tracef
+        "Computed args stack:\nStack:\n%s\nData:\n%s"
+        stack (pprint data))
+       (when (not-empty stack)
+         [(str/join
+            " "
+            (map-indexed
+              (fn [idx statement]
+                (if (vector? statement)
+                  (let [[j statements] statement
+                        op (str/join
+                             (case j
+                               :or " or "
+                               :and " and "))]
+                    (str
+                      (when-not (zero? idx)
+                        (str op \space))
+                      (str/join op statements)))
+                  (str (when-not (zero? idx) j) statement)))
+              stack))
+          data])))))
+
+
+(comment
+  (search-stack-from schema))
+
+
 (defn search-stack-from
   "For given schema function will return FROM statement
   by joining tables in schema based on args available 
@@ -1419,55 +1606,73 @@
               (if (vector? args)
                 (some targeting-args? args)
                 (let [args' (dissoc args :_offset :_limit)
-                      some-constraint? (not-empty (dissoc args' :_and :_or :_where))]
+                      some-constraint? (not-empty (dissoc args' :_and :_or :_where :_maybe))]
                   (if some-constraint?
                     true
                     (some
                      targeting-args?
-                     ((juxt :_and :_or :_where) args')))))))
+                     ((juxt :_and :_or :_where :_maybe) args')))))))
           (targeting-schema? [{:keys [args fields relations counted? aggregate]}]
             (or
-             counted?
-             aggregate
-             (targeting-args? args)
-             (some targeting-args? (vals fields))
-             (some targeting-schema? (vals relations))))
-          (join-stack [{:keys [entity/as
-                               entity/table
-                               relations
-                               args]}]
-            (reduce-kv
-             (fn [[tables stack] rel link-data]
-               (if (or
-                    (some #(contains? % rel) (:_order_by args))
-                    (targeting-schema? link-data)
-                    (:counted? link-data)
-                    (not-empty (:aggregate link-data)))
-                 (let [{as-child :entity/as
-                        child-table :entity/table
-                        as-link :relation/as
-                        ff :from/field
-                        tf :to/field
-                        link-table :relation/table} link-data
-                       [tables' statements] (join-stack link-data)]
-                   [(into (conj tables as) tables')
-                    (into
-                     ((fnil conj [])
-                      stack
-                      (if (= table link-table)
-                        (format
-                         "inner join \"%s\" %s on %s.%s=%s.%s"
-                         child-table as-child as ff as-child "_eid")
-                        (format
-                         "inner join \"%s\" %s on %s._eid=%s.%s\ninner join \"%s\" %s on %s.%s=%s.%s"
-                         link-table as-link as as-link ff
-                         child-table as-child as-link tf as-child "_eid")))
-                     statements)])
-                 [tables stack]))
-             [[] []]
-             relations))]
+              counted?
+              aggregate
+              (targeting-args? args)
+              (some targeting-args? (vals fields))
+              (some targeting-schema? (vals relations))))
+          (join-stack
+            ([schema] (join-stack schema nil))
+            ([{:keys [entity/as
+                      entity/table
+                      relations
+                      args]} maybe-data]
+             (reduce-kv
+               (fn [[tables stack maybe-data] rel link-data]
+                 (if (or
+                       (some #(contains? % rel) (:_order_by args))
+                       (targeting-schema? link-data)
+                       (:counted? link-data)
+                       (not-empty (:aggregate link-data)))
+                   (let [{as-child :entity/as
+                          child-table :entity/table
+                          as-link :relation/as
+                          ff :from/field
+                          tf :to/field
+                          link-table :relation/table
+                          args :args} link-data
+                         [maybe-statements new-maybe-data]
+                         (when (:_maybe args)
+                           (binding [*deep* false]
+                             (search-stack-args (update link-data :args :_maybe) " or ")))
+                         [tables' statements more-maybe-data] (join-stack link-data [])
+                         maybe-data (cond->
+                                      (or maybe-data [])
+                                      new-maybe-data (into new-maybe-data)
+                                      more-maybe-data (into more-maybe-data))
+                         join (if (not-empty maybe-statements) "left" "inner")]
+                     [(into (conj tables as) tables')
+                      (into
+                        ((fnil conj [])
+                         stack
+                         (if (= table link-table)
+                           (format
+                             "%s join \"%s\" %s on %s.%s=%s.%s%s"
+                             join child-table as-child as ff as-child "_eid"
+                             (if-not maybe-statements ""
+                               (str " and " maybe-statements)))
+                           (format
+                             "%s join \"%s\" %s on %s._eid=%s.%s\n%s join \"%s\" %s on %s.%s=%s.%s%s"
+                             join link-table as-link as as-link ff
+                             join child-table as-child as-link tf as-child "_eid"
+                             (if-not maybe-statements ""
+                               (str " and " maybe-statements)))))
+                        statements)
+                      maybe-data])
+                   [tables stack maybe-data]))
+               [[] [] maybe-data]
+               relations)))]
     (let [{:keys [entity/as entity/table]} schema
-          [tables joins] (join-stack schema)]
+          [tables joins maybe-data] (join-stack schema)
+          join (if (not-empty maybe-data) "left" "inner")]
       (log/tracef
        "[%s] Search stack:\nTables\n%s\nJoins:\n%s"
        table tables joins)
@@ -1481,41 +1686,17 @@
            ;; to selection and cursor can point to somewhat different relations
            (str
             \" rtable \" " as " ras
-            " inner join " \" ttable \" \space as \space " on "
+            " " join " join " \" ttable \" \space as \space " on "
             ras \. falias \= as "._eid"
             \newline (clojure.string/join "\n" joins))
            ;; Otherwise
            (str
             \" rtable \" " as " ras
-            " inner join " \" ttable \" \space as \space " on "
+            " " join " join " \" ttable \" \space as \space " on "
             ras \. talias \= as "._eid"
             \newline (clojure.string/join "\n" joins)))
-         (str "\"" table "\" as " as \newline (clojure.string/join "\n" joins)))])))
-
-(defn search-stack-args
-  "Function takes table pile and root entity id and produces where statement"
-  ([schema] (search-stack-args schema " and "))
-  ([schema join-with]
-   (letfn [(args-stack [{:keys [relations] :as schema}]
-             (let [[statements data] (query-selection->sql schema)
-                   [statements' data']
-                   (reduce
-                    (fn [[s d] r]
-                      (let [[s' d'] (args-stack r)]
-                        [(if (not-empty s') (into s s') s)
-                         (if (not-empty d') (into d d') d)]))
-                    [[] []]
-                    (vals relations))]
-               [((fnil into []) statements statements')
-                ((fnil into []) data data')]))]
-     (let [[stack data] (args-stack schema)]
-       (log/tracef
-        "Computed args stack:\nStack:\n%s\nData:\n%s"
-        stack (pprint data))
-       (when (not-empty stack)
-         (cond->
-          [(clojure.string/join join-with (map #(str \( % \)) stack))
-           data]))))))
+         (str "\"" table "\" as " as \newline (clojure.string/join "\n" joins)))
+       maybe-data])))
 
 (defn focus-order
   "Function will remove nested :_order_by arguments
@@ -1543,9 +1724,9 @@
   (log/tracef
    "[%s] Pulling entity for parents %s\n%s"
    table (str/join ", " parents) (str/join ", " found-records))
-  (let [[_ from] (search-stack-from schema)
+  (let [[_ from maybe-data] (search-stack-from schema)
         [where d]  (search-stack-args schema)
-        [found fd] (when-not (empty? found-records)
+        [found fd] (when-some [found-records (not-empty (keep #(when (some? %) %) found-records))]
                      (search-stack-args
                       (assoc schema :args
                              {:_eid {:_in (int-array found-records)}})))
@@ -1572,7 +1753,7 @@
            \newline "where "
            (when where (str where))
            (when modifiers (str \newline modifiers)))]
-     data)))
+     ((fnil into []) maybe-data data))))
 
 ;; TODO - this can be optimized
 ;; When using  where statements and/or limit all roots per table are already known
@@ -1607,8 +1788,8 @@
                       (update cursor-schema :args dissoc :_limit :_offset)
                       (get found-records (keyword as)) parents)
                _ (log/tracef
-                  "[%s] Sending pull query:\n%s"
-                  table query)
+                  "[%s] Sending pull query:\n%s\n%s"
+                  table (first query) (second query))
                relations (cond->
                           (postgres/execute! con query *return-type*)
                             ;;
@@ -1750,9 +1931,12 @@
        (keyword ((get-in postgres/defaults [core/*return-type* :label-fn]) (:entity/as schema)))
        (keys (get db table)))))))
 
+
 (defn pull-roots [con schema found-records]
-  (let [db (pull-cursors con schema found-records)]
-    (construct-response schema db found-records)))
+  (binding [*ignore-maybe* false]
+    (let [db (pull-cursors con schema found-records)]
+      (construct-response schema db found-records))))
+
 
 (defn schema->aggregate-cursors
   "Given selection schema produces cursors that point
@@ -1854,6 +2038,14 @@
        (update-in schema (relations-cursor cursor) shave)
        (shave schema)))))
 
+
+(comment
+  (def focused-schema (focus-order schema))
+  (search-stack-from schema)
+  (search-stack-args schema))
+
+
+
 (defn search-entity-roots
   ([schema]
    (with-open [connection (jdbc/get-connection (:datasource *db*))]
@@ -1861,10 +2053,12 @@
   ([connection schema]
    ; (log/tracef "Searching entity roots for schema:\n%s" (pprint schema))
    ;; Prepare tables target table by inner joining all required tables
+   ; (def schema schema)
    (let [focused-schema (focus-order schema)
-         [tables from] (search-stack-from focused-schema)
+         [tables from maybe-data] (search-stack-from focused-schema)
          ;; then prepare where statements and target data
          [where data] (search-stack-args focused-schema)
+         data ((fnil into []) maybe-data data)
          ;; select only _eid for each table
          selected-ids (clojure.string/join
                        ", "
@@ -1911,16 +2105,11 @@
 
 (defn search-entity
   ([entity-id args selection]
-   ; (println (pr-str args))
-   ; (println (pr-str selection))
    (with-open [connection (jdbc/get-connection (:datasource *db*))]
      (let [schema (selection->schema entity-id selection args)
-           ; _ (log/tracef
-           ;     :entity entity-id
-           ;     :args args
-           ;     :selection selection
-           ;     :schema schema)
+           _ (log/tracef "Searching for entity\n%s" schema)
            roots (search-entity-roots connection schema)]
+       ; (def schema schema)
        (when (some? roots)
          (log/tracef "[%s] Found roots: %s" entity-id (str/join ", " roots))
          (pull-roots connection schema roots))))))
@@ -1981,8 +2170,6 @@
 (defn get-entity
   ([entity-id args selection]
    (assert (some? args) "No arguments to get entity for...")
-   ; (println "ARGS: " (pr-str args))
-   ; (println "SEL: " (pr-str selection))
    (log/tracef
     "[%s] Getting entity\nArgs:%s\nSelection:\n%s"
     entity-id (pprint args) (pprint selection))
@@ -2060,7 +2247,7 @@
                         true
                         (some
                          targeting-args?
-                         ((juxt :_and :_or :_where) args')))))))
+                         ((juxt :_and :_or :_where :_maybe) args')))))))
               (targeting-schema? [{:keys [args fields relations]}]
                 (or
                  (targeting-args? args)
@@ -2220,7 +2407,7 @@
                                       stack'
                                       aggregate))))
                    ;;
-                  [_ from] (search-stack-from shaved-schema)
+                  [_ from maybe-data] (search-stack-from shaved-schema)
                    ;;
                   [where data] (search-stack-args shaved-schema)
                    ;;
@@ -2229,9 +2416,6 @@
               (log/tracef
                "[%s] Aggregate query for cursor %s\nQuery:\n%sData:\n%s"
                entity-id cursor query (pprint data))
-               ; (def shaved-schema shaved-schema)
-               ; (println "QUERY: " query)
-               ; (println "DATA: " data)
               (reduce-kv
                (fn [result k v]
                  (let [[_ selection :as path] (clojure.string/split (name k) #"\$\$")]
@@ -2239,7 +2423,7 @@
                      (assoc-in result (map keyword path) v)
                      (assoc result k v))))
                result
-               (postgres/execute-one! connection (into [query] data)))))
+               (postgres/execute-one! connection (into [query] ((fnil into []) maybe-data data))))))
           nil
           (concat [[]] cursors)))))))
 
@@ -2321,12 +2505,12 @@
                (if (vector? args)
                  (some targeting-args? args)
                  (let [args' (dissoc args :_offset :_limit)
-                       some-constraint? (not-empty (dissoc args' :_and :_or :_where))]
+                       some-constraint? (not-empty (dissoc args' :_and :_or :_where :_maybe))]
                    (if some-constraint?
                      true
                      (some
                       targeting-args?
-                      ((juxt :_and :_or :_where) args')))))))]
+                      ((juxt :_and :_or :_where :_maybe) args')))))))]
      (let [{:keys [relations entity/table entity/as] :as schema}
            (selection->schema entity-id selection args)
            queries (reduce-kv
