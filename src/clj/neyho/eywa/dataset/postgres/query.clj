@@ -896,7 +896,9 @@
                         (set
                          (keep
                           (fn [{t :type k :key}]
-                            (when (scalar-types t)
+                            (when (and
+                                    (scalar-types t)
+                                    (not (#{:_counted} k)))
                               k))
                           fields))
                         :euuid :_eid)
@@ -1092,7 +1094,10 @@
                  :entity/as (str (gensym "data_"))
                  :entity/table table
                  :fields scalars
-                 :counted? (boolean (contains? selection :count))
+                 :counted? (boolean
+                             (or
+                               (contains? selection :count)
+                               (contains? selection :_count)))
                  :aggregate (reduce
                              (fn [r {k :key}]
                                (let [[{:keys [args selections]}] (get selection k)
@@ -1713,7 +1718,8 @@
 
 (defn pull-query
   [{:keys [entity/as
-           fields]
+           fields
+           counted?]
     talias :to/field
     falias :from/field
     ras :relation/as
@@ -1728,32 +1734,35 @@
         [where d]  (search-stack-args schema)
         [found fd] (when-some [found-records (not-empty (keep #(when (some? %) %) found-records))]
                      (search-stack-args
-                      (assoc schema :args
-                             {:_eid {:_in (int-array found-records)}})))
+                       (assoc schema :args
+                              {:_eid {:_in (int-array found-records)}})))
         [parented pd] (if (= talias "_eid")
                         ;; If direct binding (in entity table)
                         (search-stack-args
-                         (assoc schema
-                           :args {:_eid {:_in (int-array parents)}}
-                           :entity/as ras))
+                          (assoc schema
+                                 :args {:_eid {:_in (int-array parents)}}
+                                 :entity/as ras))
                         ;; Otherwise
                         (search-stack-args
-                         (assoc schema
-                           :args {(keyword falias) {:_in (int-array parents)}}
-                           :entity/as ras)))
+                          (assoc schema
+                                 :args {(keyword falias) {:_in (int-array parents)}}
+                                 :entity/as ras)))
         [where data] [(clojure.string/join " and " (remove nil? [where found parented]))
                       (reduce into [] (remove nil? [d fd pd]))]
-        modifiers (modifiers-selection->sql schema)]
+        modifiers (modifiers-selection->sql schema)
+        maybe-fields (when-not (empty? fields) (extend-fields (keys fields) as))]
     (into
-     [(str "select " (if (= talias "_eid")
-                       (str ras "._eid as " falias)
-                       (str ras \. falias \, ras \. talias))
-           (when-not (empty? fields) (str "," (extend-fields (keys fields) as)))
-           \newline "from " from
-           \newline "where "
-           (when where (str where))
-           (when modifiers (str \newline modifiers)))]
-     ((fnil into []) maybe-data data))))
+      [(str "select " (if (= talias "_eid")
+                        (str ras "._eid as " falias)
+                        (str ras \. falias \, ras \. talias))
+            (when maybe-fields (str ", " maybe-fields))
+            ; (when counted? (str " , count(" as "._eid) as \"" as "._count\""))
+            \newline "from " from
+            \newline "where "
+            (when where (str where))
+            ; (when (and counted? maybe-fields) (str " group by " maybe-fields))
+            (when modifiers (str \newline modifiers)))]
+      ((fnil into []) maybe-data data))))
 
 ;; TODO - this can be optimized
 ;; When using  where statements and/or limit all roots per table are already known
@@ -2007,6 +2016,7 @@
         cursor)
        (dissoc schema :relations)))))
 
+
 (defn shave-schema-aggregates
   ([schema]
    (reduce
@@ -2022,18 +2032,19 @@
                 c)))
      (dissoc schema :counted? :aggregate))))
 
+
 (defn shave-schema-arguments
   ([schema]
    (reduce
-    shave-schema-arguments
-    schema
-    (schema->cursors schema)))
+     shave-schema-arguments
+     schema
+     (schema->cursors schema)))
   ([schema cursor]
    (letfn [(shave [schema]
              (->
-              schema
-              (dissoc :args)
-              (update :fields #(zipmap (keys %) (repeat nil)))))]
+               schema
+               (dissoc :args)
+               (update :fields #(zipmap (keys %) (repeat nil)))))]
      (if (some? cursor)
        (update-in schema (relations-cursor cursor) shave)
        (shave schema)))))
@@ -2043,7 +2054,6 @@
   (def focused-schema (focus-order schema))
   (search-stack-from schema)
   (search-stack-args schema))
-
 
 
 (defn search-entity-roots
@@ -2113,6 +2123,7 @@
        (when (some? roots)
          (log/tracef "[%s] Found roots: %s" entity-id (str/join ", " roots))
          (pull-roots connection schema roots))))))
+
 
 (defn purge-entity
   ([entity-id args selection]

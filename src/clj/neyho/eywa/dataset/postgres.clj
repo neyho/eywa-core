@@ -991,6 +991,7 @@
                   r (entity->gql-object ename)
                   {:fields (as-> 
                              {:euuid {:type 'UUID}
+                              ; :_count {:type 'Int}
                               :modified_by (reference-object au/user)
                               :modified_on {:type :Timestamp}}
                              fields 
