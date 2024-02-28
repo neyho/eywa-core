@@ -91,6 +91,8 @@
       (juxt :euuid :name) 
       (dataset/get-entities (deployed-model)))))
 
+(comment
+  (deployed-entity #uuid "5338693b-9dbc-4434-b598-b15175da04c3"))
 
 (defn account-dataset [_ _ _]
   {:model (deployed-model)})
@@ -175,8 +177,6 @@
 
 
 (defn deploy! [model] (dataset/deploy! *db* model))
-(defn init-module [model] (dataset/init-module *db* model))
-(defn setup-module [model] (dataset/setup-module *db* model))
 (defn reload [] (dataset/reload *db*))
 (defn load-role-schema []
   (letfn [(get-uuids [col]
@@ -228,16 +228,34 @@
 
 
 (comment
+  (def entity-uuid #uuid "5338693b-9dbc-4434-b598-b15175da04c3")
+  (def entity (dataset/get-entity (deployed-model) entity-uuid))
+  (def relations (dataset/get-entity-relations (deployed-model) entity))
+  (doseq [{relation :euuid} relations]
+    (delete-entity du/dataset-relation {:euuid relation}))
+  (delete-entity du/dataset-entity {:euuid entity-uuid})
   (def version
     (get-entity
       du/dataset-version
-      {:euuid #uuid "5620617e-74e9-4f19-abe6-ecd6d771a790"}
+      {:euuid #uuid "1b14b5c9-44ab-4280-8f8a-37c2d419068a"}
       {:euuid nil
        :dataset [{:selections
                   {:euuid nil
                    :name nil}}]
        :model nil
-       :name nil})))
+       :name nil}))
+  (def version
+    (get-entity
+      du/dataset-version
+      {:euuid #uuid "d8b61ef4-7815-4463-999c-8567f2d3eef5"}
+      {:euuid nil
+       :dataset [{:selections
+                  {:euuid nil
+                   :name nil}}]
+       :model nil
+       :name nil}))
+  (def username "rgersak")
+  (def user nil))
 
 
 (defn deploy-dataset
@@ -256,11 +274,7 @@
          ; (let [{:keys [euuid]} (dataset/deploy! connector version)]
          ;; TODO - Rethink this. Should we use teard-down and setup instead
          ;; of plain deploy! recall!
-         (let [{:keys [euuid]} (dataset/setup-module *db* version)]
-           (try
-             (init-module version)
-             (catch Throwable _))
-           (reload)
+         (let [{:keys [euuid]} (dataset/deploy! *db* version)]
            (load-role-schema)
            (async/put!
              wc {:topic :refreshedGlobalDataset
@@ -315,6 +329,7 @@
                         datasets
                         {:euuid euuid}
                         {:name nil
+                         :euuid nil
                          :versions [{:args {:_order_by [{:modified_on :asc}]}
                                      :selections {:name nil
                                                   :euuid nil
@@ -337,7 +352,7 @@
     :as ctx} args v]
   (when destroy
     (log/infof "User %s destroying dataset %s" username (:name destroy))
-    (dataset/tear-down-module *db* destroy)
+    (dataset/destroy! *db* destroy)
     (async/put! wc {:topic :refreshedGlobalDataset
                     :data {:name "Global" 
                            :model (dataset/get-model *db*)}}))
@@ -358,10 +373,11 @@
   datasets to work. That includes aaa.edm and dataset.edm models"
   ([db]
    (is-supported? db)
-   
    db))
 
 (comment
+  (def db *db*)
+  (def model (dataset/get-last-deployed db))
   (do
     (def file "./first_ai_test.edm")
     (def model (neyho.eywa.transit/<-trasit (slurp file)))

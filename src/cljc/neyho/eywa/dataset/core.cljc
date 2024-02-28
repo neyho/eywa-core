@@ -35,54 +35,18 @@
   #?(:clj (java.util.UUID/randomUUID)
      :cljs (random-uuid)))
 
+
 (defprotocol EntityConstraintProtocol
   (set-entity-unique-constraints [this constraints])
   (update-entity-unique-constraints [this function])
   (get-entity-unique-constraints [this]))
 
-(defprotocol GraphQLEntityConfigurationProtocol
-  (set-gql-interceptors [this type interceptors])
-  (get-gql-interceptors [this type])
-  (extend-gql-entity-fields [this fields])
-  (remove-gql-entity-fields [this fields]))
-
-(defprotocol GraphQLModelConfigurationProtocol
-  (set-gql-object [this name object])
-  (set-gql-input-object [this name object])
-  (set-gql-query [this name query])
-  (set-gql-mutation [this name mutation])
-  (get-gql-object [this name])
-  (get-gql-input-object [this name])
-  (get-gql-query [this name])
-  (get-gql-mutation [this name])
-  (get-gql-objects [this])
-  (get-gql-input-objects [this])
-  (get-gql-queries [this])
-  (get-gql-mutations[this])
-  (remove-gql-object [this name])
-  (remove-gql-input-object [this name])
-  (remove-gql-query [this name])
-  (remove-gql-mutation [this name]))
 
 (defprotocol AuditConfigurationProtocol
   (set-who-field [this name])
   (get-who-field [this])
   (set-when-field [this name])
   (get-when-field [this]))
-
-
-(defprotocol ModuleLifecycleProtocol
-  (setup-module [this version])
-  (init-module [this version])
-  (tear-down-module [this] [this version]))
-
-(defprotocol ModuleConfigurationProtocol
-  (set-init-handler [this handler])
-  (get-init-handler [this])
-  (set-setup-handler [this handler])
-  (get-setup-handler [this])
-  (set-tear-down-handler [this handler])
-  (get-tear-down-handler [this]))
 
 
 (defprotocol ERDEntityAttributeProtocol
@@ -241,13 +205,6 @@
     and entities with 'this'. Therefore reconcile this with that"))
 
 (defrecord ERDModel [entities relations configuration]
-  ModuleConfigurationProtocol
-  (set-init-handler [this h] (assoc-in this [:configuration :init :handler] h))
-  (get-init-handler [_] (get-in configuration [:init :handler]))
-  (set-setup-handler [this h] (assoc-in this [:configuration :setup :handler] h))
-  (get-setup-handler [_] (get-in configuration [:setup :handler]))
-  (set-tear-down-handler [this h] (assoc-in this [:configuration :tear-down :handler] h))
-  (get-tear-down-handler [_] (get-in configuration [:tear-down :handler]))
   AuditConfigurationProtocol
   (set-who-field
     [this name]
@@ -258,57 +215,7 @@
     [this name]
     (assoc-in this [:configuration :audit :when] name))
   (get-when-field [this] 
-    (get-in this [:configuration :audit :when]))
-  GraphQLModelConfigurationProtocol
-  (get-gql-objects [this] (get-in this [:configuration :graphql :objects]))
-  (get-gql-input-objects [this] (get-in this [:configuration :graphql :input-objects]))
-  (get-gql-queries [this] (get-in this [:configuration :graphql :queries]))
-  (get-gql-mutations [this] (get-in this [:configuration :graphql :mutations]))
-  (get-gql-object [this name] (get-in this [:configuration :graphql :objects name]))
-  (get-gql-input-object [this name] (get-in this [:configuration :graphql :input-objects name]))
-  (get-gql-query [this name] (get-in this [:configuration :graphql :queries name]))
-  (get-gql-mutation [this name] (get-in this [:configuration :graphql :mutations name]))
-  (set-gql-object 
-    [this name object]
-    (assoc-in this [:configuration :graphql :objects name] object))
-  (set-gql-input-object 
-    [this name object]
-    (assoc-in this [:configuration :graphql :input-objects name] object))
-  (set-gql-query
-    [this name query]
-    (assoc-in this [:configuration :graphql :queries name] query))
-  (set-gql-mutation
-    [this name mutation]
-    (assoc-in this [:configuration :graphql :mutations name] mutation))
-  (remove-gql-object [this name] 
-    (update-in this [:configuration :graphql :objects] dissoc name))
-  (remove-gql-input-object [this name] 
-    (update-in this [:configuration :graphql :input-objects] dissoc name))
-  (remove-gql-query [this name] 
-    (update-in this [:configuration :graphql :queries] dissoc name))
-  (remove-gql-mutation [this name] 
-    (update-in this [:configuration :graphql :mutations] dissoc name)))
-
-
-(extend-type nil
-  GraphQLModelConfigurationProtocol
-  (get-gql-objects [_] nil)
-  (get-gql-input-objects [_] nil)
-  (get-gql-queries [_] nil)
-  (get-gql-mutations [_] nil)
-  (get-gql-object [_ _] nil)
-  (get-gql-input-object [_ _] nil)
-  (get-gql-query [_ _] nil)
-  (get-gql-mutation [_ _] nil)
-  (set-gql-object [_ _ _] nil)
-  (set-gql-input-object [_ _ _] nil)
-  (set-gql-query [_ _ _] nil)
-  (set-gql-mutation [_ _ _] nil)
-  (remove-gql-object [_ _] nil)
-  (remove-gql-input-object [_ _] nil)
-  (remove-gql-query [_ _] nil)
-  (remove-gql-mutation [_ _] nil))
-
+    (get-in this [:configuration :audit :when])))
 
 
 (extend-protocol ERDModelActions
@@ -325,11 +232,14 @@
 
 (defprotocol DatasetProtocol
   (deploy! 
-    [this module]
-    "Deploys dataset for given account")
+    [this version]
+    "Deploys dataset version")
   (recall!
-    [this module]
-    "Removes current dataset module from account")
+    [this version]
+    "Removes current dataset version")
+  (destroy!
+    [this dataset]
+    "Removes all dataset versions and all dataset data. Affects DB as well. All is gone")
   (get-model
     [this]
     "Returns all entities and relations for given account")
@@ -790,18 +700,3 @@
   (mark-added [_] nil)
   (mark-diff [_ _] nil)
   (project [_ that] (when that (mark-added that))))
-
-
-;; DEPRECATED
-(let [queries #{:sync :tree :get :search :aggregate :delete :stack :slice}] 
-  (extend-protocol GraphQLEntityConfigurationProtocol
-    ERDEntity
-    (set-gql-interceptors [this t interceptors]
-      {:pre (queries t)}
-      (assoc-in this [:configuration :graphql :interceptors t] (vec interceptors)))
-    (get-gql-interceptors [this t]
-      (get-in this [:configuration :graphql :interceptors t] []))
-    (extend-gql-entity-fields [this fields]
-      (update-in this [:configuration :graphql :extend] merge fields))
-    (remove-gql-entity-fields [this fields]
-      (update-in this [:configuration :graphql :extend] dissoc fields))))

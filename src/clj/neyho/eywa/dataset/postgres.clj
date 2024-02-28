@@ -974,177 +974,178 @@
           _when :modified_on]
       (reduce
         (fn [r {ename :name attributes :attributes :as entity}]
-          (let [numerics (reduce
-                           (fn [fields {aname :name atype :type}]
-                             (case atype
-                               ("integer" "float") (conj fields (attribute->gql-field aname))
-                               fields))
-                           [] 
-                           attributes)
-                scalars (filter scalar-attribute? attributes)
-                references (filter reference-attribute? attributes)
-                entity-relations (core/focus-entity-relations model entity)
-                to-relations (filter #(not-empty (:to-label %)) entity-relations)]
-            (if (nil? ename) r
-              (cond->
-                (assoc 
-                  r (entity->gql-object ename)
-                  {:fields (as-> 
-                             {:euuid {:type 'UUID}
-                              :modified_by (reference-object au/user)
-                              :modified_on {:type :Timestamp}}
-                             fields 
-                             ;; References to well known objects
-                             (reduce
-                               (fn [fields {aname :name t :type}]
-                                 (case t
-                                   "user" (assoc fields (attribute->gql-field aname) (reference-object au/user))
-                                   "group" (assoc fields (attribute->gql-field aname) (reference-object au/user-group))
-                                   "role" (assoc fields (attribute->gql-field aname) (reference-object au/user-role))))
-                               fields
-                               references)
-                             ;; Scalars
-                             (reduce
-                               (fn [fields {aname :name atype :type active :active
-                                            :as attribute}]
-                                 (if-not (or active (= aname "euuid")) fields 
-                                   (let [t (attribute-type->scalar entity attribute)]
-                                     (assoc fields (attribute->gql-field aname)
-                                            (cond-> {:type t}
-                                              (= "enum" atype)
-                                              (assoc
-                                                :args (zipmap
-                                                        [:_eq :_neq :_in :_not_in]
-                                                        (concat
-                                                          (repeat 2 {:type t})
-                                                          (repeat 2 {:type (list 'list t)}))))
-                                              (= t 'UUID)
-                                              (assoc
-                                                :args (zipmap
-                                                        [:_eq :_neq :_in :_not_in]
-                                                        (concat
-                                                          (repeat 2 {:type 'UUID})
-                                                          (repeat 2 {:type (list 'list 'UUID)}))))
-                                              (= t 'Boolean)
-                                              (assoc
-                                                :args (zipmap
-                                                        [:_eq :_neq]
-                                                        (repeat {:type 'Boolean})))
-                                              (= t 'Int) 
-                                              (assoc 
-                                                :args (zipmap
-                                                        [:_gt :_lt :_eq :_neq :_ge :_le :_in :_not_in]
-                                                        (concat
-                                                          (repeat 6 {:type 'Int})
-                                                          (repeat 6 {:type (list 'list 'Int)}))))
-                                              ;;
-                                              (= t 'Float) 
-                                              (assoc 
-                                                :args (zipmap
-                                                        [:_gt :_lt :_eq :_neq :_ge :_le :_in :_not_in]
-                                                        (concat
-                                                          (repeat 6 {:type 'Float})
-                                                          (repeat 6 {:type (list 'list 'Float)}))))
-                                              (= t 'String)
-                                              (assoc
-                                                :args (zipmap
-                                                        [:_neq :_eq :_like :_ilike :_in :_not_in] 
-                                                        (concat
-                                                          (repeat 4 {:type 'String})
-                                                          (repeat 4 {:type (list 'list 'String)}))))
-                                              (= t 'Currency)
-                                              (assoc
-                                                :args (assoc
-                                                        (zipmap
+          (if (empty? attributes) r
+            (let [numerics (reduce
+                             (fn [fields {aname :name atype :type}]
+                               (case atype
+                                 ("integer" "float") (conj fields (attribute->gql-field aname))
+                                 fields))
+                             [] 
+                             attributes)
+                  scalars (filter scalar-attribute? attributes)
+                  references (filter reference-attribute? attributes)
+                  entity-relations (core/focus-entity-relations model entity)
+                  to-relations (filter #(not-empty (:to-label %)) entity-relations)]
+              (if (nil? ename) r
+                (cond->
+                  (assoc 
+                    r (entity->gql-object ename)
+                    {:fields (as-> 
+                               {:euuid {:type 'UUID}
+                                :modified_by (reference-object au/user)
+                                :modified_on {:type :Timestamp}}
+                               fields 
+                               ;; References to well known objects
+                               (reduce
+                                 (fn [fields {aname :name t :type}]
+                                   (case t
+                                     "user" (assoc fields (attribute->gql-field aname) (reference-object au/user))
+                                     "group" (assoc fields (attribute->gql-field aname) (reference-object au/user-group))
+                                     "role" (assoc fields (attribute->gql-field aname) (reference-object au/user-role))))
+                                 fields
+                                 references)
+                               ;; Scalars
+                               (reduce
+                                 (fn [fields {aname :name atype :type active :active
+                                              :as attribute}]
+                                   (if-not (or active (= aname "euuid")) fields 
+                                     (let [t (attribute-type->scalar entity attribute)]
+                                       (assoc fields (attribute->gql-field aname)
+                                              (cond-> {:type t}
+                                                (= "enum" atype)
+                                                (assoc
+                                                  :args (zipmap
+                                                          [:_eq :_neq :_in :_not_in]
+                                                          (concat
+                                                            (repeat 2 {:type t})
+                                                            (repeat 2 {:type (list 'list t)}))))
+                                                (= t 'UUID)
+                                                (assoc
+                                                  :args (zipmap
+                                                          [:_eq :_neq :_in :_not_in]
+                                                          (concat
+                                                            (repeat 2 {:type 'UUID})
+                                                            (repeat 2 {:type (list 'list 'UUID)}))))
+                                                (= t 'Boolean)
+                                                (assoc
+                                                  :args (zipmap
+                                                          [:_eq :_neq]
+                                                          (repeat {:type 'Boolean})))
+                                                (= t 'Int) 
+                                                (assoc 
+                                                  :args (zipmap
+                                                          [:_gt :_lt :_eq :_neq :_ge :_le :_in :_not_in]
+                                                          (concat
+                                                            (repeat 6 {:type 'Int})
+                                                            (repeat 6 {:type (list 'list 'Int)}))))
+                                                ;;
+                                                (= t 'Float) 
+                                                (assoc 
+                                                  :args (zipmap
+                                                          [:_gt :_lt :_eq :_neq :_ge :_le :_in :_not_in]
+                                                          (concat
+                                                            (repeat 6 {:type 'Float})
+                                                            (repeat 6 {:type (list 'list 'Float)}))))
+                                                (= t 'String)
+                                                (assoc
+                                                  :args (zipmap
+                                                          [:_neq :_eq :_like :_ilike :_in :_not_in] 
+                                                          (concat
+                                                            (repeat 4 {:type 'String})
+                                                            (repeat 4 {:type (list 'list 'String)}))))
+                                                (= t 'Currency)
+                                                (assoc
+                                                  :args (assoc
+                                                          (zipmap
+                                                            [:_gt :_lt :_neq :_eq :_ge :_le]
+                                                            (repeat {:type 'Float}))
+                                                          :in_currencies {:type (list 'list :currency_enum)}))
+                                                (= t 'Timestamp)
+                                                (assoc
+                                                  :args (zipmap
                                                           [:_gt :_lt :_neq :_eq :_ge :_le]
-                                                          (repeat {:type 'Float}))
-                                                        :in_currencies {:type (list 'list :currency_enum)}))
-                                              (= t 'Timestamp)
-                                              (assoc
-                                                :args (zipmap
-                                                        [:_gt :_lt :_neq :_eq :_ge :_le]
-                                                        (repeat {:type 'Timestamp})))
-                                              (= t 'Timeperiod)
-                                              (assoc
-                                                :args (merge
-                                                        (zipmap
-                                                          [:_gt :_lt :_neq :_eq :_ge :_le ]
-                                                          (repeat {:type 'TimePeriod}))
-                                                        (zipmap
-                                                          [:contains :exclude]
-                                                          (repeat {:type 'Timestamp})))))))))
-                               fields
-                               (conj scalars {:name "euuid" :type "uuid"}))
-                             ;; Outgoing relations
-                             (reduce
-                               (fn [fields {:keys [to to-label cardinality]}]
-                                 (if (and (not-empty to-label) (not-empty (:name to))) 
-                                   (assoc fields (attribute->gql-field to-label) 
-                                          (let [t (entity->gql-object (:name to))] 
-                                            (case cardinality
-                                              ("o2m" "m2m") {:type (list 'list t)
-                                                             :args {:_offset {:type 'Int}
-                                                                    :_limit {:type 'Int}
-                                                                    :_where {:type (entity->search-operator to)}
-                                                                    :_maybe {:type (entity->search-operator to)}
-                                                                    :_order_by {:type (entity->order-by-operator to)}}}
-                                              ("m2o" "o2o") {:type t
-                                                             :args {:_where {:type (entity->search-operator to)}
-                                                                    :_maybe {:type (entity->search-operator to)}}}
-                                              "tree" {:type t 
-                                                      :args {:_where {:type (entity->search-operator entity)}
-                                                             :_maybe {:type (entity->search-operator entity)}
-                                                             (attribute->gql-field to-label) {:type :is_null_enum}}}
-                                              {:type t})))
-                                   fields))
-                               fields
-                               to-relations))}
-                  ;;
-                  (entity->aggregate-object entity)
-                  {:fields
-                   (cond->
-                     (reduce
-                       (fn [fields {:keys [to to-label]}]
-                         (if (not-empty to-label) 
-                           (assoc fields (attribute->gql-field to-label)
-                                  {:type (entity->aggregate-object to)
-                                   :args {:_where {:type (entity->search-operator to)}}})
-                           fields))
+                                                          (repeat {:type 'Timestamp})))
+                                                (= t 'Timeperiod)
+                                                (assoc
+                                                  :args (merge
+                                                          (zipmap
+                                                            [:_gt :_lt :_neq :_eq :_ge :_le ]
+                                                            (repeat {:type 'TimePeriod}))
+                                                          (zipmap
+                                                            [:contains :exclude]
+                                                            (repeat {:type 'Timestamp})))))))))
+                                 fields
+                                 (conj scalars {:name "euuid" :type "uuid"}))
+                               ;; Outgoing relations
+                               (reduce
+                                 (fn [fields {:keys [to to-label cardinality]}]
+                                   (if (and (not-empty to-label) (not-empty (:name to))) 
+                                     (assoc fields (attribute->gql-field to-label) 
+                                            (let [t (entity->gql-object (:name to))] 
+                                              (case cardinality
+                                                ("o2m" "m2m") {:type (list 'list t)
+                                                               :args {:_offset {:type 'Int}
+                                                                      :_limit {:type 'Int}
+                                                                      :_where {:type (entity->search-operator to)}
+                                                                      :_maybe {:type (entity->search-operator to)}
+                                                                      :_order_by {:type (entity->order-by-operator to)}}}
+                                                ("m2o" "o2o") {:type t
+                                                               :args {:_where {:type (entity->search-operator to)}
+                                                                      :_maybe {:type (entity->search-operator to)}}}
+                                                "tree" {:type t 
+                                                        :args {:_where {:type (entity->search-operator entity)}
+                                                               :_maybe {:type (entity->search-operator entity)}
+                                                               (attribute->gql-field to-label) {:type :is_null_enum}}}
+                                                {:type t})))
+                                     fields))
+                                 fields
+                                 to-relations))}
+                    ;;
+                    (entity->aggregate-object entity)
+                    {:fields
+                     (cond->
                        (reduce
-                         (fn [fields {t :type n :name}]
-                           (assoc fields (attribute->gql-field n)
-                             (case t
-                               "int"
-                               {:type :IntAggregate
-                                :args (zipmap
-                                        [:_gt :_lt :_eq :_neq :_ge :_le]
-                                        (repeat {:type 'Int}))}
-                               "float"
-                               {:type :FloatAggregate
-                                :args (zipmap
-                                        [:_gt :_lt :_eq :_neq :_ge :_le]
-                                        (repeat {:type 'Float}))})))
-                         {:count {:type 'Int}}
-                         (numerics? entity))
-                       to-relations))})
-                ;;
-                (not-empty to-relations)
-                (assoc 
-                  (entity->slice-object entity)
-                  {:fields
-                   (cond->
-                     (reduce
-                       (fn [fields {:keys [to to-label]}]
-                         (if (not-empty to-label) 
-                           (assoc fields (attribute->gql-field to-label)
-                                  {:type 'Boolean
-                                   :args {:_where {:type (entity->search-operator to)}}})
-                           fields))
-                       nil
-                       entity-relations))})
-                (not-empty numerics)
-                (assoc (entity->numeric-enum entity) 
-                       {:fields (zipmap numerics (repeat {:type 'Float}))})))))
+                         (fn [fields {:keys [to to-label]}]
+                           (if (not-empty to-label) 
+                             (assoc fields (attribute->gql-field to-label)
+                                    {:type (entity->aggregate-object to)
+                                     :args {:_where {:type (entity->search-operator to)}}})
+                             fields))
+                         (reduce
+                           (fn [fields {t :type n :name}]
+                             (assoc fields (attribute->gql-field n)
+                                    (case t
+                                      "int"
+                                      {:type :IntAggregate
+                                       :args (zipmap
+                                               [:_gt :_lt :_eq :_neq :_ge :_le]
+                                               (repeat {:type 'Int}))}
+                                      "float"
+                                      {:type :FloatAggregate
+                                       :args (zipmap
+                                               [:_gt :_lt :_eq :_neq :_ge :_le]
+                                               (repeat {:type 'Float}))})))
+                           {:count {:type 'Int}}
+                           (numerics? entity))
+                         to-relations))})
+                  ;;
+                  (not-empty to-relations)
+                  (assoc 
+                    (entity->slice-object entity)
+                    {:fields
+                     (cond->
+                       (reduce
+                         (fn [fields {:keys [to to-label]}]
+                           (if (not-empty to-label) 
+                             (assoc fields (attribute->gql-field to-label)
+                                    {:type 'Boolean
+                                     :args {:_where {:type (entity->search-operator to)}}})
+                             fields))
+                         nil
+                         entity-relations))})
+                  (not-empty numerics)
+                  (assoc (entity->numeric-enum entity) 
+                         {:fields (zipmap numerics (repeat {:type 'Float}))}))))))
         {:Currency
          {:fields
           {:currency {:type :currency_enum 
@@ -1873,10 +1874,13 @@
 
 
 (defn db->model [eywa]
-  (let [entities (map
-                   (fn [e]
-                     (core/map->ERDEntity
-                       (update e :attributes #(mapv core/map->ERDEntityAttribute %))))
+  (let [entities (keep
+                   (fn [{:keys [attributes] :as e}]
+                     (when-let [attributes (not-empty
+                                             (map
+                                               #(core/map->ERDEntityAttribute %)
+                                               attributes))]
+                       (core/map->ERDEntity (assoc e :attributes attributes))))
                    (search-entity  
                      eywa du/dataset-entity  nil
                      {:euuid nil
@@ -1934,112 +1938,38 @@
 
 
 (extend-type neyho.eywa.Postgres
-  core/ModuleLifecycleProtocol
-  (core/setup-module [this {:keys [model] :as version}]
-    (try
-      (let [deployed (core/deploy! this version)]
-        (core/reload this)
-        (when model 
-          (when-let [hs (core/get-setup-handler model)]
-            (require (symbol (namespace hs)))
-            (if-let [h (resolve hs)]
-              (h this)
-              (throw
-                (ex-info 
-                  "Couldn't find setup-handler"
-                  {:type :dataset/lifecycle
-                   :handler (core/get-setup-handler model)})))))
-        (core/add-to-deploy-history this (core/get-model this))
-        deployed)
-      (catch Throwable e
-        ;; Don't auto destroy module... Handle tear-down-module explicitly!
-        ; (dataset/tear-down-module this version)
-        (log/errorf
-          e "Couldn't load module %s@%s"
-          (:name (:dataset version)) (:name version))
-        (throw e))))
-  (dataset/init-module [this {:keys [model] :as version}]
-    (log/infof
-      "Initializing model %s %s"
-      (:name (:dataset version)) (:name version))
-    (when model
-      (when-let [hs (core/get-init-handler model)] 
-        (log/infof "Initializing module %s" hs)
-        (require (symbol (namespace hs)))
-        (if-let [h (resolve hs)]
-          (h this)
-          (throw
-            (ex-info 
-              "Couldn't find init-handler"
-              {:type :dataset/lifecycle
-               :handler (core/get-init-handler model)}))))))
-  (dataset/tear-down-module [this
-                             {versions :versions
-                              module-name :name}]
-    (let [uber-model (when (not-empty versions) 
-                       (reduce
-                         (fn [old new]
-                           (core/join-models old new))
-                         (map :model versions)))]
-      (when uber-model
-        (core/unmount this {:model uber-model})
-        (doseq [{:keys [model euuid] version-name :name} (reverse versions)]
-          (log/infof "Destroying dataset version %s@%s" module-name version-name)
-          (delete-entity this du/dataset-version {:euuid euuid})
-          ;; Finaly try to execute model tear down handler
-          (try
-            (when-let [hs (core/get-tear-down-handler model)] 
-              (log/infof "Executing teardown handler %s" hs)
-              (require (symbol (namespace hs)))
-              (if-let [h (resolve hs)]
-                (h this)
-                (throw
-                  (ex-info
-                    "Couldn't find tear-down-handler"
-                    {:type :dataset/lifecycle
-                     :handler (core/get-tear-down-handler model)}))))
-            (catch Throwable e
-              (log/errorf
-                e  "Couldn't execute tear-down-handler %s@%s" module-name version-name))))
-        (let [db-model (core/get-last-deployed this) 
-              model (core/get-model this)
-              final-model (with-meta db-model (meta model))]
-          (dataset/save-model final-model)
-          (let [global-model (core/reload this)]
-            (core/add-to-deploy-history this global-model)
-            ;; Restart core
-            global-model)))))
   core/DatasetProtocol
   (core/deploy! [this {:keys [model]  :as version}] 
     (try
-      (let [{model' :model :as dataset'} (core/mount this version)
+      (let [dataset' (core/mount this version)
             version'' (assoc
                         version
                         :model model 
                         :deployed true
-                        :configuration (:configuration model)
-                        :entities (core/get-entities model')
+                        :entities (core/get-entities model)
                         :relations 
                         (reduce
                           (fn [r relation]
                             (conj r
-                              (->
-                                relation
-                                (update :from :euuid)
-                                (update :to :euuid))))
+                                  (->
+                                    relation
+                                    (update :from :euuid)
+                                    (update :to :euuid))))
                           []
-                          (core/get-relations model')))]
+                          (core/get-relations model)))]
         ;; Reload current projection so that you can sync data
         ;; for new model
         (core/reload this dataset')
         (log/info "Preparing model for DB")
         (sync-entity this dataset-versions version'')
+        (core/add-to-deploy-history this (core/get-model this))
         version'')
       (catch Throwable e
         (log/errorf e "Couldn't deploy dataset %s@%s" 
                     (:name version)
                     (:name (:dataset version)))
         (throw e))))
+  ;;
   (core/recall! [this version]
     (core/unmount this version)
     (let [db-model (db->model this)
@@ -2050,12 +1980,34 @@
       (delete-entity this du/dataset-version {:euuid (:euuid version)})
       (dataset/save-model final-model) 
       (core/reload this)))
+  ;;
+  (core/destroy! [this
+                  {versions :versions
+                   module-name :name}]
+    (let [uber-model (when (not-empty versions) 
+                       (reduce
+                         (fn [old new]
+                           (core/join-models old new))
+                         (map :model versions)))]
+      (when uber-model
+        (core/unmount this {:model uber-model})
+        (doseq [{:keys [euuid] version-name :name} (reverse versions)]
+          (log/infof "Destroying dataset version %s@%s" module-name version-name)
+          (delete-entity this du/dataset-version {:euuid euuid}))
+        (let [db-model (core/get-last-deployed this) 
+              model (core/get-model this)
+              final-model (with-meta db-model (meta model))]
+          (dataset/save-model final-model)
+          (let [global-model (core/reload this)]
+            (core/add-to-deploy-history this global-model)
+            ;; Restart core
+            global-model)))))
   (core/get-model
     [_] 
     (dataset/deployed-model))
   (core/reload
     ([this]
-     (let [model' (db->model this) 
+     (let [model' (db->model this)
            schema (model->schema model')
            model'' (->
                      model'
@@ -2122,14 +2074,19 @@
             (catch Throwable e
               (log/errorf e "Couldn't remove table %s" (relation->table-name relation)))))
         (doseq [entity (core/get-entities model)
-                :let [entity (core/get-entity global (:euuid entity))]
+                :let [{:keys [attributes] :as entity} (core/get-entity global (:euuid entity))]
                 :when (some? entity)]
           (try
             (let [sql (format "drop table if exists \"%s\"" (entity->table-name entity))
                   enums-sql (drop-entity-enums-ddl entity)] 
               (log/tracef "Removing entity %s\n%s" (:name entity) sql)
               (execute-one! con [sql])
+              ;; If SQL runs without error than this entity doesn't have
+              ;; is good to delete from  DB, as well as all attributes that
+              ;; are linked to this entity
               (delete-entity this du/dataset-entity (select-keys entity [:euuid]))
+              (doseq [{:keys [euuid]} attributes]
+                (delete-entity this du/dataset-entity-attribute euuid))
               (when (not-empty enums-sql) 
                 (log/trace "Removing %s enum types: %s" (:name entity) enums-sql)
                 (execute-one! con [enums-sql])))
@@ -2190,7 +2147,16 @@
                       [(cond->
                          "select model from __deploy_history order by deployed_on desc"
                          offset (str " offset " offset))])]
-         (-> m :model <-transit)))))
+         (let [model (-> m :model <-transit)
+               clean-model (reduce
+                             (fn [m entity]
+                               (if (empty? (:attributes entity))
+                                 (core/remove-entity m entity)
+                                 m))
+                             model
+                             (core/get-entities model))
+               clean-schema (model->schema clean-model)]
+           (with-meta clean-model {:dataset/schema clean-schema}))))))
   (core/create-deploy-history [_]
     (with-open [connection (jdbc/get-connection (:datasource *db*))]
       (n/execute-one!

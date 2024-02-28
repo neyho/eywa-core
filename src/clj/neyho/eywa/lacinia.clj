@@ -160,10 +160,10 @@
                            (map
                              (fn [s] (if (fn? s) (s) s))
                              (vals shards)))]
-        ; (clojure.pprint/pprint
-        ;   (->
-        ;     schema
-        ;     bind-resolvers))
+        #_(clojure.pprint/pprint
+          (->
+            schema
+            bind-resolvers))
         (schema/compile
           ; schema
           (->
@@ -217,6 +217,12 @@
   (dosync
     (alter state update :shards clojure.core/dissoc key)
     (ref-set compiled (recompile))))
+
+(comment
+  (def _shard (slurp (clojure.java.io/resource "tasks.graphql")))
+  (-> state deref :directives keys)
+  (parse-schema _shard)
+  (add-shard :neyho.eywa.tasks/tasks _shard))
 
 (defn add-shard [key shard]
   (log/infof "Adding Lacinia shard %s" key)
