@@ -1435,28 +1435,27 @@
                       [(conj statements [:or statements'])
                        (into data data')])))
                 ;;
-                ;;
                 :_and
                 (update
-                 (reduce
-                  (fn [[statements data] [statements' data']]
-                    [(into statements statements')
-                     (into data data')])
-                  [[] data]
-                  (map
-                    (fn [[f c]]
-                      (let [schema' (assoc schema :args {f c})]
-                        (query-selection->sql schema')))
-                    constraints))
-                 0
-                 (fn [statements']
-                   (conj statements
-                         (str
-                          "("
-                          (clojure.string/join
-                           " and "
-                           statements')
-                          ")"))))
+                  (reduce
+                    (fn [[statements data] [statements' data']]
+                      [(into statements statements')
+                       (into data data')])
+                    [[] data]
+                    (map
+                      (fn [constraint]
+                        (let [schema' (assoc schema :args constraint)]
+                          (query-selection->sql schema')))
+                      constraints))
+                  0
+                  (fn [statements']
+                    (conj statements
+                          (str
+                            "("
+                            (clojure.string/join
+                              " and "
+                              statements')
+                            ")"))))
                 ;;
                 :_or
                 (update
@@ -1466,8 +1465,8 @@
                        (into data data')])
                     [[] data]
                     (map
-                      (fn [[f c]]
-                        (let [schema' (assoc schema :args {f c})]
+                      (fn [constraint]
+                        (let [schema' (assoc schema :args constraint)]
                           (query-selection->sql schema')))
                       constraints))
                   0
@@ -2103,6 +2102,84 @@
           ks))
        (if (nil? ids) {} nil)))))
 
+
+(comment
+  (def args nil)
+  (def entity-id #uuid "d304e6d9-07dd-4bc8-9b7f-dc2b289d06a6")
+  (def selection
+    {:euuid nil
+     :url nil
+     :name nil
+     ;;
+     :service_locations
+     [{:selections
+       {:euuid nil
+        :name nil}}]
+     ;;
+     :robots
+     [{:selections
+       {:_eid nil
+        :euuid nil
+        :name nil
+        :settings nil
+        :active nil}
+       :args {:_where
+              {:_and
+               [{:euuid {:_neq nil}}
+                #_{:active {:_eq true}}]}}}]})
+  (def schema
+    {:args nil,
+     :encoders nil,
+     :decoders nil,
+     :relations
+     {:robots
+      {:args {:_where {:_and [{:euuid {:_neq nil}}]}},
+       :encoders nil,
+       :decoders nil,
+       :relations nil,
+       :entity/table "user",
+       :counted? false,
+       :fields
+       {:euuid nil, :_eid nil, :name nil, :settings nil, :active nil},
+       :type :many,
+       :recursions #{},
+       :to/field "user_id",
+       :entity/as "data_200566",
+       :to/table "user",
+       :relation/table "git_repo_xx0zxz3y033x3wyz_user",
+       :from #uuid "d304e6d9-07dd-4bc8-9b7f-dc2b289d06a6",
+       :relation/as "link_200564",
+       :aggregate nil,
+       :from/table "git_repository",
+       :from/field "git_repository_id",
+       :to #uuid "edcab1db-ee6f-4744-bfea-447828893223"},
+      :service_locations
+      {:args nil,
+       :encoders nil,
+       :decoders nil,
+       :relations nil,
+       :entity/table "service_location",
+       :counted? false,
+       :fields {:euuid nil, :name nil},
+       :type :many,
+       :recursions #{},
+       :to/field "service_location_id",
+       :entity/as "data_200569",
+       :to/table "service_location",
+       :relation/table "git_repo_2www113z00wyy31w_serv_loca",
+       :from #uuid "d304e6d9-07dd-4bc8-9b7f-dc2b289d06a6",
+       :relation/as "link_200567",
+       :aggregate nil,
+       :from/table "git_repository",
+       :from/field "git_repository_id",
+       :to #uuid "1029c9bd-dc48-436a-b7a8-2245508a4a72"}},
+     :entity/table "git_repository",
+     :counted? false,
+     :fields {:euuid nil, :url nil, :name nil},
+     :recursions #{},
+     :entity/as "data_200570",
+     :aggregate nil}))
+
 (defn search-entity
   ([entity-id args selection]
    (with-open [connection (jdbc/get-connection (:datasource *db*))]
@@ -2170,9 +2247,13 @@
 (defn get-entity
   ([entity-id args selection]
    (assert (some? args) "No arguments to get entity for...")
-   (log/tracef
-    "[%s] Getting entity\nArgs:%s\nSelection:\n%s"
+   (log/infof
+    "[%s] Getting entity\nArgs:\n%s\nSelection:\n%s"
     entity-id (pprint args) (pprint selection))
+   #_(do
+     (def selection selection)
+     (def args args)
+     (def entity-id entity-id))
    (let [args (reduce-kv
                (fn [args k v]
                  (assoc args k {:_eq v}))

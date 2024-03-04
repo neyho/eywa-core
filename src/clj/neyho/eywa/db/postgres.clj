@@ -39,26 +39,44 @@
 (defn from-env
   "Builds neyho.eywa.Postgres instance from environment variables"
   []
-  (eywa/map->Postgres
-    (hash-map :host (env :postgres-host)
-              :port (env :postgres-port)
-              :db (env :postgres-db)
-              :password (env :postgres-password)
-              :user (env :postgres-user)
-              :max-connections (Integer/parseInt (env :hikari-max-pool-size "2")))))
+  (let [host (env :postgres-host)
+        port (env :postgres-port)
+        db (env :postgres-db)
+        password (env :postgres-password)
+        user (env :postgres-user)
+        data (hash-map :host host 
+                       :port port 
+                       :db db 
+                       :password password 
+                       :user user 
+                       :max-connections (Integer/parseInt (env :hikari-max-pool-size "2")))]
+    (assert host "POSGRES_HOST not specified")
+    (assert db "POSTGRES_DB not specified")
+    (assert user "POSTGRES_USER not specified")
+    (assert password "POSTGRES_PASSWORD not specified")
+    (eywa/map->Postgres data)))
 
 
 (defn admin-from-env
   "Builds neyho.eywa.Postgres instance fron environment variables. Admin db should be
   used to create new db for new tenants"
   []
-  (eywa/map->Postgres
-    (hash-map :host (env :postgres-host)
-              :port (env :postgres-port)
-              :db (env :postgres-admin-db (env :postgres-db))
-              :password (env :postgres-admin-password (env :postgres-password))
-              :user (env :postgres-admin-user (env :postgres-user))
-              :max-connections (Integer/parseInt (env :hikari-max-pool-size "2")))))
+  (let [host (env :postgres-host)
+        port (env :postgres-port 5432)
+        admin-db (env :postgres-admin-db (env :postgres-db))
+        password (env :postgres-admin-password (env :postgres-password))
+        user (env :postgres-admin-user (env :postgres-user))
+        data (hash-map :host host
+                       :port port
+                       :db admin-db
+                       :password password 
+                       :user user 
+                       :max-connections (Integer/parseInt (env :hikari-max-pool-size "2")))]
+    (assert host "POSGRES_HOST not specified")
+    (assert admin-db "POSTGRES_ADMIN_DB not specified")
+    (assert user "POSTGRES_ADMIN_USER not specified")
+    (assert password "POSTGRES_ADMIN_PASSWORD not specified")
+    (eywa/map->Postgres data)))
 
 
 (defn create-db
@@ -74,12 +92,19 @@
           connection
           [(format "create database %s" database-name)]))
       (let [db (connect (assoc admin :db database-name))]
-        (with-open [connection (jdbc/get-connection (:datasource db))]
-          (execute-one!
-            connection
-            ["create extension \"uuid-ossp\""]))
+        (try
+          (with-open [connection (jdbc/get-connection (:datasource db))]
+            (execute-one!
+              connection
+              ["create extension \"uuid-ossp\""]))
+          (catch Throwable ex
+            (println "Couldn't create uuid-ossp extension")
+            (throw ex)))
         (log/infof "Database %s created at %s" database-name host)
         db)
+      (catch Throwable ex
+        (println "Couldn't create Database: \"" database-name\")
+        (throw ex))
       ;; New DB
       (finally
         (.close (:datasource admin-db))))))
