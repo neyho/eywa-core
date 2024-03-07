@@ -949,11 +949,11 @@
                         (reduce
                           (fn [enums {config :configuration :as attribute}]
                             (assoc enums (entity-attribute->enum entity attribute) 
-                              (update config :values #(mapv (comp normalized-enum-value :name) %))))
+                                   (update config :values #(mapv (comp normalized-enum-value :name) %))))
                           ens
                           le)
                         ens))))
-                {}
+                {:BooleanCondition {:values ["TRUE" "FALSE" "NOT_TRUE" "NOT_FALSE" "NULL"]}}
                 entities)))]
     (merge
       (model->enums)
@@ -1377,7 +1377,8 @@
                    :_in {:type (list 'list 'UUID)}
                    :_not_in {:type (list 'list 'UUID)}}}
          :BooleanQueryOperator
-         {:fields {:_eq {:type 'Boolean} :_neq {:type 'Boolean}}}
+         ; {:fields {:_eq {:type 'Boolean} :_neq {:type 'Boolean}}}
+         {:fields {:_boolean {:type 'BooleanCondition}}}
          :CurrencyInput
          {:fields
           {:amount {:type 'Float}
@@ -2014,6 +2015,7 @@
                      (with-meta {:dataset/schema schema}))]
        (dataset/save-model model'')
        (try
+         (comment (def this neyho.eywa.db/*db*))
          (lacinia/add-shard ::datasets (fn [] (lacinia/generate-lacinia-schema this)))
          (catch Throwable e
            (log/error e "Couldn't add lacinia schema shard")))

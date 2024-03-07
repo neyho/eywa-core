@@ -1382,9 +1382,6 @@
      :aggregate nil})
 
 
-  (def schema
-    )
-  
   (def schema {:args [:subject {:_ilike "test"}], :encoders nil, :decoders nil, :relations nil, :entity/table "task", :counted? false, :fields {:euuid nil, :id nil, :data nil, :subject nil, :description nil, :ready_for_approval nil, :time_remaining nil}, :recursions #{:parent}, :entity/as "data_92299", :aggregate nil})
   (def data [])
   (query-selection->sql schema))
@@ -1516,6 +1513,13 @@
                                          :_ilike (str field' " ilike ?")
                                          :_limit (str field' " limit ?")
                                          :_offset (str field' " offset ?")
+                                         :_boolean (str field' " "
+                                                        (case cv
+                                                          ("NOT_TRUE" :NOT_TRUE) " is not true"
+                                                          ("NOT_FALSE" :NOT_FALSE) " is not false"
+                                                          ("TRUE" :TRUE) " is true"
+                                                          ("FALSE" :FALSE) " is false"
+                                                          ("NULL" :NULL) " is null"))
                                          ;; If nested condition than
                                          (do
                                            (log/error
@@ -1525,6 +1529,7 @@
                                             (pprint schema))
                                            (throw (Exception. "Nested problem"))))
                              data (case cn
+                                    (:_boolean) data'
                                     (:_in :_not_in) (into data'
                                                           (if-let [e (get encoders field)]
                                                             (map e cv)
@@ -2128,56 +2133,158 @@
                [{:euuid {:_neq nil}}
                 #_{:active {:_eq true}}]}}}]})
   (def schema
-    {:args nil,
+    {:args
+     {:ready_for_approval {:_boolean :NOT_TRUE},
+      :_limit 30,
+      :_order_by {:modified_on :desc}},
      :encoders nil,
      :decoders nil,
      :relations
-     {:robots
-      {:args {:_where {:_and [{:euuid {:_neq nil}}]}},
+     {:assigned_by
+      {:args nil,
        :encoders nil,
        :decoders nil,
        :relations nil,
        :entity/table "user",
        :counted? false,
-       :fields
-       {:euuid nil, :_eid nil, :name nil, :settings nil, :active nil},
-       :type :many,
+       :fields {:euuid nil, :avatar nil, :type nil, :name nil},
+       :type :one,
        :recursions #{},
-       :to/field "user_id",
-       :entity/as "data_200566",
+       :to/field "_eid",
+       :entity/as "data_79289",
        :to/table "user",
-       :relation/table "git_repo_xx0zxz3y033x3wyz_user",
-       :from #uuid "d304e6d9-07dd-4bc8-9b7f-dc2b289d06a6",
-       :relation/as "link_200564",
+       :relation/table "task",
+       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
+       :relation/as "link_79287",
        :aggregate nil,
-       :from/table "git_repository",
-       :from/field "git_repository_id",
+       :from/table "task",
+       :from/field "assigned_by",
        :to #uuid "edcab1db-ee6f-4744-bfea-447828893223"},
-      :service_locations
+      :resolved_by
       {:args nil,
        :encoders nil,
        :decoders nil,
        :relations nil,
-       :entity/table "service_location",
+       :entity/table "user",
        :counted? false,
-       :fields {:euuid nil, :name nil},
-       :type :many,
+       :fields {:euuid nil, :avatar nil, :type nil, :name nil},
+       :type :one,
        :recursions #{},
-       :to/field "service_location_id",
-       :entity/as "data_200569",
-       :to/table "service_location",
-       :relation/table "git_repo_2www113z00wyy31w_serv_loca",
-       :from #uuid "d304e6d9-07dd-4bc8-9b7f-dc2b289d06a6",
-       :relation/as "link_200567",
+       :to/field "_eid",
+       :entity/as "data_79292",
+       :to/table "user",
+       :relation/table "task",
+       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
+       :relation/as "link_79290",
        :aggregate nil,
-       :from/table "git_repository",
-       :from/field "git_repository_id",
-       :to #uuid "1029c9bd-dc48-436a-b7a8-2245508a4a72"}},
-     :entity/table "git_repository",
+       :from/table "task",
+       :from/field "resolved_by",
+       :to #uuid "edcab1db-ee6f-4744-bfea-447828893223"},
+      :assignee_group
+      {:args nil,
+       :encoders nil,
+       :decoders nil,
+       :relations nil,
+       :entity/table "user_group",
+       :counted? false,
+       :fields {:euuid nil, :name nil, :avatar nil},
+       :type :one,
+       :recursions #{},
+       :to/field "_eid",
+       :entity/as "data_79295",
+       :to/table "user_group",
+       :relation/table "task",
+       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
+       :relation/as "link_79293",
+       :aggregate nil,
+       :from/table "task",
+       :from/field "assignee_group",
+       :to #uuid "95afb558-3d28-45e5-9fbf-a2625afc5675"},
+      :modified_by
+      {:args nil,
+       :encoders nil,
+       :decoders nil,
+       :relations nil,
+       :entity/table "user",
+       :counted? false,
+       :fields {:euuid nil, :name nil, :type nil, :avatar nil},
+       :type :one,
+       :recursions #{},
+       :to/field "_eid",
+       :entity/as "data_79298",
+       :to/table "user",
+       :relation/table "task",
+       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
+       :relation/as "link_79296",
+       :aggregate nil,
+       :from/table "task",
+       :from/field "modified_by",
+       :to #uuid "edcab1db-ee6f-4744-bfea-447828893223"},
+      :created_by
+      {:args nil,
+       :encoders nil,
+       :decoders nil,
+       :relations nil,
+       :entity/table "user",
+       :counted? false,
+       :fields {:euuid nil, :avatar nil, :type nil, :name nil},
+       :type :one,
+       :recursions #{},
+       :to/field "_eid",
+       :entity/as "data_79301",
+       :to/table "user",
+       :relation/table "task",
+       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
+       :relation/as "link_79299",
+       :aggregate nil,
+       :from/table "task",
+       :from/field "created_by",
+       :to #uuid "edcab1db-ee6f-4744-bfea-447828893223"},
+      :assignee
+      {:args nil,
+       :encoders nil,
+       :decoders nil,
+       :relations nil,
+       :entity/table "user",
+       :counted? false,
+       :fields {:euuid nil, :avatar nil, :type nil, :name nil},
+       :type :one,
+       :recursions #{},
+       :to/field "_eid",
+       :entity/as "data_79304",
+       :to/table "user",
+       :relation/table "task",
+       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
+       :relation/as "link_79302",
+       :aggregate nil,
+       :from/table "task",
+       :from/field "assignee",
+       :to #uuid "edcab1db-ee6f-4744-bfea-447828893223"}},
+     :entity/table "task",
      :counted? false,
-     :fields {:euuid nil, :url nil, :name nil},
-     :recursions #{},
-     :entity/as "data_200570",
+     :fields
+     {:description nil,
+      :started nil,
+      :modified_on nil,
+      :assigned_on nil,
+      :type nil,
+      :finished nil,
+      :created_on nil,
+      :priority nil,
+      :status nil,
+      :id nil,
+      :euuid nil,
+      :exception nil,
+      :time_remaining nil,
+      :resolved_on nil,
+      :bucket_name nil,
+      :ready_for_approval nil,
+      :subject nil,
+      :decision nil,
+      :message nil,
+      :data nil},
+     :recursions #{:parent},
+     :entity/as "data_79305",
      :aggregate nil}))
 
 (defn search-entity

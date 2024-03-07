@@ -196,8 +196,7 @@
 
 
 (comment
-  (dosync
-    (ref-set compiled (recompile))))
+  (dosync (ref-set compiled (recompile))))
 
 
 (defn remove-directive [key]
