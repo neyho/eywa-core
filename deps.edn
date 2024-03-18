@@ -58,6 +58,9 @@
   {:jvm-opts ["-Duser.country=HR"
               "-Duser.language=hr"
               "-Dfile.encoding=UTF-8"]}
+  ;;
+  :test
+  {:extra-paths ["test"]}
   ;; S3
   :s3 {:extra-paths
        {com.cognitect.aws/api           {:mvn/version "0.8.539"

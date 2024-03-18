@@ -12,7 +12,8 @@
     [neyho.eywa.iam.uuids :as iu]
     [neyho.eywa.dataset
      :refer [get-entity
-             sync-entity]]
+             sync-entity
+             delete-entity]]
     [neyho.eywa.authorization
      :refer [get-role-schema]]
     [clojure.tools.logging :as log]
@@ -123,6 +124,10 @@
        :settings settings
        :active true}
       password (assoc :password password))))
+
+
+(defn remove-client [{:keys [euuid]}]
+  (delete-entity iu/user {:euuid euuid}))
 
 
 (comment
