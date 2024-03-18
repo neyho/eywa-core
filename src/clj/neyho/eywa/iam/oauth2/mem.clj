@@ -204,21 +204,21 @@
       ;; When redirection uri error than redirect to 
       ("no_redirections" "missing_redirect" "redirect_mismatch")
       {:status 302
-       :headers {"Location" (str "/oauth/request_error.html?"
+       :headers {"Location" (str "/oauth2/request_error?"
                                  (codec/form-encode
                                    {:type t}))
                  "Cache-Control" "no-cache"}}
       ;;
       ("client_not_registered")
       {:status 302
-       :headers {"Location" (str "/oauth/request_error.html?"
+       :headers {"Location" (str "/oauth2/request_error?"
                                  (codec/form-encode
                                    {:type t}))
                  "Cache-Control" "no-cache"}}
       ;;
       ("missing_response_type")
       {:status 302
-       :headers {"Location" (str "/oauth/request_error.html?"
+       :headers {"Location" (str "/oauth2/request_error?"
                                  (codec/form-encode
                                    {:type t}))
                  "Cache-Control" "no-cache"}}
@@ -238,7 +238,6 @@
 (defn authorization-request
   [{:keys [response_type username password redirect_uri]
     :as request}]
-  (println "REQ: " request)
   (let [now (System/currentTimeMillis)
         session (nano-id 20)]
     (set-session session
@@ -299,7 +298,7 @@
 
 
 (def authorize-request-interceptor
-  {:name :eywa/default-redirect 
+  {:name ::authorize-request
    :enter
    (fn [{{:keys [query-params]} :request :as context}]
      ; (def context context)
@@ -309,10 +308,32 @@
               (authorization-request query-params))))})
 
 
+(def authorize-request-error-interceptor
+  {:name ::authorize-error
+   :enter
+   (fn [{{:keys [query-params]} :request :as context}]
+     (chain/terminate
+       (assoc context :response
+              {:status 200
+               :headers {"Content-Type" "text/html"}
+               :body (if-some [description (get request-errors (:type query-params))]
+                       description
+                       (case (:type query-params)
+                         "missing_response_type" "Client didn't specify response_type"
+                         "client_not_registered" "Client is not registered"
+                         "missing_redirect" "Client authorization request didn't specify response_type"
+                         "redirect_missmatch" "Couldn't match requested redirect to any of configured redirects for client"
+                         "no_redirections" "Client doesn't has 0 configured redirections"
+                         "Server error"))})))})
+
+
 (def routes
-  #{["/oauth2/authorize" :get [authorize-request-interceptor] :route-name ::authorize-request]})
+  #{["/oauth2/authorize" :get [authorize-request-interceptor] :route-name ::authorize-request]
+    ["/oauth2/request_error" :get [authorize-request-error-interceptor] :route-name ::authorize-request-error]})
 
 
 (comment
   (reset)
-  "http://localhost:8080/oauth2/authorize?client_id=oauth_test_confidential&redirect_uri=http://localhost:8080/eywa/&return_type=code")
+  "http://localhost:8080/oauth/request_error?type=missing_response_type"
+  "http://localhost:8080/oauth2/request_error?type=server_error"
+  "http://localhost:8080/oauth2/authorize?client_id=oauth_test_confidential&redirect_uri=http://localhost:8080/eywa/&response_type=code&state=100292")
