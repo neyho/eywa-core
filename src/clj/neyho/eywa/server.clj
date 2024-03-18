@@ -111,6 +111,32 @@
                                  :body "Not found!"}))))))}))
 
 
+(def docs
+  {:name :extension.app/service
+   :enter
+   (fn [{{:keys [path-info uri] :as request} :request
+         :as context}]
+     (log/info "Looking for web resource: ")
+     (let [path (subs (or path-info uri) 1)] 
+       (log/tracef
+         "Returning resource file %s, for path %s" uri path-info)
+       (if (io/resource path)
+         (assoc context :response
+                (-> (response/resource-response path)
+                    (head/head-response request)))
+         (let [html "eywa/docs/index.html"] 
+           (log/trace "Couldn't find resource returning index.html")
+           (if (io/resource html)
+             (assoc context :response
+                    (-> (response/resource-response html)
+                        (assoc-in [:headers "Content-Type"] "text/html")
+                        (head/head-response request)))
+             (chain/terminate
+               (assoc context
+                      :response {:status 404
+                                 :body "Not found!"})))))))})
+
+
 (def pages
   {:name :extension.page/service
    :enter
@@ -181,6 +207,7 @@
            coerce-body
            avatars]
      :route-name :eywa.avatars/get]
+    ["/eywa/docs/*" :get [docs] :route-name :eywa.docs]
     ["/eywa/token" :get [authenticate user-token] :route-name :eywa.token/reflector]
     ["/eywa/whoami" :get [authenticate coerce-body content-neg-intc user-data] :route-name :eywa.identity/get]
     ["/eywa/access" :get [authenticate coerce-body content-neg-intc access-tree] :route-name :eywa.access/get]
@@ -300,6 +327,7 @@
                           "/eywa/logout" context
                           "/eywa/avatars" context
                           "/eywa/app" context
+                          "/eywa/docs" context
                           (chain/terminate (assoc context :response (-> eywa-spa (head/head-response request)))))
                         ;;
                         context)))))})))

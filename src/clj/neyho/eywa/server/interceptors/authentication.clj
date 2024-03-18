@@ -192,17 +192,8 @@
           (log/errorf "Couldn't find authorization token in %s %s" auth (get-cookies context)))))))
 
 
-(defonce last-request (atom nil))
-
-
-(comment
-  (def request @last-request)
-  (-> request :request :remote-addr)
-  (-> request :request :headers))
-
 
 (defn get-user-context [context]
-  (reset! last-request context)
   (when-some [token (get-token context)]
     (try
       (if (jwt-token? token)
@@ -273,8 +264,7 @@
    (fn [context]
      (if-let [uc (get-user-context context)]
        (assoc context :eywa.user/context uc)
-       context
-       #_(chain/terminate (assoc context :response default-redirect-response))))})
+       context))})
 
 
 (comment

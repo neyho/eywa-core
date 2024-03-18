@@ -29,6 +29,7 @@
                      (.setConnectionTestQuery "select 1")
                      (.setKeepaliveTime 5000)
                      (.setConnectionTimeout 30000)
+                     (.setIdleTimeout 30000)
                      (.setValidationTimeout 5000))]
     (when-not (postgres-connected? datasource)
       (throw (ex-info "Couldn't connect to Postgres" data)))
@@ -140,14 +141,6 @@
     true))
 
 
-(comment
-  (def admin (connect (admin-from-env)))
-  (def admin (admin-from-env))
-  (def database "a1_mk")
-  (def backup "a1_mk_28012024"))
-
-
-
 (defonce connection-agent (agent {:running? true}))
 
 
@@ -172,6 +165,12 @@
             (log/errorf e "Couldn't connect to DB"))))
       (send-off *agent* monitor-connection database)
       (Thread/sleep period))))
+
+
+(comment
+  (.getActiveConnections (.getHikariPoolMXBean (:datasource neyho.eywa.db/*db*)))
+  (.getIdleConnections (.getHikariPoolMXBean (:datasource neyho.eywa.db/*db*)))
+  (postgres-connected? (:datasource neyho.eywa.db/*db*)))
 
 
 (defn start-connection-monitor
