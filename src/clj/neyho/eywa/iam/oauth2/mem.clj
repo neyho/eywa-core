@@ -4,7 +4,8 @@
     [clojure.string :as str]
     [ring.util.codec :as codec]
     [neyho.eywa.iam :as iam]
-    [io.pedestal.interceptor.chain :as chain]))
+    [io.pedestal.interceptor.chain :as chain]
+    [neyho.eywa.server.interceptors :refer [spa-interceptor]]))
 
 
 (defonce ^:dynamic *refresh-tokens* (atom nil))
@@ -329,7 +330,8 @@
 
 (def routes
   #{["/oauth2/authorize" :get [authorize-request-interceptor] :route-name ::authorize-request]
-    ["/oauth2/request_error" :get [authorize-request-error-interceptor] :route-name ::authorize-request-error]})
+    ["/oauth2/request_error" :get [authorize-request-error-interceptor] :route-name ::authorize-request-error]
+    ["/login/*login" :get [spa-interceptor] :route-name ::login]})
 
 
 (comment
