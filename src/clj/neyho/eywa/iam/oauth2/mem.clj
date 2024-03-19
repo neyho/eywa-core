@@ -1,4 +1,4 @@
-(ns neyho.eywa.iam.oauth.mem
+(ns neyho.eywa.iam.oauth2.mem
   (:require
     [nano-id.core :refer [nano-id]]
     [clojure.string :as str]

@@ -9,6 +9,7 @@
                                     clout/clout]}
   ;;
   environ/environ                 {:mvn/version "1.2.0"}
+  hiccup/hiccup                   {:mvn/version "2.0.0-RC3"}
   com.taoensso/nippy              {:mvn/version "3.3.0"}
 
   ;; CORE
@@ -37,7 +38,8 @@
   ;;
   camel-snake-kebab/camel-snake-kebab          {:mvn/version "0.4.3"}
   com.github.gersak/vura                       {:mvn/version "0.5.8"}
-  ; com.github.gersak/vura                       {:local/root "../../vura"}
+  com.github.gersak/shadow-css                 {:git/url "https://github.com/gersak/shadow-css.git"
+                                                :git/sha "697f2937345be9d187b6bce73ff4f50613f7ece8"}
   babashka/fs                                  {:mvn/version "0.5.20"}}
 
  :paths ["src/clj" "src/cljc" "src/cljs" "src/css" "resources"]
@@ -45,7 +47,8 @@
 
  :aliases
  {:dev
-  {:extra-paths ["src/dev" "frontend/dist"]}
+  {:extra-paths ["src/dev" "frontend/dist" "test"]
+   :extra-deps {thheller/shadow-cljs {:mvn/version "2.20.20"}}}
   ;;
   :db
   {:extra-paths ["src/db"]}
@@ -58,9 +61,6 @@
   {:jvm-opts ["-Duser.country=HR"
               "-Duser.language=hr"
               "-Dfile.encoding=UTF-8"]}
-  ;;
-  :test
-  {:extra-paths ["test"]}
   ;; S3
   :s3 {:extra-paths
        {com.cognitect.aws/api           {:mvn/version "0.8.539"

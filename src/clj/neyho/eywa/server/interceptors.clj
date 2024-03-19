@@ -27,6 +27,7 @@
           (update-in [:response :body] #(cheshire/generate-string % {:date-format "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"})))
       context)))
 
+
 (def json-response-interceptor
   "An interceptor that sees if the response body is a map and, if so,
   converts the map to JSON and sets the response Content-Type header."
@@ -39,14 +40,6 @@
   (body-params/body-params
     (body-params/default-parser-map
       :transit-options [{:handlers eywa-read-handlers}])))
-
-
-
-(defn make-spa-interceptor
-  ([] (make-spa-interceptor "app"))
-  ([root] (make-spa-interceptor root (keyword (gensym "spa_interceptor_"))))
-  ([root route-name]
-   ))
 
 
 (def spa-interceptor
