@@ -6,6 +6,7 @@ let images = [
   "images/login_normal.png",
   "images/login_large.png"
 ]
+
 let images_dimensions = [
   [1760, 2640],
   [2560, 3840],
@@ -13,7 +14,6 @@ let images_dimensions = [
 ]
 
 let offsets = [320, 744, 1564]
-
 
 
 function fitImage() {

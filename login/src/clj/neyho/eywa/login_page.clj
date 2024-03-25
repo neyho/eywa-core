@@ -119,27 +119,32 @@
      [:div {:class $login-wrapper}
       [:div
        {:class $login-greeting}
-       [:h1 "Vozdra frende"]
-       [:h4 "Dobro mi dosel"]]
+       [:h1 "Hellow mate,"]
+       [:h4 "Welcome to EYWA authentication page"]]
       [:form
-       {:class $login-form}
+       {:class $login-form
+        :method "post"}
        [:div
         {:class :row}
         user-icon
         [:input
-         {:class $input
+         {:id "username"
+          :name "username"
+          :class $input
           :autoComplete "new-password"}]]
        [:div
         {:class :row}
         password-icon
         [:input
-         {:class $input
+         {:id "password"
+          :name "password"
+          :class $input
           :type "password"
           :autocomplete "new-password"
           :autocorrect "off"
           :spellcheck false}]]
        [:button {:class $sign-in}
-        "SIGN IN"]]]
+        [:h4 "SIGN IN"]]]]
      [:script {:src "js/login.js"}]]))
 
 

@@ -11,7 +11,7 @@
    :name "oauth_test_confidential"
    :password "testisi123$"
    :settings {:version 0
-              :type "public"
+              :type "confidential"
               :login-page "http://localhost:8080/login/kbdev/"
               :redirections ["http://localhost:8080/eywa/"
                              "http://localhost:8080/app/kbdev"]}})
