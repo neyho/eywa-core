@@ -3,7 +3,8 @@
     [clojure.test :refer [deftest is use-fixtures]]
     [clojure.data.json :as json]
     [vura.core :as vura]
-    [neyho.eywa.iam :as iam
+    [neyho.eywa.iam :as iam]
+    [neyho.eywa.iam.oauth2 :as oauth2
      :refer [authorization-request]]))
 
 
@@ -95,40 +96,64 @@
 
 
 
-(deftest token-request-test
+(deftest token-password-request-test
   (let [request {:client_id (:id confidential-client)
                  :client_password (:password confidential-client)
                  :grant_type "password"
                  :username (:name test-user)
                  :password (:password test-user)}]
     ;;
-    (let [{:keys [status body]} (iam/token-endpoint (assoc request :client_password "wrong"))
+    (let [{:keys [status body]} (oauth2/token-endpoint (assoc request :client_password "wrong"))
           {:strs [error]} (json/read-str body)]
       (is (= status 400) "Token request didn't return proper HTTP status")
       (is (= error "invalid_client") "Wrong error code returned"))
     ;;
-    (let [{:keys [status body]} (iam/token-endpoint (dissoc request :client_id))
+    (let [{:keys [status body]} (oauth2/token-endpoint (dissoc request :client_id))
           {:strs [error]} (json/read-str body)]
       (is (= status 400) "Token request didn't return proper HTTP status")
       (is (= error "invalid_client") "Wrong error code returned"))
     ;;
-    (let [{:keys [status body]} (iam/token-endpoint (dissoc request :username))
+    (let [{:keys [status body]} (oauth2/token-endpoint (dissoc request :username))
           {:strs [error]} (json/read-str body)]
       (is (= status 400) "Token request didn't return proper HTTP status")
       (is (= error "invalid_request") "Wrong error code returned"))
     ;;
-    (let [{:keys [status body]} (iam/token-endpoint (dissoc request :password))
+    (let [{:keys [status body]} (oauth2/token-endpoint (dissoc request :password))
           {:strs [error]} (json/read-str body)]
       (is (= status 400) "Token request didn't return proper HTTP status")
       (is (= error "invalid_request") "Wrong error code returned"))
     ;; Password OK request
-    (let [{:keys [status body]} (iam/token-endpoint request)
+    (let [{:keys [status body]} (oauth2/token-endpoint request)
           {:strs [access_token token_type refresh_token expires_in] :as response} (json/read-str body)]
       (is (= status 200) "Token request didn't return proper HTTP status")
       (is (some? access_token) "Token request didn't return access_token in HTTP response")
       (is (some? token_type) "Token type not specified in HTTP response")
       (is (some? expires_in) "Token expiration time not specified in HTTP response")
       (is (some? refresh_token) "Refresh token not specified for confidential client in HTTP response"))))
+
+
+
+(deftest token-client-credentials-request-test
+  (let [request {:client_id (:id confidential-client)
+                 :client_password (:password confidential-client)
+                 :grant_type "client_credentials"}]
+    ;;
+    (let [{:keys [status body]} (oauth2/token-endpoint (assoc request :client_password "wrong"))
+          {:strs [error]} (json/read-str body)]
+      (is (= status 400) "Token request didn't return proper HTTP status")
+      (is (= error "invalid_client") "Wrong error code returned"))
+    ;;
+    (let [{:keys [status body]} (oauth2/token-endpoint (dissoc request :client_id))
+          {:strs [error]} (json/read-str body)]
+      (is (= status 400) "Token request didn't return proper HTTP status")
+      (is (= error "invalid_client") "Wrong error code returned"))
+    ;; Password OK request
+    (let [{:keys [status body]} (oauth2/token-endpoint request)
+          {:strs [access_token token_type expires_in] :as response} (json/read-str body)]
+      (is (= status 200) "Token request didn't return proper HTTP status")
+      (is (some? access_token) "Token request didn't return access_token in HTTP response")
+      (is (some? token_type) "Token type not specified in HTTP response")
+      (is (some? expires_in) "Token expiration time not specified in HTTP response"))))
 
 
 
