@@ -141,6 +141,15 @@
   (delete-entity iu/user {:euuid euuid}))
 
 
+(defn set-user
+  [user]
+  (sync-entity iu/user user))
+
+(defn delete-user
+  [user]
+  (delete-entity iu/user (:euuid user)))
+
+
 (comment
   (time (get-client "oauth_test_confidential"))
   (get-client "XFYWDCONOFSZMTVAEOQHTZFHSUCTXQ")
@@ -168,19 +177,7 @@
 
   ;;
   (add-client
-    {:id "ZHXGGUGLQVOSJZHZCETLFTUZWSSRWG",
-     :password nil,
-     :euuid #uuid "62972fcf-3cfe-4d34-baea-055308612a0d",
-     :name "oauth_test_public",
-     :type :public,
-     :settings
-     {:version 0,
-      :logo-url nil
-      :login-page "http://localhost:8080/login/kbdev",
-      :allowed-grants
-      ["refresh_token" "client_credentials" "password" "code"],
-      :redirections
-      ["http://localhost:8080/eywa/" "http://localhost:8080/app/kbdev"]}})
+    )
 
   (remove-client #uuid "62972fcf-3cfe-4d34-baea-055308612a0d")
   (remove-client #uuid "3349f1ff-2118-4b3e-babf-a8b68b7e98df"))
@@ -230,18 +227,23 @@
 (defn get-base-uri
   "Returns the base URI without query parameters from the given URL."
   [url]
-  (let [uri (java.net.URI. url)]
-    (str (java.net.URI. (.getScheme uri) (.getAuthority uri) (.getPath uri) nil nil))))
+  (when (not-empty url)
+    (let [uri (java.net.URI. url)]
+      (str (java.net.URI. (.getScheme uri) (.getAuthority uri) (.getPath uri) nil nil)))))
 
 
 (defn validate-client [session]
   (let [{{:keys [client_id state redirect_uri]
-          request-password :client-password} :request} (get @*sessions* session)
+          request-password :client_password} :request} (get @*sessions* session)
         base-redirect-uri (get-base-uri redirect_uri)
         {:keys [euuid password]
          {type "type"
           redirections "redirections"} :settings
          :as client} (get-client client_id)]
+    (def sessions @*sessions*)
+    (def session session)
+    (def client_id client_id)
+    (def client client)
     (cond
       (nil? euuid)
       (throw
@@ -427,7 +429,7 @@
         "client_not_registered" "corrupt_session" "unsupported_grant_type")
       {:status 302
        :headers {"Location" (str "/oauth2/request_error?"
-                                 (codec/form-encode data))
+                                 (codec/form-encode (select-keys data [:type])))
                  "Cache-Control" "no-cache"}}
       ;; Otherwise
       {:status 302
@@ -452,6 +454,10 @@
 (defn return-token [session]
   (let []
     ))
+
+
+(comment
+  (authorization-request request))
 
 
 (defn authorization-request
@@ -602,7 +608,7 @@
 
 (defn token-code-grant
   [data]
-  (let [{:keys [code redirect_uri client_id client-password]} data
+  (let [{:keys [code redirect_uri client_id client_password]} data
         {:keys [session]} (get *authorization-codes* code)]
     (if-not session
       ;; If session isn't available, that is if somebody
@@ -641,12 +647,12 @@
             "Client ID that was provided doesn't"
             "match client ID that was used in authorization request")
           ;;
-          (and (some? _password) (empty? client-password))
+          (and (some? _password) (empty? client_password))
           (token-error
             "invalid_client"
             "Client password wasn't provided")
           ;; If client has password, than
-          (and (some? _password) (not (validate-password client-password _password)))
+          (and (some? _password) (not (validate-password client_password _password)))
           (token-error
             "invalid_client"
             "Provided client password is wrong")
@@ -852,8 +858,8 @@
            :body (json/write-str response)})))))
 
 
-(defn token
-  [{{:keys [grant_type] :as data} :params}]
+(defn token-endpoint
+  [{:keys [grant_type] :as data}]
   (case grant_type
     ;; Authorization code grant
     "code"
@@ -871,6 +877,10 @@
     (handle-request-error
       {:type "unsupported_grant_type"
        :grant_type grant_type})))
+
+
+(comment
+  (reset))
 
 
 (defn reset
@@ -928,7 +938,7 @@
    :enter
    (fn [{request :request :as context}]
      (chain/terminate
-       (assoc context :response (token request))))})
+       (assoc context :response (token-endpoint (:params request)))))})
 
 
 (defn- decode-base64-credentials

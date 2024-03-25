@@ -92,10 +92,10 @@
         body (json/read-str body)]
     (case status
       200 body
-      (throw
-        (ex-info
-          "Couldn't get access token"
-          body)))))
+      (let [{:strs [error error_description]} body]
+        (throw
+          (ex-info error_description
+                   {:error error}))))))
 
 
 (comment
@@ -103,13 +103,25 @@
             :client_id "jifoq"
             :client_password "ifoq"})
 
+  (neyho.eywa.iam/reset)
+
+  (try
+    (resource-owner-password
+      {:url "http://localhost:8080/oauth2/token"
+       :client_id "XFYWDCONOFSZMTVAEOQHTZFHSUCTXQ"
+       :client_password "fjiqooi"
+       :username "oauth_test"
+       :password "change-me"})
+    (catch clojure.lang.ExceptionInfo ex
+      (ex-data ex)))
+
+
   (resource-owner-password
     {:url "http://localhost:8080/oauth2/token"
      :client_id "XFYWDCONOFSZMTVAEOQHTZFHSUCTXQ"
-     :client_password "fjiqooi"
+     :client_password "e9w7BwGDTLBgaHYxMpctUrOy_aVA4tiZHlgfb2GrotWiBhr_u0"
      :username "oauth_test"
      :password "change-me"})
-
 
   (resource-owner-password
     {:url "http://localhost:8080/oauth2/token"
