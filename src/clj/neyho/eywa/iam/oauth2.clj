@@ -3,6 +3,9 @@
     [clojure.string :as str]
     clojure.java.io
     clojure.pprint
+    [clojure.core.async :as async]
+    [clojure.tools.logging :as log]
+    [clojure.walk :refer [keywordize-keys]]
     [nano-id.core :refer [nano-id]]
     [vura.core :as vura]
     [ring.util.codec :as codec]
@@ -12,6 +15,7 @@
     [io.pedestal.http.body-params :as bp]
     [neyho.eywa.iam
      :refer [sign-data
+             unsign-data
              get-client
              validate-password
              get-user-details]]
@@ -19,6 +23,18 @@
   (:import
     [java.util Base64]))
 
+
+(defonce subscription (async/chan (async/sliding-buffer 10000)))
+(defonce publisher
+  (async/pub
+    subscription
+    (fn [{:keys [topic]
+          :or {topic ::broadcast}}]
+      topic)))
+
+
+(defn publish [topic data]
+  (async/put! subscription (assoc data :topic topic)))
 
 (defonce ^:dynamic *refresh-tokens* (atom nil))
 (defonce ^:dynamic *access-tokens* (atom nil))
@@ -30,26 +46,45 @@
 (defonce ^:dynamic *sessions* (atom nil))
 
 
+(defn access-token-expiry
+  [{{{expiry "access"} "token-expiry"} :settings
+    :or {expiry (vura/day 1.5)}}]
+  expiry)
+
+
+(defn refresh-token-expiry
+  [{{{expiry "refresh"} "token-expiry"} :settings
+    :or {expiry (vura/day 1.5)}}]
+  expiry)
+
+
 (defonce ^:dynamic *access-token-resolver*
   (fn [resource-owner-details client]
-    (sign-data
-      (dissoc resource-owner-details :password :avatar :settings :active :sessions)
-      (-> (vura/date)
-          vura/date->value
-          (+ (vura/minutes 5))
-          vura/value->date
-          to-timestamp))))
+    (let [expires-after (access-token-expiry client)]
+      (if (pos? expires-after)
+        (sign-data
+          (dissoc resource-owner-details :password :avatar :settings :active :sessions)
+          {:alg :rs256
+           :exp (-> (vura/date)
+                    vura/date->value
+                    (+ (vura/minutes 5))
+                    vura/value->date
+                    to-timestamp)})
+        (sign-data (dissoc resource-owner-details :password :avatar :settings :active :sessions) {:alg :rs256})))))
 
 
 (defonce ^:dynamic *refresh-token-resolver*
   (fn [data client]
-    (sign-data
-      data
-      (-> (vura/date)
-          vura/date->value
-          (+ (vura/hours 8))
-          vura/value->date
-          to-timestamp))))
+    (let [expires-after (refresh-token-expiry client)]
+      (if (pos? expires-after)
+        (sign-data
+          data
+          (-> (vura/date)
+              vura/date->value
+              (+ expires-after)
+              vura/value->date
+              to-timestamp))
+        (sign-data data {:alg :rs256})))))
 
 
 (defn get-base-uri
@@ -145,7 +180,7 @@
 
 (defn remove-session-resource-owner [session]
   (let [euuid (get-in @*sessions* [session :resource-owner])]
-    (swap! @*sessions* update session dissoc :resource-owner)
+    (swap! *sessions* update session dissoc :resource-owner)
     (when euuid
       (swap! *resource-owners* update euuid
              (fn [current]
@@ -172,7 +207,7 @@
 
 (defn remove-session-client [session]
   (let [euuid (get-in @*sessions* [session :client])]
-    (swap! @*sessions* update session dissoc :client)
+    (swap! *sessions* update session dissoc :client)
     (when euuid
       (swap! *clients* update euuid
              (fn [current]
@@ -280,9 +315,6 @@
     ))
 
 
-(comment
-  (authorization-request request))
-
 
 (defn authorization-request
   [{:keys [response_type username password redirect_uri]
@@ -346,6 +378,7 @@
     (swap! *sessions* update session
            (fn [current]
              (assoc current :code code)))
+    (publish :grant/code {:session session :code code})
     code))
 
 
@@ -396,14 +429,19 @@
            (fn [current]
              (dissoc current :code)))
     (when code
-      (swap! *authorization-codes* dissoc code))))
+      (swap! *authorization-codes* dissoc code))
+    (publish :revoke/code {:code code :session session})))
 
 
 (defn revoke-access-token
   [session]
   (let [{:keys [access-token]} (get-session session)]
     (swap! *sessions* update session dissoc :access-token)
-    (when access-token (swap! *access-tokens* dissoc access-token)))
+    (when access-token
+      (swap! *access-tokens* dissoc access-token)
+      (publish :revoke/access-token
+               {:access-token access-token
+                :session session})))
   nil)
 
 
@@ -411,7 +449,11 @@
   [session]
   (let [{:keys [refresh-token]} (get-session session)]
     (swap! *sessions* update session dissoc :refresh-token)
-    (when refresh-token (swap! *refresh-tokens* dissoc refresh-token))))
+    (when refresh-token
+      (swap! *refresh-tokens* dissoc refresh-token)
+      (publish :revoke/refresh-token
+               {:refresh-token refresh-token
+                :session session}))))
 
 
 (defn remove-session-tokens
@@ -491,10 +533,16 @@
                 response {:access_token access-token
                           :refresh_token refresh-token
                           :token_type "bearer"
-                          :expires_in (quot (vura/minutes 1) vura/second)}]
+                          :expires_in (access-token-expiry client)}]
             (remove-session-tokens session)
             (set-session-tokens session response)
             (revoke-authorization-code session)
+            (publish :grant/access-token
+                     {:access-token access-token
+                      :session session})
+            (publish :grant/refresh-token
+                     {:refresh-token refresh-token
+                      :session session})
             {:status 200
              :headers {"Content-Type" "application/json;charset=UTF-8"
                        "Pragma" "no-cache"
@@ -561,7 +609,6 @@
       ;;
       :else
       (let [resource-owner-details (validate-resource-owner username password)]
-        (comment (def username "oauth_test") (def password "change-me"))
         (cond
           (not resource-owner-details)
           (token-error
@@ -582,13 +629,19 @@
                 body {:access_token access-token
                       :token_type "Bearer"
                       :refresh_token refresh-token 
-                      :expires_in 3600}]
+                      :expires_in (access-token-expiry client)}]
             (set-session session
                          {:request (dissoc data :password)
                           :at now})
             (set-session-client session client)
             (set-session-resource-owner session resource-owner-details)
             (set-session-tokens session body)
+            (publish :grant/access-token
+                     {:access-token access-token
+                      :session session})
+            (publish :grant/refresh-token
+                     {:refresh-token refresh-token
+                      :session session})
             {:status 200
              :headers {"Content-Type" "application/json;charset=UTF-8"
                        "Pragma" "no-cache"
@@ -600,17 +653,23 @@
            :headers {"Content-Type" "application/json;charset=UTF-8"
                      "Pragma" "no-cache"
                      "Cache-Control" "no-store"}
-           :body (json/write-str
-                   {:access_token (*access-token-resolver* resource-owner-details client)
-                    :expires_in 3600})})))))
+           :body (let [access-token (*access-token-resolver* resource-owner-details client)]
+                   (publish :grant/access-token {:access-token access-token})
+                   (json/write-str
+                     {:access_token access-token
+                      :expires_in (access-token-expiry client)}))})))))
 
 
 (defn kill-session
   [session]
-  (remove-session-resource-owner session)
-  (remove-session-client session)
-  (remove-session-tokens session)
-  (swap! *sessions* dissoc session))
+  (let [session-data (get-session session)]
+    (remove-session-resource-owner session)
+    (remove-session-client session)
+    (remove-session-tokens session)
+    (swap! *sessions* dissoc session)
+    (publish :session/kill
+             {:session session
+              :data session-data})))
 
 
 (defn token-refresh-grant
@@ -637,9 +696,15 @@
             response {:access_token access-token
                       :refresh_token refresh-token
                       :token_type "bearer"
-                      :expires_in (quot (vura/minutes 1) vura/second)}]
+                      :expires_in (access-token-expiry client)}]
         (remove-session-tokens session)
         (set-session-tokens session response)
+        (publish :grant/access-token
+                 {:access-token access-token
+                  :session session})
+        (publish :grant/refresh-token
+                 {:refresh-token refresh-token
+                  :session session})
         {:status 200
          :headers {"Content-Type" "application/json;charset=UTF-8"
                    "Pragma" "no-cache"
@@ -673,7 +738,10 @@
         (let [access-token (*access-token-resolver* {:client client_id} client)
               response {:access_token access-token
                         :token_type "bearer"
-                        :expires_in (quot (vura/minutes 1) vura/second)}]
+                        :expires_in (access-token-expiry client)}]
+          (publish :grant/access-token
+                   {:access-token access-token
+                    :session nil})
           {:status 200
            :headers {"Content-Type" "application/json;charset=UTF-8"
                      "Pragma" "no-cache"
@@ -700,10 +768,6 @@
     (handle-request-error
       {:type "unsupported_grant_type"
        :grant_type grant_type})))
-
-
-(comment
-  (reset))
 
 
 (defn reset
@@ -784,18 +848,88 @@
                     :client_password password))))})
 
 
+(def keywordize-params
+  {:name ::keywordize-params
+   :enter
+   (fn [ctx]
+     (update-in ctx [:request :params] keywordize-keys))})
+
+
 (def routes
   #{["/oauth2/authorize"
      :get [basic-authorization-interceptor
+           (bp/body-params)
+           keywordize-params
            authorize-request-interceptor]
      :route-name ::authorize-request]
     ["/oauth2/request_error"
      :get [basic-authorization-interceptor
+           (bp/body-params)
+           keywordize-params
            authorize-request-error-interceptor]
      :route-name ::authorize-request-error]
     ["/oauth2/token"
      :post [basic-authorization-interceptor
+            (bp/body-params)
+            keywordize-params
             token-interceptor]
      :route-name ::handle-token]
     ["/login/*" :get [spa-interceptor] :route-name ::serve-login]
     ["/login/*" :post [login-interceptor] :route-name ::handle-login]})
+
+
+(defn expired? [token]
+  (try
+    (unsign-data token)
+    false
+    (catch clojure.lang.ExceptionInfo ex
+      (let [{:keys [cause]} (ex-data ex)]
+        (= cause :exp)))))
+
+
+;; Maintenance
+(defn clean-sessions
+  ([] (clean-sessions (vura/minutes 1)))
+  ([timeout]
+   (let [now (System/currentTimeMillis)]
+     (letfn [(scan? [at]
+               (pos? (- now (+ at timeout))))]
+       (doseq [[session {:keys [request code at access-token refresh-token]}] @*sessions*
+               :when (scan? at)]
+         (cond
+           ;; Not assigned
+           (and (nil? code) (nil? access-token))
+           (do
+             (log/debugf "[%s] Session timed out. No code or access token was assigned to this session" session)
+             (kill-session session))
+           ;; access token expired
+           (and (some? access-token) (nil? refresh-token) (expired? access-token))
+           (do
+             (log/debugf "[%s] Access token expired and no refresh token is available. Killing session" session)
+             (kill-session session))
+           ;; refresh token expired
+           (and (some? refresh-token) (expired? access-token))
+           (do
+             (log/debugf "[%s] Refresh token expired. Killing session" session)
+             (kill-session session))
+           :else
+           nil))))))
+
+
+(defonce maintenance-agent (agent {:running true :period (vura/seconds 30)}))
+
+
+(defn maintenance
+  [{:keys [running period] :as data}]
+  (when running
+    (log/debug "OAuth2 maintenance start")
+    (send-off *agent* maintenance)
+    (clean-sessions (vura/minutes 1))
+    (log/debug "OAuth2 maintenance finish")
+    (Thread/sleep period)
+    data))
+
+
+(defn start-maintenance
+  []
+  (send-off maintenance-agent maintenance))

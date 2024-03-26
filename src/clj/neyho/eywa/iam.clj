@@ -1,13 +1,16 @@
 (ns neyho.eywa.iam
   (:require
-    clojure.string
+    [clojure.string :as str]
     clojure.java.io
     clojure.pprint
+    clojure.data.json
     [vura.core :as vura]
     [buddy.sign.jwt :as jwt]
+    [buddy.core.codecs.base64]
     [buddy.hashers :as hashers]
     [buddy.core.keys :as keys]
     [buddy.sign.util :refer [to-timestamp]]
+    [buddy.sign.jwk :as jwk]
     [neyho.eywa.iam.oauth2.uuids :as ou]
     [neyho.eywa.iam.uuids :as iu]
     [neyho.eywa.dataset
@@ -49,24 +52,37 @@
   string."
   ([data] (sign-data
             data
-            (->
-              (vura/date)
-              vura/date->value
-              (+ vura/day)
-              vura/value->date
-              to-timestamp)))
-  ([data valid]
+            {:alg :rs256
+             :exp (->
+                    (vura/date)
+                    vura/date->value
+                    (+ vura/day)
+                    vura/value->date
+                    to-timestamp)}))
+  ([data settings]
    (jwt/sign
      data
      *private-key*
-     {:alg :rs256
-      :exp valid})))
+     settings)))
 
 
 (defn unsign-data
   "Function takes encrypted string and returns decrypted data."
   [data]
   (jwt/unsign data *public-key* {:alg :rs256}))
+
+
+(defn jwt-decode
+  [token]
+  (let [[header payload] (str/split token #"\.")]
+    {:header (clojure.data.json/read-str (String. (buddy.core.codecs.base64/decode header)))
+     :payload (clojure.data.json/read-str (String. (buddy.core.codecs.base64/decode payload)))}))
+
+(comment
+  
+  ()
+  (jwt/unsign)
+  (jwt/decrypt token))
 
 
 (defn get-password [username]
@@ -149,6 +165,13 @@
     neyho.eywa.iam.uuids/user
     {:name "oauth_test"
      :password "change-me"})
+
+  (unsign-data
+    (sign-data
+      {:name "oauth_test"
+       :password "change-me"}
+      {:alg :rs256
+       :exp (vura/date 2024 3 26 10 53)}))
   ;;
   (add-client
     {:id "XFYWDCONOFSZMTVAEOQHTZFHSUCTXQ",
@@ -169,7 +192,21 @@
 
   ;;
   (add-client
-    )
+    {:id "ZHXGGUGLQVOSJZHZCETLFTUZWSSRWG",
+     :password nil,
+     :euuid #uuid "62972fcf-3cfe-4d34-baea-055308612a0d",
+     :name "oauth_test_public",
+     :type :public,
+     :settings
+     {:version 0,
+      :logo-url nil
+      :login-page "http://localhost:8080/login/kbdev",
+      :token-expiry {"access" (vura/minutes 5)
+                     "refresh" (vura/days 1.5)}
+      :allowed-grants
+      ["refresh_token" "client_credentials" "password" "code"],
+      :redirections
+      ["http://localhost:8080/eywa/" "http://localhost:8080/app/kbdev"]}})
 
   (remove-client #uuid "62972fcf-3cfe-4d34-baea-055308612a0d")
   (remove-client #uuid "3349f1ff-2118-4b3e-babf-a8b68b7e98df"))

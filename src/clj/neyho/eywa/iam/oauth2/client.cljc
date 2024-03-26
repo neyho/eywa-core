@@ -10,6 +10,7 @@
     [org.eclipse.jetty.client HttpClient]
     [org.eclipse.jetty.client.api ContentResponse]
     [org.eclipse.jetty.client.util StringContentProvider]
+    [org.eclipse.jetty.util.ssl SslContextFactory$Client]
     [org.eclipse.jetty.http HttpMethod]))
 
 (def alphabet "ACDEFGHJKLMNOPQRSTUVWXYZ")
@@ -27,15 +28,22 @@
      data )))
 
 
+(defn access-token-expiry [{{ "token-expiry"} :settings}]
+  )
+
+
 (defn request
   [{:keys [method url headers form-params]
     :or {method :get
          headers {"Content-Type" "application/x-form-urlencoded"}}}]
-  (let [client (HttpClient.)]
+  (let [client (if (str/starts-with? url "https")
+                 (HttpClient. (SslContextFactory$Client.))
+                 (HttpClient.))]
     (.start client)
     (try
-      (let [url (if-not form-params url
-                  (str url "?" (codec/form-encode form-params)))
+      (let [;; url (if-not form-params url
+            ;;       (str url "?" (codec/form-encode form-params)))
+            ;; _ (println "SENDING TO URL: " url)
             response (as-> (.newRequest client url) request
                        (reduce-kv
                          (fn [r k v]
@@ -43,6 +51,12 @@
                            r)
                          request
                          headers)
+                       (if-not form-params request
+                         (do
+                           (.content request 
+                                     (StringContentProvider.
+                                       (codec/form-encode form-params)))
+                           request))
                        (.method request (case method
                                            :get HttpMethod/GET
                                            :post HttpMethod/POST))
@@ -79,7 +93,7 @@
         (request
           (cond->
             {:url url
-             :headers {"Content-Type" "application/x-form-urlencoded"
+             :headers {"Content-Type" "application/x-www-form-urlencoded"
                        "Authorization" (str "Basic " (encode-basic-authorization client-id client-password))}
              :method :post
              :form-params (cond->
@@ -89,6 +103,72 @@
                             ; (some? client-password) (assoc :client_password client-password)
                             (some? state) (assoc :state state)
                             (some? scope) (assoc :scope (str/join " " scope)))}))
+        body (try
+               (json/read-str body)
+               (catch Throwable _
+                 (println body)
+                 {:error "unknown" :error_description "Returned body wasn't in json format"}))]
+    (case status
+      200 body
+      (let [{:strs [error error_description]} body]
+        (throw
+          (ex-info error_description
+                   {:error error}))))))
+
+
+(defn client-credentials 
+  [{:keys [url
+           client_id client_password
+           client-id client-password
+           state scope]
+    :as params}]
+  (let [client-id (or client_id client-id)
+        client-password (or client_password client-password)
+        custom-params (dissoc params
+                              :client-id :client_id
+                              :client-password :client_password
+                              :scope :state url)
+        {:keys [status body]}
+        (request
+          (cond->
+            {:url url
+             :headers {"Content-Type" "application/x-www-form-urlencoded"
+                       "Authorization" (str "Basic " (encode-basic-authorization client-id client-password))}
+             :method :post
+             :form-params (cond->
+                            (assoc custom-params :grant_type "client_credentials")
+                            (some? state) (assoc :state state)
+                            (some? scope) (assoc :scope (str/join " " scope)))}))
+        body (try
+               (json/read-str body)
+               (catch Throwable _
+                 (println body)
+                 {:error "unknown" :error_description "Returned body wasn't in json format"}))]
+    (case status
+      200 body
+      (let [{:strs [error error_description]} body]
+        (throw
+          (ex-info error_description
+                   {:error error}))))))
+
+
+(defn authorization-code-request
+  [{:keys [url
+           client_id client_password
+           client-id client-password state]}]
+  (let [client-id (or client_id client-id)
+        client-password (or client_password client-password)
+        {:keys [status body]}
+        (request
+          (cond->
+            {:url url
+             :headers {"Content-Type" "application/x-www--form-urlencoded"
+                       "Authorization" (str "Basic " (encode-basic-authorization client-id client-password))}
+             :method :get
+             :form-params (cond->
+                            {:response_type "code"}
+                            (some? state) (assoc :state state))}))
+        _ (println "BODY: " body)
         body (json/read-str body)]
     (case status
       200 body

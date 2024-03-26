@@ -36,6 +36,8 @@
    {:version 0,
     :logo-url nil
     :login-page "http://localhost:8080/login/kbdev",
+    :token-expiry {"access" (vura/minutes 5)
+                   "refresh" (vura/days 1.5)}
     :allowed-grants
     ["refresh_token" "client_credentials" "password" "code"],
     :redirections
@@ -176,4 +178,4 @@
                 (destroy)))
 
 (comment
-  (clojure.test/run-tests 'neyho.eywa.oauth.test-mem))
+  (clojure.test/run-tests 'neyho.eywa.iam.test-oauth))

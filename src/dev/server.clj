@@ -15,6 +15,7 @@
     neyho.eywa.dataset.default-model
     neyho.eywa.dataset.postgres
     neyho.eywa.dataset.postgres.query
+    neyho.eywa.iam
     [neyho.eywa.server.interceptors.authentication :refer [init-default-encryption]]))
 
 
@@ -34,6 +35,7 @@
 (defn -main
   []
   (neyho.eywa.transit/init)
+  (neyho.eywa.iam/init-default-encryption)
   (init-default-encryption)
   (neyho.eywa.db.postgres/init)
   (neyho.eywa.dataset/init)
