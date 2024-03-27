@@ -92,9 +92,12 @@
       {:name username}
       {:password nil})))
 
+(comment
+  (delete-user (get-user-details "oauth_test")))
+
 
 (defn get-user-details [username]
-  (->
+  (some->
     (get-entity
       iu/user
       {:name username}
@@ -130,7 +133,7 @@
      :name nil
      :type nil
      :active nil
-     :password nil
+     :secret nil
      :settings nil}))
 
 
@@ -155,7 +158,7 @@
 
 (defn delete-user
   [user]
-  (delete-entity iu/user (:euuid user)))
+  (delete-entity iu/user (select-keys user [:euuid])))
 
 
 (comment

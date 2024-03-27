@@ -28,10 +28,6 @@
      data )))
 
 
-(defn access-token-expiry [{{ "token-expiry"} :settings}]
-  )
-
-
 (defn request
   [{:keys [method url headers form-params]
     :or {method :get
@@ -176,46 +172,3 @@
         (throw
           (ex-info error_description
                    {:error error}))))))
-
-
-(comment
-  (request {:url nil
-            :client_id "jifoq"
-            :client_password "ifoq"})
-
-  (neyho.eywa.iam/reset)
-
-  (try
-    (resource-owner-password
-      {:url "http://localhost:8080/oauth2/token"
-       :client_id "XFYWDCONOFSZMTVAEOQHTZFHSUCTXQ"
-       :client_password "fjiqooi"
-       :username "oauth_test"
-       :password "change-me"})
-    (catch clojure.lang.ExceptionInfo ex
-      (ex-data ex)))
-
-
-  (resource-owner-password
-    {:url "http://localhost:8080/oauth2/token"
-     :client_id "XFYWDCONOFSZMTVAEOQHTZFHSUCTXQ"
-     :client_password "e9w7BwGDTLBgaHYxMpctUrOy_aVA4tiZHlgfb2GrotWiBhr_u0"
-     :username "oauth_test"
-     :password "change-me"})
-
-  (resource-owner-password
-    {:url "http://localhost:8080/oauth2/token"
-     :client_id "ZHXGGUGLQVOSJZHZCETLFTUZWSSRWG"
-     :client_password "e9w7BwGDTLBgaHYxMpctUrOy_aVA4tiZHlgfb2GrotWiBhr_u0"
-     :username "oauth_test"
-     :password "change-me"})
-
-  (request
-    {:url "http://localhost:8080/oauth2/authorize"
-     :form-params {:client_id "ZHXGGUGLQVOSJZHZCETLFTUZWSSRWG"
-                   :redirect_uri "http://localhost:8080/eywa"
-                   :response_type "code"
-                   :state "100292"}})
-  (println
-    (:body
-      )))

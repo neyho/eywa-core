@@ -53,7 +53,7 @@
 
 (deftest confidential-authorization-test
   (let [request {:client_id (:id confidential-client)
-                 :client_password (:password confidential-client)
+                 :client_secret (:password confidential-client)
                  :redirect_uri "http://localhost:8080/eywa/"
                  :response_type "code"
                  :username "test_oauth"
@@ -79,13 +79,13 @@
       "When redirection is wrong, redirect to access server controled error page")
     (is
       (=
-       (authorization-request (dissoc request :client_password))
+       (authorization-request (dissoc request :client_secret))
        {:status 302,
         :headers {"Location" "http://localhost:8080/eywa/?error=access_denied", "Cache-Control" "no-cache"}})
       "If client password isn't provided and client is configured to use password, than return error redirect to client")
     (is
       (=
-       (authorization-request (assoc request :client_password "wrong-password"))
+       (authorization-request (assoc request :client_secret "wrong-password"))
        {:status 302,
         :headers {"Location" "http://localhost:8080/eywa/?error=access_denied", "Cache-Control" "no-cache"}})
       "If client password is provided and it doesn't match configured password, than return error redirect to client")
@@ -100,12 +100,12 @@
 
 (deftest token-password-request-test
   (let [request {:client_id (:id confidential-client)
-                 :client_password (:password confidential-client)
+                 :client_secret (:password confidential-client)
                  :grant_type "password"
                  :username (:name test-user)
                  :password (:password test-user)}]
     ;;
-    (let [{:keys [status body]} (oauth2/token-endpoint (assoc request :client_password "wrong"))
+    (let [{:keys [status body]} (oauth2/token-endpoint (assoc request :client_secret "wrong"))
           {:strs [error]} (json/read-str body)]
       (is (= status 400) "Token request didn't return proper HTTP status")
       (is (= error "invalid_client") "Wrong error code returned"))
@@ -137,10 +137,10 @@
 
 (deftest token-client-credentials-request-test
   (let [request {:client_id (:id confidential-client)
-                 :client_password (:password confidential-client)
+                 :client_secret (:password confidential-client)
                  :grant_type "client_credentials"}]
     ;;
-    (let [{:keys [status body]} (oauth2/token-endpoint (assoc request :client_password "wrong"))
+    (let [{:keys [status body]} (oauth2/token-endpoint (assoc request :client_secret "wrong"))
           {:strs [error]} (json/read-str body)]
       (is (= status 400) "Token request didn't return proper HTTP status")
       (is (= error "invalid_client") "Wrong error code returned"))
@@ -168,7 +168,8 @@
 
 (defn destroy []
   (iam/remove-client confidential-client)
-  (iam/remove-client public-client))
+  (iam/remove-client public-client)
+  (iam/delete-user test-user))
 
 
 (use-fixtures :once

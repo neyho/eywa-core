@@ -58,7 +58,7 @@
   expiry)
 
 
-(defonce ^:dynamic *access-token-resolver*
+(def ^:dynamic *access-token-resolver*
   (fn [resource-owner-details client]
     (let [expires-after (access-token-expiry client)]
       (if (pos? expires-after)
@@ -73,17 +73,18 @@
         (sign-data (dissoc resource-owner-details :password :avatar :settings :active :sessions) {:alg :rs256})))))
 
 
-(defonce ^:dynamic *refresh-token-resolver*
+(def ^:dynamic *refresh-token-resolver*
   (fn [data client]
     (let [expires-after (refresh-token-expiry client)]
       (if (pos? expires-after)
         (sign-data
           data
-          (-> (vura/date)
-              vura/date->value
-              (+ expires-after)
-              vura/value->date
-              to-timestamp))
+          {:alg :rs256
+           :exp (-> (vura/date)
+                    vura/date->value
+                    (+ expires-after)
+                    vura/value->date
+                    to-timestamp)})
         (sign-data data {:alg :rs256})))))
 
 
@@ -97,9 +98,9 @@
 
 (defn validate-client [session]
   (let [{{:keys [client_id state redirect_uri]
-          request-password :client_password} :request} (get @*sessions* session)
+          request-secret :client_secret} :request} (get @*sessions* session)
         base-redirect-uri (get-base-uri redirect_uri)
-        {:keys [euuid password]
+        {:keys [euuid secret]
          {type "type"
           redirections "redirections"} :settings
          :as client} (get-client client_id)]
@@ -132,17 +133,17 @@
           {:type "redirect_missmatch"
            :session session}))
       ;;
-      (or (some? request-password) (some? password))
-      (if (validate-password request-password password)
+      (or (some? request-secret) (some? secret))
+      (if (validate-password request-secret secret)
         client
         (throw
           (ex-info
-            "Client password missmatch"
+            "Client secret missmatch"
             {:type "access_denied"
              :session session
              :state state})))
       ;;
-      (and (= type "public") (nil? password))
+      (and (= type "public") (nil? secret))
       client
       ;;
       :else
@@ -474,7 +475,7 @@
 
 (defn token-code-grant
   [data]
-  (let [{:keys [code redirect_uri client_id client_password]} data
+  (let [{:keys [code redirect_uri client_id client_secret]} data
         {:keys [session]} (get *authorization-codes* code)]
     (if-not session
       ;; If session isn't available, that is if somebody
@@ -487,7 +488,7 @@
       ;; If there is some session than check other requirements
       (let [{{session-redirect-uri :redirect_uri} :request
              session-client :client} (get-session session)
-            {_password :password
+            {_secret :secret
              :strs [allowed-scopes allowed-grants]
              :as client} (get-session-client session)
             scopes (set allowed-scopes)
@@ -513,15 +514,15 @@
             "Client ID that was provided doesn't"
             "match client ID that was used in authorization request")
           ;;
-          (and (some? _password) (empty? client_password))
+          (and (some? _secret) (empty? client_secret))
           (token-error
             "invalid_client"
-            "Client password wasn't provided")
-          ;; If client has password, than
-          (and (some? _password) (not (validate-password client_password _password)))
+            "Client secret wasn't provided")
+          ;; If client has secret, than
+          (and (some? _secret) (not (validate-password client_secret _secret)))
           (token-error
             "invalid_client"
-            "Provided client password is wrong")
+            "Provided client secret is wrong")
           ;; Issue that token
           :else
           (let [resource-owner (get-session-resource-owner session)
@@ -552,8 +553,8 @@
 
 (defn token-password-grant
   [data]
-  (let [{:keys [password username scope client_id client_password]} data
-        {_client-password :password
+  (let [{:keys [password username scope client_id client_secret]} data
+        {_client-secret :secret
          {client-type "type"
           refresh? "refresh-tokens"
           grants "allowed-grants"
@@ -574,18 +575,18 @@
       ;;
       (and
         (= client-type "confidential")
-        (empty? client_password))
+        (empty? client_secret))
       (token-error
         "invalid_client"
         "Client is configured as confidential."
-        "Password wasn't provided for client")
+        "Secret wasn't provided for client")
       ;;
       (and
-        _client-password
-        (not (validate-password client_password _client-password)))
+        _client-secret
+        (not (validate-password client_secret _client-secret)))
       (token-error
         "invalid_client"
-        "Client password is not correct"
+        "Client secret is not correct"
         "Your request is logged and will"
         "processed")
       ;;
@@ -713,13 +714,13 @@
 
 
 (defn token-client-credentials-grant
-  [{:keys [client_id client_password]}]
-  (if (empty? client_password)
+  [{:keys [client_id client_secret]}]
+  (if (empty? client_secret)
     (token-error
       "unauthorized_client"
-      "Client password is empty. You are not God")
+      "Client secret is empty. You are not God")
     (let [{{grants "allowed-grants"} :settings
-           _password :password :as client} (get-client client_id)
+           _secret :secret :as client} (get-client client_id)
           grants (set grants)]
       (cond
         ;;
@@ -730,7 +731,7 @@
           "for grant type that is outside"
           "of client configured privileges")
         ;;
-        (not (validate-password client_password _password))
+        (not (validate-password client_secret _secret))
         (token-error
           "invalid_client"
           "Client credentials are wrong")
@@ -842,10 +843,10 @@
    (fn [{{{authorization "authorization"} :headers} :request :as context}]
      (if-not authorization context
        (let [[_ credentials] (re-find #"Basic\s+(.*)" authorization)
-             [username password] (decode-base64-credentials credentials)]
+             [id secret] (decode-base64-credentials credentials)]
          (update-in context [:request :params] assoc
-                    :client_id username
-                    :client_password password))))})
+                    :client_id id
+                    :client_secret secret))))})
 
 
 (def keywordize-params
