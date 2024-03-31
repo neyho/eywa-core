@@ -14,11 +14,33 @@ elif [ "$OS" = "Linux" ]; then
     OS="linux"
 fi
 
-# Example filename: yourapp-linux-x86_64
-LOCATION="eywa_cli/${OS}/${ARCH}/0.1.9/eywa"
 
+LATEST_VERSION_URL="https://s3.eu-central-1.amazonaws.com/eywa.public/eywa_cli/latest"
+# Function to fetch the latest version from S3
+fetch_latest_version() {
+    curl -s "$LATEST_VERSION_URL"
+}
 
-# Construct S3 URL
+# Default to fetching the latest version
+VERSION=$(fetch_latest_version)
+
+# Parse arguments
+for arg in "$@"
+do
+    case $arg in
+        --version=*)
+        VERSION="${arg#*=}"
+        shift # Remove --version argument from processing
+        ;;
+        *)
+        # Handle other arguments or ignore
+        ;;
+    esac
+done
+
+echo "Using version: $VERSION"
+
+LOCATION="eywa_cli/${OS}/${ARCH}/${VERSION}/eywa"
 S3URL="https://s3.eu-central-1.amazonaws.com/eywa.public/$LOCATION"
 
 
@@ -62,6 +84,17 @@ else
     echo "$BIN_DIR is already in your PATH."
 fi
 
+# Use curl to fetch the HTTP headers only
+HTTP_STATUS=$(curl -I -o /dev/null -s -w "%{http_code}\n" "$S3URL")
+
+# Check if the file is accessible
+if [ "$HTTP_STATUS" -eq 200 ]; then
+    echo "Version available"
+else
+    echo "The file \"${S3URL}\" does not exist or is not accessible."
+    exit 1
+fi
+
 # Download target
 curl -o "${INSTALL_DIR}/eywa" "$S3URL"
 
@@ -70,4 +103,3 @@ chmod +x "${INSTALL_DIR}/eywa"
 
 #
 echo "${LOCATION} installed successfully and added to PATH."
-
