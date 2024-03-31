@@ -6,7 +6,7 @@
     [clojure.core.async :as async]
     [clojure.tools.logging :as log]
     [clojure.walk :refer [keywordize-keys]]
-    [nano-id.core :refer [nano-id]]
+    [nano-id.core :refer [nano-id] :as nano-id]
     [vura.core :as vura]
     [ring.util.codec :as codec]
     [clojure.data.json :as json]
@@ -46,6 +46,18 @@
 (defonce ^:dynamic *sessions* (atom nil))
 
 
+(let [alphabet "ACDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]
+  (def gen-session-id (nano-id/custom alphabet 30)))
+
+
+(let [alphabet "ACDEFGHJKLMNOPQRSTUVWXYZ"]
+  (def gen-code (nano-id/custom alphabet 30)))
+
+(comment
+  (gen-session-id)
+  (gen-code))
+
+
 (defn access-token-expiry
   [{{{expiry "access"} "token-expiry"} :settings
     :or {expiry (vura/day 1.5)}}]
@@ -58,34 +70,53 @@
   expiry)
 
 
-(def ^:dynamic *access-token-resolver*
-  (fn [resource-owner-details client]
-    (let [expires-after (access-token-expiry client)]
-      (if (pos? expires-after)
-        (sign-data
-          (dissoc resource-owner-details :password :avatar :settings :active :sessions)
-          {:alg :rs256
-           :exp (-> (vura/date)
-                    vura/date->value
-                    (+ (vura/minutes 5))
-                    vura/value->date
-                    to-timestamp)})
-        (sign-data (dissoc resource-owner-details :password :avatar :settings :active :sessions) {:alg :rs256})))))
+(declare revoke-access-token revoke-refresh-token remove-session-tokens set-session-tokens)
 
 
-(def ^:dynamic *refresh-token-resolver*
-  (fn [data client]
-    (let [expires-after (refresh-token-expiry client)]
-      (if (pos? expires-after)
-        (sign-data
-          data
-          {:alg :rs256
-           :exp (-> (vura/date)
-                    vura/date->value
-                    (+ expires-after)
-                    vura/value->date
-                    to-timestamp)})
-        (sign-data data {:alg :rs256})))))
+(def ^:dynamic *token-resolver*
+  (fn gen-access-token
+    ([resource-owner-details client] (gen-access-token resource-owner-details client nil))
+    ([resource-owner-details {{refresh? "refresh-tokens"} :settings :as client} session]
+     (let [expires-after (access-token-expiry client)]
+       (when session (remove-session-tokens session))
+       (if (pos? expires-after)
+         (let [access-token (sign-data
+                              (->
+                                resource-owner-details 
+                                (dissoc :password :avatar :settings :active :sessions)
+                                (assoc :session session))
+                              {:alg :rs256
+                               :exp (-> (vura/date)
+                                        vura/date->value
+                                        (+ expires-after)
+                                        vura/value->date
+                                        to-timestamp)})
+               refresh-token (when (and refresh? session)
+                               (sign-data
+                                 {:session session}
+                                 {:alg :rs256
+                                  :exp (-> (vura/date)
+                                           vura/date->value
+                                           (+ (refresh-token-expiry client))
+                                           vura/value->date
+                                           to-timestamp)}))
+               tokens (if refresh-token
+                        {:access_token access-token
+                         :refresh_token refresh-token
+                         :expires_in expires-after
+                         :type "bearer"}
+                        {:access_token access-token
+                         :expires_in expires-after
+                         :type "bearer"})]
+           (when session (set-session-tokens session tokens))
+           tokens)
+         {:access_token (sign-data
+                          (dissoc resource-owner-details
+                                  :password :avatar :settings
+                                  :active :sessions)
+                          {:alg :rs256})
+          :expires_in nil
+          :type "bearer"})))))
 
 
 (defn get-base-uri
@@ -275,13 +306,16 @@
       "of the server."]}))
 
 
-(defn- handle-request-error
+(defn handle-request-error
   [{t :type
     session :session
+    request :request
     :as data}]
-  (let [{{:keys [state redirect_uri]} :request} (get-session session)
+  (let [{:keys [state redirect_uri]} (or
+                                       request
+                                       (:request (get-session session)))
         base-redirect-uri (get-base-uri redirect_uri)]
-    (remove-session session)
+    (when session (remove-session session))
     (case t
       ;; When redirection uri error than redirect to 
       ("no_redirections"
@@ -302,78 +336,9 @@
                  "Cache-Control" "no-cache"}})))
 
 
-(defn bad-request
-  [data]
-  {:status 400
-   :headers {"Content-Type" "application/json;charset=UTF-8"
-             "Pragma" "no-cache"
-             "Cache-Control" "no-store"}
-   :body (json/write-str data)})
-
-
-(defn return-token [session]
-  (let []
-    ))
-
-
-
-(defn authorization-request
-  [{:keys [response_type username password redirect_uri]
-    :as request}]
-  (let [now (System/currentTimeMillis)
-        session (nano-id 20)]
-    (set-session session
-                 {:request request
-                  :at now})
-    (case response_type
-      ;;
-      ("code" "token")
-      (try
-        (let [client (validate-client session)]
-          ;; Proper implementation
-          (set-session-client session client)
-          (let [{{url "login-page"} :settings} (get-session-client session)]
-            {:status 302
-             :headers {"Location" (str url "?" (codec/form-encode {:session session}))
-                       "Cache-Control" "no-cache"}}))
-        (catch clojure.lang.ExceptionInfo ex
-          (handle-request-error (ex-data ex))))
-      ;;
-      "password"
-      (try
-        (let [user (validate-resource-owner username password)]
-          (set-session-resource-owner session user)
-          (remove-session session)
-          (return-token session))
-        (catch clojure.lang.ExceptionInfo ex
-          (handle-request-error (ex-data ex))))
-      "client_credentials"
-      (try
-        (validate-client session)
-        (return-token session)
-        (catch clojure.lang.ExceptionInfo ex (handle-request-error (ex-data ex))))
-      ;;
-      (cond
-        ;;
-        (empty? redirect_uri)
-        (handle-request-error
-          {:type "missing_redirect"
-           :session session})
-        ;;
-        (empty? response_type)
-        (handle-request-error
-          {:type "missing_response_type"
-           :session session})
-        ;;
-        :else
-        (handle-request-error
-          {:type "server_error"
-           :session session})))))
-
-
 (defn bind-authorization-code
   [session]
-  (let [code (nano-id 30)]
+  (let [code (gen-session-id)]
     (swap! *authorization-codes* assoc code {:session session
                                              :at (System/currentTimeMillis)})
     (swap! *sessions* update session
@@ -409,6 +374,16 @@
                                              {:session session
                                               :error ["credentials"]}))
                    "Cache-Control" "no-cache"}}))))
+
+
+(def login-interceptor
+  {:name ::login
+   :enter
+   (fn [{{params :params :as request} :request :as context}]
+     (let [{:keys [form-params]} (bp/form-parser request)
+           data (assoc (merge params form-params))]
+       (chain/terminate
+         (assoc context :response (login data)))))})
 
 
 (defn set-session-tokens
@@ -526,29 +501,15 @@
           ;; Issue that token
           :else
           (let [resource-owner (get-session-resource-owner session)
-                resource-owner-details (assoc
-                                         (get-user-details (:name resource-owner))
-                                         :session session)
-                access-token (*access-token-resolver* resource-owner-details client)
-                refresh-token (*refresh-token-resolver* {:session session} client)
-                response {:access_token access-token
-                          :refresh_token refresh-token
-                          :token_type "bearer"
-                          :expires_in (access-token-expiry client)}]
-            (remove-session-tokens session)
-            (set-session-tokens session response)
+                resource-owner-details (get-user-details (:name resource-owner))
+                tokens (*token-resolver* resource-owner-details client session)]
             (revoke-authorization-code session)
-            (publish :grant/access-token
-                     {:access-token access-token
-                      :session session})
-            (publish :grant/refresh-token
-                     {:refresh-token refresh-token
-                      :session session})
+            (publish :grant/tokens tokens)
             {:status 200
              :headers {"Content-Type" "application/json;charset=UTF-8"
                        "Pragma" "no-cache"
                        "Cache-Control" "no-store"}
-             :body (json/write-str response)}))))))
+             :body (json/write-str tokens)}))))))
 
 
 (defn token-password-grant
@@ -624,37 +585,26 @@
           ;; or what
           refresh?
           (let [now (System/currentTimeMillis)
-                session (nano-id 20)
-                access-token (*access-token-resolver* resource-owner-details client)
-                refresh-token (*refresh-token-resolver* {:session session} client)
-                body {:access_token access-token
-                      :token_type "Bearer"
-                      :refresh_token refresh-token 
-                      :expires_in (access-token-expiry client)}]
+                session (gen-session-id) ]
             (set-session session
                          {:request (dissoc data :password)
                           :at now})
             (set-session-client session client)
             (set-session-resource-owner session resource-owner-details)
-            (set-session-tokens session body)
-            (publish :grant/access-token
-                     {:access-token access-token
-                      :session session})
-            (publish :grant/refresh-token
-                     {:refresh-token refresh-token
-                      :session session})
-            {:status 200
-             :headers {"Content-Type" "application/json;charset=UTF-8"
-                       "Pragma" "no-cache"
-                       "Cache-Control" "no-store"}
-             :body (json/write-str body)})
+            (let [tokens (*token-resolver* resource-owner-details client session)]
+              (publish :grant/tokens tokens)
+              {:status 200
+               :headers {"Content-Type" "application/json;charset=UTF-8"
+                         "Pragma" "no-cache"
+                         "Cache-Control" "no-store"}
+               :body (json/write-str tokens)}))
           ;;
           :else
           {:status 200
            :headers {"Content-Type" "application/json;charset=UTF-8"
                      "Pragma" "no-cache"
                      "Cache-Control" "no-store"}
-           :body (let [access-token (*access-token-resolver* resource-owner-details client)]
+           :body (let [access-token (*token-resolver* resource-owner-details client nil)]
                    (publish :grant/access-token {:access-token access-token})
                    (json/write-str
                      {:access_token access-token
@@ -692,25 +642,13 @@
           "resource_owner_unauthorized"
           "Provided refresh token doesn't have active user"))
       :else
-      (let [access-token (*access-token-resolver* resource-owner-details client)
-            refresh-token (*refresh-token-resolver* {:session session} client)
-            response {:access_token access-token
-                      :refresh_token refresh-token
-                      :token_type "bearer"
-                      :expires_in (access-token-expiry client)}]
-        (remove-session-tokens session)
-        (set-session-tokens session response)
-        (publish :grant/access-token
-                 {:access-token access-token
-                  :session session})
-        (publish :grant/refresh-token
-                 {:refresh-token refresh-token
-                  :session session})
+      (let [tokens (*token-resolver* resource-owner-details client session)]
+        (publish :grant/tokens tokens)
         {:status 200
          :headers {"Content-Type" "application/json;charset=UTF-8"
                    "Pragma" "no-cache"
                    "Cache-Control" "no-store"}
-         :body (json/write-str response)}))))
+         :body (json/write-str tokens)}))))
 
 
 (defn token-client-credentials-grant
@@ -736,18 +674,13 @@
           "invalid_client"
           "Client credentials are wrong")
         :else
-        (let [access-token (*access-token-resolver* {:client client_id} client)
-              response {:access_token access-token
-                        :token_type "bearer"
-                        :expires_in (access-token-expiry client)}]
-          (publish :grant/access-token
-                   {:access-token access-token
-                    :session nil})
+        (let [tokens (*token-resolver* {:client client_id} client)]
+          (publish :grant/grant tokens)
           {:status 200
            :headers {"Content-Type" "application/json;charset=UTF-8"
                      "Pragma" "no-cache"
                      "Cache-Control" "no-store"}
-           :body (json/write-str response)})))))
+           :body (json/write-str tokens)})))))
 
 
 (defn token-endpoint
@@ -771,14 +704,57 @@
        :grant_type grant_type})))
 
 
-(defn reset
-  []
-  (reset! *sessions* nil)
-  (reset! *resource-owners* nil)
-  (reset! *clients* nil)
-  (reset! *authorization-codes* nil)
-  (reset! *refresh-tokens* nil)
-  (reset! *access-tokens* nil))
+(defn authorization-code-flow
+  [request]
+  (let [session (gen-session-id)
+        now (System/currentTimeMillis)]
+    (try
+      (set-session session
+                   {:request request
+                    :at now})
+      (let [client (validate-client session)]
+        ;; Proper implementation
+        (set-session-client session client)
+        (let [{{url "login-page"} :settings} (get-session-client session)]
+          {:status 302
+           :headers {"Location" (str url "?" (codec/form-encode {:session session}))
+                     "Cache-Control" "no-cache"}}))
+      (catch clojure.lang.ExceptionInfo ex
+        (handle-request-error (ex-data ex))))))
+
+
+(defn authorization-request
+  [{:keys [response_type username password redirect_uri]
+    :as request}]
+  (case response_type
+    ;;
+    "code"
+    (authorization-code-flow request)
+    ;; TODO - check if this is valid
+    ("token")
+    (token-password-grant request)
+    ;;
+    "password"
+    (token-password-grant request)
+    "client_credentials"
+    (token-client-credentials-grant request) 
+    ;;
+    (cond
+      ;;
+      (empty? redirect_uri)
+      (handle-request-error
+        {:type "missing_redirect"
+         :request request})
+      ;;
+      (empty? response_type)
+      (handle-request-error
+        {:type "missing_response_type"
+         :request request})
+      ;;
+      :else
+      (handle-request-error
+        {:type "server_error"
+         :request request}))))
 
 
 (def authorize-request-interceptor
@@ -809,16 +785,6 @@
                          "redirect_missmatch" "Couldn't match requested redirect to any of configured redirects for client"
                          "no_redirections" "Client doesn't has 0 configured redirections"
                          (str "Server error - " (:type params))))})))})
-
-
-(def login-interceptor
-  {:name ::login
-   :enter
-   (fn [{{{:keys [session]} :params
-          :as request} :request :as context}]
-     (let [{:keys [form-params]} (bp/form-parser request)]
-       (chain/terminate
-         (assoc context :response (login (assoc form-params :session session))))))})
 
 
 (def token-interceptor
@@ -856,23 +822,33 @@
      (update-in ctx [:request :params] keywordize-keys))})
 
 
+(def scope->set
+  {:name ::keywordize-params
+   :enter
+   (fn [ctx]
+     (update-in ctx [:request :params :scope] (fn [scope] (set (str/split scope #"\s+")))))})
+
+
 (def routes
   #{["/oauth2/authorize"
      :get [basic-authorization-interceptor
            (bp/body-params)
            keywordize-params
+           scope->set
            authorize-request-interceptor]
      :route-name ::authorize-request]
     ["/oauth2/request_error"
      :get [basic-authorization-interceptor
            (bp/body-params)
            keywordize-params
+           scope->set
            authorize-request-error-interceptor]
      :route-name ::authorize-request-error]
     ["/oauth2/token"
      :post [basic-authorization-interceptor
             (bp/body-params)
             keywordize-params
+            scope->set
             token-interceptor]
      :route-name ::handle-token]
     ["/login/*" :get [spa-interceptor] :route-name ::serve-login]
@@ -886,6 +862,16 @@
     (catch clojure.lang.ExceptionInfo ex
       (let [{:keys [cause]} (ex-data ex)]
         (= cause :exp)))))
+
+
+(defn reset
+  []
+  (reset! *sessions* nil)
+  (reset! *resource-owners* nil)
+  (reset! *clients* nil)
+  (reset! *authorization-codes* nil)
+  (reset! *refresh-tokens* nil)
+  (reset! *access-tokens* nil))
 
 
 ;; Maintenance

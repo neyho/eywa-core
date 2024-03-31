@@ -1,16 +1,10 @@
 {:deps
  {nrepl/nrepl                            {:mvn/version "1.1.1"}
   org.clojure/tools.namespace            {:mvn/version "1.5.0"}
+  ;; Administration
   buddy/buddy-sign                {:mvn/version "3.5.351"}
   buddy/buddy-core                {:mvn/version "1.11.423"}
   buddy/buddy-hashers             {:mvn/version "2.0.167"}
-  ;; Administration
-  ; buddy/buddy                     {:mvn/version "2.0.0"
-  ;                                  :exclusions
-  ;                                  [org.bouncycastle/bcprov-jdk15on
-  ;                                   org.bouncycastle/bcpkix-jdk15on
-  ;                                   clout/clout]}
-  ;;
   environ/environ                 {:mvn/version "1.2.0"}
   hiccup/hiccup                   {:mvn/version "2.0.0-RC3"}
   com.taoensso/nippy              {:mvn/version "3.3.0"}
@@ -46,6 +40,7 @@
   babashka/fs                                  {:mvn/version "0.5.20"}}
 
  :paths ["src/clj" "src/cljc" "src/cljs" "src/css" "resources"]
+ :version "0.4.27"
 
 
  :aliases
@@ -59,6 +54,15 @@
   :cider
   {:extra-deps {cider/cider-nrepl {:mvn/version "0.30.0"}}
    :main-opts ["-m" "nrepl.cmdline" "--middleware" "[cider.nrepl/cider-middleware]"]}
+  ;;
+  :prod
+  {:extra-paths ["src/prod"]}
+  ;;
+  :build
+  {:deps
+   {io.github.clojure/tools.build   {:mvn/version "0.9.4"}
+    com.github.clj-easy/graal-build-time {:mvn/version "0.1.4"}}
+   :ns-default build}
   ;;
   :hr
   {:jvm-opts ["-Duser.country=HR"

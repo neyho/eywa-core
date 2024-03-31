@@ -1,4 +1,4 @@
-(ns neyho.eywa.iam.ocid.azure
+(ns neyho.eywa.iam.oidc.auth0
   (:require
     [clojure.data.json :as json]
     [buddy.sign.jws :as jws]
@@ -11,13 +11,13 @@
     [java.security.spec RSAPublicKeySpec]
     [java.security KeyFactory]))
 
-(def oauth2-authorization-endpoint "https://github.com/login/oauth/authorize")
+(def oauth2-authorization-endpoint "")
 
-(def oauth2-token-endpoint "https://github.com/login/oauth/access_token")
+(def oauth2-token-endpoint "https://dev-e1h3f0elzkc5z82h.us.auth0.com/oauth/token")
 
 
 (defn get-tenant-keys
-  ([tenant] (get-tenant-keys tenant "https://login.microsoftonline.com/%s/discovery/v2.0/keys"))
+  ([tenant] (get-tenant-keys tenant "https://%s.us.auth0.com/.well-known/jwks.json"))
   ([tenant template]
    (json/read-str (slurp (format template tenant))))
    )
