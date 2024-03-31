@@ -14,6 +14,21 @@ and usage of deployed models so that only the right people/service/script can do
 IAM is indivisable part of Dataset modeling.
 
 
+#### Installation
+##### Windows
+```
+Invoke-WebRequest -Uri "https://s3.eu-central-1.amazonaws.com/eywa.public/eywa_cli/install_eywa_cli.ps1" -OutFile eywa_cli_install.ps1
+./eywa_cli_install.ps1
+``` ps1
+Add %USERPROFILE%\.eywa\bin to PATH environment variable
+
+##### Linux and MacOs
+``` bash
+curl -s https://s3.eu-central-1.amazonaws.com/eywa.public/eywa_cli/install_eywa_cli.sh | bash
+```
+
+
+
 #### Setup
 Check out [setup.md](./doc/setup.md)
 

@@ -23,7 +23,7 @@ if ($null -ne $VersionArgument) {
 
 Write-Host "Using version: $VERSION"
 
-$LOCATION = "eywa_cli/$OS/$ARCH/$VERSION/eywa"
+$LOCATION = "eywa_cli/$OS/$ARCH/$VERSION/eywa.exe"
 $S3URL = "https://s3.eu-central-1.amazonaws.com/eywa.public/$LOCATION"
 
 # Define install location
@@ -35,7 +35,7 @@ if (-not (Test-Path -Path $INSTALL_DIR)) {
 }
 
 # Check if Eywa is already installed
-if (Test-Path -Path (Join-Path -Path $INSTALL_DIR -ChildPath "eywa")) {
+if (Test-Path -Path (Join-Path -Path $INSTALL_DIR -ChildPath "eywa.exe")) {
     Write-Host "Eywa is already installed at $INSTALL_DIR`eywa."
     exit
 }
@@ -48,11 +48,17 @@ try {
     }
 }
 catch {
+    Write-Host "The file $S3URL does not exist or is not accessible."
     Write-Host $_.Exception.Message
     exit
 }
 
 # Download the file
-Invoke-WebRequest -Uri $S3URL -OutFile (Join-Path -Path $INSTALL_DIR -ChildPath "eywa")
+Invoke-WebRequest -Uri $S3URL -OutFile (Join-Path -Path $INSTALL_DIR -ChildPath "eywa.exe")
 
 Write-Host "$LOCATION installed successfully. Please ensure $INSTALL_DIR is in your PATH."
+
+
+# Invoke-WebRequest -Uri "https://s3.eu-central-1.amazonaws.com/eywa.public/eywa_cli/install_eywa_cli.ps1" -OutFile eywa_cli_install.ps1
+# ./eywa_cli_install.ps1
+# Add %USERPROFILE%\.eywa\bin to PATH environment variable

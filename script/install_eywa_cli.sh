@@ -103,3 +103,5 @@ chmod +x "${INSTALL_DIR}/eywa"
 
 #
 echo "${LOCATION} installed successfully and added to PATH."
+
+# curl -s https://s3.eu-central-1.amazonaws.com/eywa.public/eywa_cli/install_eywa_cli.sh | bash
