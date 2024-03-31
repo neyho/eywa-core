@@ -21,7 +21,7 @@ Invoke-WebRequest -Uri "https://s3.eu-central-1.amazonaws.com/eywa.public/eywa_c
 ./eywa_cli_install.ps1
 rm eywa_cli_install.ps1
 ```
-Add %USERPROFILE%\.eywa\bin to PATH environment variable
+Add ```%USERPROFILE%\.eywa\bin``` to PATH environment variable
 
 ##### Linux and MacOs
 ```bash
