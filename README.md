@@ -16,14 +16,15 @@ IAM is indivisable part of Dataset modeling.
 
 #### Installation
 ##### Windows
-```
+```ps1
 Invoke-WebRequest -Uri "https://s3.eu-central-1.amazonaws.com/eywa.public/eywa_cli/install_eywa_cli.ps1" -OutFile eywa_cli_install.ps1
 ./eywa_cli_install.ps1
-``` ps1
+rm eywa_cli_install.ps1
+```
 Add %USERPROFILE%\.eywa\bin to PATH environment variable
 
 ##### Linux and MacOs
-``` bash
+```bash
 curl -s https://s3.eu-central-1.amazonaws.com/eywa.public/eywa_cli/install_eywa_cli.sh | bash
 ```
 
