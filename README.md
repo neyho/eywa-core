@@ -23,11 +23,11 @@ rm eywa_cli_install.ps1
 ```
 Add ```%USERPROFILE%\.eywa\bin``` to PATH environment variable
 
+
 ##### Linux and MacOs
 ```bash
 curl -s https://s3.eu-central-1.amazonaws.com/eywa.public/eywa_cli/install_eywa_cli.sh | bash
 ```
-
 
 
 #### Setup

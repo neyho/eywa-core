@@ -48,7 +48,7 @@
   (b/compile-clj
     {:basis basis
      :src-dirs ["src/clj" "resources" "src/prod"]
-     :ns-compile ['neyho.eywa.main]
+     :ns-compile ['neyho.eywa.core]
      :class-dir class-dir})
   (b/copy-dir
     {:src-dirs ["resources"] 
@@ -74,7 +74,7 @@
   (b/uber
     {:class-dir class-dir
      :uber-file uber-file
-     :main 'neyho.eywa.main
+     :main 'neyho.eywa.core
      :manifest {"Application-Name" "EYWA"}
      ;; Exclude source code
      :basis uber-basis}))
@@ -101,7 +101,7 @@
                 :lib lib
                 :version version
                 :basis basis
-                :src-dirs ["src/clj"]})
+                :src-dirs ["src/clj" "src/prod"]})
   (compile-backend)
   (copy-frontend)
   (docs)
