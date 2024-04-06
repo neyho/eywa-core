@@ -40,8 +40,8 @@
 (defn from-env
   "Builds neyho.eywa.Postgres instance from environment variables"
   []
-  (let [host (env :postgres-host)
-        port (env :postgres-port)
+  (let [host (env :postgres-host "localhost")
+        port (env :postgres-port 8080)
         db (env :postgres-db)
         password (env :postgres-password)
         user (env :postgres-user)

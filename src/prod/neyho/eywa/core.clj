@@ -45,6 +45,10 @@
     (try
       (when (and user password)
         (println "Initializing user: " user)
+        (neyho.eywa.transit/init)
+        (init-default-encryption)
+        (neyho.eywa.db.postgres/init)
+        (neyho.eywa.dataset/init)
         (neyho.eywa.administration/setup
           {:users
            [{:name user :password password :active true
@@ -52,11 +56,12 @@
            :roles [neyho.eywa.data/*ROOT*]}))
       (catch Throwable ex
         (log/errorf ex "Couldn't finish EYWA setup.")
-        (println
+        (.println System/err
           (str/join
             "\n"
-            ["Couldn't finish EYWA initialization for more."
-             "For more info check \"" env/log-dir "\" files"]))
+            ["Couldn't finish EYWA initialization"
+             (ex-message ex)
+             (str "For more info check \"" env/log-dir "\" files")]))
         (System/exit 1)))))
 
 
