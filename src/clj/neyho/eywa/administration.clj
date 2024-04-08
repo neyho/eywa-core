@@ -160,7 +160,7 @@
     (dataset/sync-entity au/user-role *ROOT*)
     (log/info "ROOT user role created")
     (doseq [user users]
-      (log/infof "Adding user %s" user)
+      (log/infof "Adding user %s" (dissoc user :password))
       (dataset/sync-entity 
         au/user 
         (assoc user :avatar nil :type :PERSON)))
