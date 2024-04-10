@@ -1,5 +1,6 @@
 (ns neyho.eywa.core
   (:require
+    [babashka.fs :as fs]
     [clojure.string :as str]
     [clojure.tools.logging :as log]
     [clojure.java.shell :refer [sh]]
@@ -108,32 +109,6 @@
   (System/exit 0))
 
 
-(defn java-info
-  []
-  (let [{:keys [exit out err]} (try
-                                 (sh "java" "-version")
-                                 (catch Throwable ex
-                                   (log/error ex "Invalid JAVA scan")))]
-    (when (and exit (zero? exit))
-      (let [output (some #(when (not-empty %) %) [out err])
-            [_ _ version build-time] (re-find #"(java\s+version\s+\")([\d\.]+)\"\s*([\d\-]+)" output)
-            [_ build :as all] (re-find #"build(.*?)\)" output)]
-        {:version version
-         :build  build
-         :build-time build-time}))))
-
-
-(defn valid-java?
-  [info]
-  (if-some [{:keys [version]} info]
-    (condp #(.startsWith %2 %1) version
-      "17." true
-      "11." true
-      false)
-    false))
-
-
-
 (let [padding-left "    "
       table-length 70
       hline (str \+ (apply str (repeat (- table-length 2) \-)) \+)]
@@ -153,15 +128,92 @@
              hline]))))))
 
 
+(defn java-info
+  []
+  (let [{:keys [exit out err]} (try
+                                 (sh "java" "-version")
+                                 (catch Throwable ex
+                                   (log/error ex "Invalid JAVA scan")))]
+    (when (and exit (zero? exit))
+      (let [output (some #(when (not-empty %) %) [out err])
+            [_ _ version build-time] (re-find #"(java\s+version\s+\")([\d\.]+)\"\s*([\d\-]+)" output)
+            [_ build :as all] (re-find #"build(.*?)\)" output)]
+        {:version version
+         :build  build
+         :build-time build-time}))))
+
+
+
+(defn valid-java?
+  [info]
+  (if-some [{:keys [version]} info]
+    (condp #(.startsWith %2 %1) version
+      "17." true
+      "11." true
+      false)
+    false))
+
+
+(defn java-doctor
+  [lines]
+  (let [{java-version :version :as jinfo} (java-info)]
+    (as-> (or lines []) lines
+      (if (valid-java? jinfo)
+        (conj lines (str "  JAVA     " (str "OK: version '" java-version "' is supported")))
+        (conj lines
+              (str "  JAVA     " (str "ERROR: current version '" java-version "' is not supported"))
+              (str "         Use JAVA versions 11,17"))))))
+
+
+(defn dataset-doctor
+  [lines]
+  (neyho.eywa.transit/init)
+  (neyho.eywa.iam/init-default-encryption)
+  (let [postgres-error (try
+                         (neyho.eywa.db.postgres/init)
+                         nil
+                         (catch Throwable ex (ex-message ex)))
+        dataset-error (when-not postgres-error
+                        (try
+                          (neyho.eywa.dataset.core/get-last-deployed neyho.eywa.db/*db*)
+                          nil
+                          (catch Throwable ex
+                            (log/error ex "Doctor failed to check datasets")
+                            "EYWA not initialized")))]
+    (as-> lines lines
+      ;; Check postgres
+      (if postgres-error
+        (conj lines (str "  POSTGRES " (str "ERROR: " postgres-error)))
+        (conj lines (str "  POSTGRES " (str "OK"))))
+      ;; Check datasets
+      (if dataset-error
+        (conj lines (str "  DATASETS " (str "ERROR: " dataset-error)))
+        (if-not postgres-error
+          (conj lines (str "  DATASETS OK"))
+          (conj lines (str "  DATASETS " (str "ERROR: Postgres not available"))))))))
+
+
+(try
+  (assert false "Failed with some message")
+  (catch Throwable ex
+    ex))
+
+
 (defn doctor []
-  (let [{java-version :version :as jinfo} (java-info)
-        info-lines (as-> [] lines
-                     (if (valid-java? jinfo)
-                       (conj lines (str "  JAVA - " (str "OK: current version '" java-version "' is supported")))
-                       (conj lines
-                             (str "  JAVA - " (str "ERROR: current version '" java-version "' is not supported"))
-                             (str "         Use JAVA versions 11,17"))))]
-    (println (doctor-table info-lines))))
+  (->
+    []
+    java-doctor
+    dataset-doctor
+    doctor-table
+    println))
+
+
+(defn spit-pid
+  []
+  (let [target (env :eywa-pid (fs/expand-home "~/.eywa/pid"))
+        pid (let [process-handle (java.lang.ProcessHandle/current)]
+              (.pid process-handle))]
+    (spit target pid)))
 
 
 (defn -main
@@ -197,4 +249,5 @@
         (neyho.eywa.server/start
           {:port (when-some [port (env :eywa-server-port 8080)] (Integer/parseInt port))
            :host (env :eywa-server-host "localhost")
-           :context-configurator neyho.eywa.server.jetty/context-configuration})))))
+           :context-configurator neyho.eywa.server.jetty/context-configuration})
+        (spit-pid)))))

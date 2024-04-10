@@ -40,7 +40,7 @@
   babashka/fs                                  {:mvn/version "0.5.20"}}
 
  :paths ["src/clj" "src/cljc" "src/cljs" "src/css" "resources"]
- :version "0.4.28"
+ :version "0.4.30"
 
 
  :aliases

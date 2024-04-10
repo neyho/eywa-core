@@ -37,6 +37,16 @@
     (assoc data :datasource datasource)))
 
 
+(defn check-connection-params
+  [{:keys [host db user password] :as data}]
+  (letfn [(check [x message]
+            (when-not x (throw (ex-info message data))))]
+    (check host "POSGRES_HOST not specified")
+    (check db "POSTGRES_DB not specified")
+    (check user "POSTGRES_USER not specified")
+    (check password "POSTGRES_PASSWORD not specified")))
+
+
 (defn from-env
   "Builds neyho.eywa.Postgres instance from environment variables"
   []
@@ -51,10 +61,7 @@
                        :password password 
                        :user user 
                        :max-connections (Integer/parseInt (env :hikari-max-pool-size "2")))]
-    (assert host "POSGRES_HOST not specified")
-    (assert db "POSTGRES_DB not specified")
-    (assert user "POSTGRES_USER not specified")
-    (assert password "POSTGRES_PASSWORD not specified")
+    (check-connection-params data)
     (eywa/map->Postgres data)))
 
 
@@ -73,10 +80,7 @@
                        :password password 
                        :user user 
                        :max-connections (Integer/parseInt (env :hikari-max-pool-size "2")))]
-    (assert host "POSGRES_HOST not specified")
-    (assert admin-db "POSTGRES_ADMIN_DB not specified")
-    (assert user "POSTGRES_ADMIN_USER not specified")
-    (assert password "POSTGRES_ADMIN_PASSWORD not specified")
+    (check-connection-params data)
     (eywa/map->Postgres data)))
 
 
