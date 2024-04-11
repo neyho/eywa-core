@@ -28,6 +28,9 @@
   (:gen-class :main true))
 
 
+(def version "0.1.3")
+
+
 (defn setup
   []
   (neyho.eywa.transit/init)
@@ -193,11 +196,6 @@
           (conj lines (str "  DATASETS " (str "ERROR: Postgres not available"))))))))
 
 
-(try
-  (assert false "Failed with some message")
-  (catch Throwable ex
-    ex))
-
 
 (defn doctor []
   (->
@@ -213,41 +211,46 @@
   (let [target (env :eywa-pid (fs/expand-home "~/.eywa/pid"))
         pid (let [process-handle (java.lang.ProcessHandle/current)]
               (.pid process-handle))]
-    (spit target pid)))
+    (spit target (str pid))))
 
 
 (defn -main
   [& args]
   (let [[command subcommand] args]
-    (case command
-      "init" (initialize)
-      "super" (case subcommand
-                "add"
-                (do
-                  (set-superuser)
-                  (System/exit 0))
-                "delete"
-                (do
-                  (delete-superuser)
-                  (System/exit 0))
-                "list"
-                (do
-                  (list-superusers)
-                  (System/exit 0)))
-      "doctor" (do
-                 (doctor)
-                 (System/exit 0))
-      (do
-        (neyho.eywa.transit/init)
-        (neyho.eywa.iam/init-default-encryption)
-        (oauth2/start-maintenance)
-        (init-default-encryption)
-        (neyho.eywa.db.postgres/init)
-        (neyho.eywa.dataset/init)
-        (neyho.eywa.avatars.postgres/init)
-        (neyho.eywa.administration/init)
-        (neyho.eywa.server/start
-          {:port (when-some [port (env :eywa-server-port 8080)] (Integer/parseInt port))
-           :host (env :eywa-server-host "localhost")
-           :context-configurator neyho.eywa.server.jetty/context-configuration})
-        (spit-pid)))))
+    (when (= command "version") (print version) (System/exit 0))
+    (try
+      (case command
+        "init" (initialize)
+        "super" (case subcommand
+                  "add"
+                  (do
+                    (set-superuser)
+                    (System/exit 0))
+                  "delete"
+                  (do
+                    (delete-superuser)
+                    (System/exit 0))
+                  "list"
+                  (do
+                    (list-superusers)
+                    (System/exit 0)))
+        "doctor" (do
+                   (doctor)
+                   (System/exit 0))
+        (do
+          (neyho.eywa.transit/init)
+          (neyho.eywa.iam/init-default-encryption)
+          (oauth2/start-maintenance)
+          (init-default-encryption)
+          (neyho.eywa.db.postgres/init)
+          (neyho.eywa.dataset/init)
+          (neyho.eywa.avatars.postgres/init)
+          (neyho.eywa.administration/init)
+          (neyho.eywa.server/start
+            {:port (when-some [port (env :eywa-server-port "8080")] (Integer/parseInt port))
+             :host (env :eywa-server-host "0.0.0.0")
+             :context-configurator neyho.eywa.server.jetty/context-configuration})
+          (spit-pid)))
+      (catch Throwable ex
+        (spit-pid)
+        (throw ex)))))

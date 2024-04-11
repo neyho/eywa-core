@@ -61,20 +61,17 @@
   :build
   {:deps
    {io.github.clojure/tools.build   {:mvn/version "0.9.4"}
-    com.github.clj-easy/graal-build-time {:mvn/version "0.1.4"}}
+    com.github.clj-easy/graal-build-time {:mvn/version "0.1.4"}
+    com.cognitect.aws/api           {:mvn/version "0.8.539"
+                                     :exclusions [org.clojure/data.json]}
+    com.cognitect.aws/endpoints     {:mvn/version "1.1.12.110"}
+    com.cognitect.aws/s3            {:mvn/version "814.2.991.0"}}
    :ns-default build}
   ;;
   :hr
   {:jvm-opts ["-Duser.country=HR"
               "-Duser.language=hr"
               "-Dfile.encoding=UTF-8"]}
-  ;; S3
-  :s3 {:extra-paths
-       {com.cognitect.aws/api           {:mvn/version "0.8.539"
-                                         :exclusions [org.clojure/data.json]}
-        com.cognitect.aws/endpoints     {:mvn/version "1.1.12.110"}
-        com.cognitect.aws/s3            {:mvn/version "814.2.991.0"}}}
-
   ;; RocksDB
   :rocks {:extra-deps
           {org.rocksdb/rocksdbjni          {:mvn/version "8.1.1.1"}

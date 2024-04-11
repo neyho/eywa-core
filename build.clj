@@ -1,21 +1,30 @@
 (ns build
   (:require
+    [clojure.string :as str]
     [clojure.pprint :refer [pprint]]
     [clojure.java.io :as io]
     [clojure.tools.build.api :as b]
-    [clojure.edn :as edn]
+    [clojure.java.shell :refer [sh]]
     [cognitect.aws.client.api :as aws]))
 
 
 (def lib 'neyho/eywa)
-(def version (:version (edn/read-string (slurp "deps.edn"))))
 (def class-dir "target/classes")
 (def basis
   (b/create-basis
     {:project "deps.edn"
      :aliases [:prod]}))
-(def uber-file (format "target/eywa.%s.jar" version))
 
+(def version
+  (let [{:keys [out err]} (sh "clj" "-M" "-m" "neyho.eywa.core" "version")
+        version (some not-empty [out err])]
+    (when (empty? version)
+      (throw
+        (ex-info "Couldn't resolve version"
+                 {:command "clj -M -m neyho.eywa.cli -v"})))
+    (str/trim version)))
+
+(def uber-file (format "target/eywa.%s.jar" version))
 
 (defn clean [_]
   (b/delete {:path "target"}))
@@ -110,14 +119,15 @@
 
 (defn upload [& _]
   (let [s3 (aws/client {:api :s3})
-        s3-path (str "/eywa_core/jar/" version ".jar")
+        s3-path (str "eywa_core/jar/" version ".jar")
         bucket "eywa.public"]
     (println (format "Uploading file: %s to S3: %s:%s" uber-file bucket s3-path))
     (with-open [file (io/input-stream (io/file uber-file))]
       (pprint
         (aws/invoke
           s3 {:op :PutObject
-              :request {:Bucket bucket 
+              :request {:ACL "public-read"
+                        :Bucket bucket 
                         :Key s3-path 
                         :Body file}})))))
 
