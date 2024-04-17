@@ -19,6 +19,7 @@
     [io.pedestal.http.ring-middlewares :as middlewares]
     [com.walmartlabs.lacinia.pedestal2 :as lp]
     neyho.eywa.lacinia
+    [neyho.eywa.iam.oauth2 :as oauth2]
     [neyho.eywa.server.jetty :as jetty]
     [neyho.eywa.server.interceptors :refer [json-response-interceptor]]
     [neyho.eywa.server.interceptors.util :refer [coerce-body]]
@@ -99,7 +100,6 @@
                           (re-find #"^\w.*?(?=[\./\?])" app)
                           app)
                html (str root \/ app-root "/index.html")] 
-           (log/trace "Couldn't find resource returning index.html")
            (if (io/resource html)
              (assoc context :response
                     (-> (response/resource-response html)
@@ -186,8 +186,9 @@
 
 (def default-routes
   #{["/index.html" :post [content-neg-intc login] :route-name :login/authenticate]
-    ["/login" :get [coerce-body content-neg-intc custom-logins] :route-name :eywa.web.login/get]
-    ["/login" :post [coerce-body content-neg-intc append-account login] :route-name :eywa.web.login/post]
+    ;; TODO - this is DEPRECATED... New IAM will use this path for serving login pages
+    ; ["/login" :get [coerce-body content-neg-intc custom-logins] :route-name :eywa.web.login/get]
+    ; ["/login" :post [coerce-body content-neg-intc append-account login] :route-name :eywa.web.login/post]
     ;;
     ["/app/*app"
      :get [(conneg/negotiate-content ["text/css" 
@@ -343,7 +344,8 @@
           routes (route/expand-routes
                    (clojure.set/union
                      default-routes
-                     graphql-routes))
+                     graphql-routes
+                     oauth2/routes))
           context-configurator jetty/context-configuration}}]
    (stop)
    (log/info "Starting EYWA server")

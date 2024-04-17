@@ -27,7 +27,6 @@
   (def datasets (:datasets user/system))
   (require '[neyho.eywa.db.rocksdb :as rocks])
   (require '[babashka.fs :as fs])
-  (def directory (str (fs/expand-home "~/.eywa/data/rocks")))
   (def db (rocks/create-db directory))
   (pr-str @role-permissions)
   (rocks/put db "role-schema" @role-permissions)

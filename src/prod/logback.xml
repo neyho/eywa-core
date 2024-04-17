@@ -1,22 +1,22 @@
 <?xml version="1.0"?>
 <configuration>
-  <appender name="eywa.dev" class="ch.qos.logback.core.rolling.RollingFileAppender">
-    <file>${HOME}/.eywa/logs/dev.log</file>
+  <appender name="eywa.system" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${HOME}/.eywa/logs/system.log</file>
     <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
       <pattern>%d{HH:mm:ss.SSS} [%thread] %level %logger{36} - %msg%n</pattern>
     </encoder>
     <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-      <fileNamePattern>${HOME}/.eywa/logs/dev.%d{yyyy-MM-dd}.log</fileNamePattern>
+      <fileNamePattern>${HOME}/.eywa/logs/system.%d{yyyy-MM-dd}.log</fileNamePattern>
       <maxHistory>7</maxHistory>
-      <totalSizeCap>600MB</totalSizeCap>
+      <totalSizeCap>100MB</totalSizeCap>
     </rollingPolicy>
   </appender>
 
-  <logger name="neyho.eywa" level="debug">
-    <appender-ref ref="eywa.dev"/>
+  <logger name="neyho.eywa" level="info">
+    <appender-ref ref="eywa.system"/>
   </logger>
 
-  <root level="error">
+  <root level="info">
     <!-- <appender-ref ref="eywa.dev"/> -->
   </root>
 </configuration>

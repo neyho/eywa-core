@@ -81,12 +81,3 @@
      (fs/delete-if-exists key))
     ([_ _ _]
      (not-supported))))
-
-
-(comment
-  (def s (neyho.eywa/->LocalStorage "~/.eywa/storage"))
-  (storage/available?)
-  (component/start s)
-  (fs/exists? "/Users/robi/.m2/repository/lilactown/helix/0.1.5/helix-0.1.5.jar:helix/core.clj")
-  (fs/exists? "/Users/robi/.m2/repository/lilactown/helix/0.1.5/helix-0.1.5.jar")
-  (type s))

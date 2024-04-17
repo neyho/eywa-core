@@ -1,0 +1,103 @@
+/* :root { */
+/*   --background: #1e292d; */
+/* } */
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+html {
+  height:100%;
+}
+
+
+
+body {
+
+  background-size: contain;
+  background-repeat: no-repeat;
+  margin: 0;
+  font-family: 'Montserrat';
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+
+pre {
+  font-size: 0.675rem;
+  font-family: 'Montserrat';
+}
+
+
+
+#login-background {
+  background-repeat: no-repeat;
+}
+
+
+#app {
+  height:100%;
+  width:100%;
+}
+
+a:hover, select:hover {
+  text-decoration: underline;
+  cursor: pointer;
+
+}
+
+input, textarea {
+  background: transparent;
+  
+}
+
+input::placeholder, textarea::placeholder {
+  font-weight: 300;
+  color: var(--placeholder-normal);
+}
+
+
+input:focus, textarea:focus {
+  outline: 0;
+  outline-offset: 0;
+}
+
+
+h1 {
+  font-weight: 800;
+  font-size: 20px;
+  line-height:28px;
+}
+
+
+h2 {
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 24px;
+}
+
+
+h3 {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+}
+
+
+h4 {
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 20px;
+}

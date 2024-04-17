@@ -2,13 +2,11 @@
  {nrepl/nrepl                            {:mvn/version "1.1.1"}
   org.clojure/tools.namespace            {:mvn/version "1.5.0"}
   ;; Administration
-  buddy/buddy                     {:mvn/version "2.0.0"
-                                   :exclusions
-                                   [org.bouncycastle/bcprov-jdk15on
-                                    org.bouncycastle/bcpkix-jdk15on
-                                    clout/clout]}
-  ;;
+  buddy/buddy-sign                {:mvn/version "3.5.351"}
+  buddy/buddy-core                {:mvn/version "1.11.423"}
+  buddy/buddy-hashers             {:mvn/version "2.0.167"}
   environ/environ                 {:mvn/version "1.2.0"}
+  hiccup/hiccup                   {:mvn/version "2.0.0-RC3"}
   com.taoensso/nippy              {:mvn/version "3.3.0"}
 
   ;; CORE
@@ -37,15 +35,18 @@
   ;;
   camel-snake-kebab/camel-snake-kebab          {:mvn/version "0.4.3"}
   com.github.gersak/vura                       {:mvn/version "0.5.8"}
-  ; com.github.gersak/vura                       {:local/root "../../vura"}
+  com.github.gersak/shadow-css                 {:git/url "https://github.com/gersak/shadow-css.git"
+                                                :git/sha "697f2937345be9d187b6bce73ff4f50613f7ece8"}
   babashka/fs                                  {:mvn/version "0.5.20"}}
 
  :paths ["src/clj" "src/cljc" "src/cljs" "src/css" "resources"]
+ :version "0.4.30"
 
 
  :aliases
  {:dev
-  {:extra-paths ["src/dev" "frontend/dist"]}
+  {:extra-paths ["src/dev" "login/src/clj" "frontend/dist" "test"]
+   :extra-deps {thheller/shadow-cljs {:mvn/version "2.20.20"}}}
   ;;
   :db
   {:extra-paths ["src/db"]}
@@ -54,17 +55,24 @@
   {:extra-deps {cider/cider-nrepl {:mvn/version "0.30.0"}}
    :main-opts ["-m" "nrepl.cmdline" "--middleware" "[cider.nrepl/cider-middleware]"]}
   ;;
+  :prod
+  {:extra-paths ["src/prod"]}
+  ;;
+  :build
+  {:deps
+   {io.github.clojure/tools.build   {:mvn/version "0.9.4"}
+    com.github.clj-easy/graal-build-time {:mvn/version "0.1.4"}
+    org.clojure/data.json      {:mvn/version "2.5.0"}
+    com.cognitect.aws/api           {:mvn/version "0.8.539"
+                                     :exclusions [org.clojure/data.json]}
+    com.cognitect.aws/endpoints     {:mvn/version "1.1.12.110"}
+    com.cognitect.aws/s3            {:mvn/version "814.2.991.0"}}
+   :ns-default build}
+  ;;
   :hr
   {:jvm-opts ["-Duser.country=HR"
               "-Duser.language=hr"
               "-Dfile.encoding=UTF-8"]}
-  ;; S3
-  :s3 {:extra-paths
-       {com.cognitect.aws/api           {:mvn/version "0.8.539"
-                                         :exclusions [org.clojure/data.json]}
-        com.cognitect.aws/endpoints     {:mvn/version "1.1.12.110"}
-        com.cognitect.aws/s3            {:mvn/version "814.2.991.0"}}}
-
   ;; RocksDB
   :rocks {:extra-deps
           {org.rocksdb/rocksdbjni          {:mvn/version "8.1.1.1"}
