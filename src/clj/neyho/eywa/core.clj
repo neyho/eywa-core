@@ -28,7 +28,7 @@
   (:gen-class :main true))
 
 
-(def version "0.1.3")
+(def version "0.1.4")
 
 
 (defn setup
@@ -168,6 +168,22 @@
               (str "         Use JAVA versions 11,17"))))))
 
 
+(defn is-initialized
+  []
+  (let [postgres-error (try
+                         (neyho.eywa.db.postgres/init)
+                         nil
+                         (catch Throwable ex (ex-message ex)))]
+    (when-not postgres-error
+      (try
+        (neyho.eywa.dataset.core/get-last-deployed neyho.eywa.db/*db*)
+        (println "EYWA is initialized")
+        (System/exit 0)
+        (catch Throwable ex
+          (println "EYWA not initialized")
+          (System/exit 1))))))
+
+
 (defn dataset-doctor
   [lines]
   (neyho.eywa.transit/init)
@@ -211,16 +227,17 @@
   (let [target (env :eywa-pid (fs/expand-home "~/.eywa/pid"))
         pid (let [process-handle (java.lang.ProcessHandle/current)]
               (.pid process-handle))]
-    (spit target (str pid))))
+    (spit (str target) (str pid))))
 
 
 (defn -main
   [& args]
   (let [[command subcommand] args]
-    (when (= command "version") (print version) (System/exit 0))
+    (when (= command "version") (println version) (System/exit 0))
     (try
       (case command
         "init" (initialize)
+        "is-initialized" (is-initialized)
         "super" (case subcommand
                   "add"
                   (do
@@ -237,20 +254,22 @@
         "doctor" (do
                    (doctor)
                    (System/exit 0))
+        "start" (do
+                  (neyho.eywa.transit/init)
+                  (neyho.eywa.iam/init-default-encryption)
+                  (oauth2/start-maintenance)
+                  (init-default-encryption)
+                  (neyho.eywa.db.postgres/init)
+                  (neyho.eywa.dataset/init)
+                  (neyho.eywa.avatars.postgres/init)
+                  (neyho.eywa.administration/init)
+                  (neyho.eywa.server/start
+                    {:port (when-some [port (env :eywa-server-port "8080")] (Integer/parseInt port))
+                     :host (env :eywa-server-host "0.0.0.0")
+                     :context-configurator neyho.eywa.server.jetty/context-configuration}))
         (do
-          (neyho.eywa.transit/init)
-          (neyho.eywa.iam/init-default-encryption)
-          (oauth2/start-maintenance)
-          (init-default-encryption)
-          (neyho.eywa.db.postgres/init)
-          (neyho.eywa.dataset/init)
-          (neyho.eywa.avatars.postgres/init)
-          (neyho.eywa.administration/init)
-          (neyho.eywa.server/start
-            {:port (when-some [port (env :eywa-server-port "8080")] (Integer/parseInt port))
-             :host (env :eywa-server-host "0.0.0.0")
-             :context-configurator neyho.eywa.server.jetty/context-configuration})
-          (spit-pid)))
-      (catch Throwable ex
-        (spit-pid)
-        (throw ex)))))
+          (.print System/err (str "Unknown args: " args))
+          (System/exit 1)))
+      (catch Throwable _
+        (System/exit 1))
+      (finally (spit-pid)))))

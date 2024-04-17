@@ -62,6 +62,7 @@
   {:deps
    {io.github.clojure/tools.build   {:mvn/version "0.9.4"}
     com.github.clj-easy/graal-build-time {:mvn/version "0.1.4"}
+    org.clojure/data.json      {:mvn/version "2.5.0"}
     com.cognitect.aws/api           {:mvn/version "0.8.539"
                                      :exclusions [org.clojure/data.json]}
     com.cognitect.aws/endpoints     {:mvn/version "1.1.12.110"}
