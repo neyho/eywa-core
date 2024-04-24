@@ -82,7 +82,7 @@ eywa core init
 If above command didn't throw any error that implies that initialization were successfull and DB is initialized.
 So everything is ready to start EYWA server, except there is no user that can login to EYWA.
 ```
-eywa super -s admin
+eywa core super -s admin
 ```
 Will prompt for password for admin password, and when supplied admin user will be created with target password.
 Now run
@@ -91,6 +91,9 @@ eywa core start
 ```
 And navigate to **http://localhost:8080/eywa/** and login screen should be waiting for you. Use username and
 password from previous step to login.
+
+Also there is GraphiQL ui available at http://localhost:8080/graphql/ui . To access it you need to login to EYWA
+ui first.
 
 
 To track what is happening open log file at location __~/.eywa/logs/dev.log__

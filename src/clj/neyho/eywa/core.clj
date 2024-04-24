@@ -261,6 +261,7 @@
                   (init-default-encryption)
                   (neyho.eywa.db.postgres/init)
                   (neyho.eywa.dataset/init)
+                  (println "STARTING")
                   (neyho.eywa.avatars.postgres/init)
                   (neyho.eywa.administration/init)
                   (neyho.eywa.server/start
@@ -270,6 +271,7 @@
         (do
           (.print System/err (str "Unknown args: " args))
           (System/exit 1)))
-      (catch Throwable _
+      (catch Throwable ex
+        (.printStackTrace ex)
         (System/exit 1))
       (finally (spit-pid)))))

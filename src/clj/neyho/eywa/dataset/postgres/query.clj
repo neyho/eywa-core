@@ -2708,38 +2708,38 @@
                               tas :entity/as
                               args' :args :as schema'}]
                       (let [query  (str "delete from " \" rt \")
-                             ;;
-                            [where-from from-data] (query-selection->sql (dissoc schema :relations))
-                             ;;
+                            ;;
+                            [where-from from-data] (search-stack-args (dissoc schema :relations))
+                            ;;
                             select-from
                             (when (targeting-args? args)
                               (format
-                               "(select _eid from \"%s\" as %s where %s)"
-                               table as (j-and where-from)))
-                             ;;
-                            [where-to to-data] (query-selection->sql schema')
-                             ;;
+                                "(select _eid from \"%s\" as %s where %s)"
+                                table as where-from))
+                            ;;
+                            [where-to to-data] (search-stack-args schema')
+                            ;;
                             select-to
                             (when (targeting-args? args')
                               (format
-                               "(select _eid from \"%s\" as %s where %s)"
-                               tt tas (j-and where-to)))
-                             ;;
+                                "(select _eid from \"%s\" as %s where %s)"
+                                tt tas where-to))
+                            ;;
                             where (when (or select-to select-from)
                                     (j-and
-                                     (cond-> []
-                                       select-from (conj (str ff " in " select-from))
-                                       select-to (conj (str tf " in " select-to)))))]
+                                      (cond-> []
+                                        select-from (conj (str ff " in " select-from))
+                                        select-to (conj (str tf " in " select-to)))))]
                         (assoc r k (into
-                                    [(str query (when (not-empty where) "\nwhere ") where)]
-                                    (into from-data to-data)))))
+                                     [(str query (when (not-empty where) "\nwhere ") where)]
+                                     (into from-data to-data)))))
                     nil
                     relations)]
        (reduce-kv
         (fn [r k query]
           (assoc r k
                  (try
-                   (log/tracef
+                   (log/debugf
                     "[%s] slicing query:\n%s"
                     entity-id query)
                    (postgres/execute! tx query core/*return-type*)

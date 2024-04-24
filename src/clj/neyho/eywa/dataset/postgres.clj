@@ -195,11 +195,16 @@
       "create table %s(\n %s\n)"
       table
       ;; Create table
-      (clojure.string/join
-        ",\n " 
-        [(str from-field " bigint not null references \"" from-table "\"(_eid) on delete cascade")
-         (str to-field " bigint not null references \"" to-table "\"(_eid) on delete cascade")
-         (str "unique(" from-field "," to-field ")")]))))
+      (if (= f t)
+        (clojure.string/join
+          ",\n " 
+          [(str to-field " bigint not null references \"" to-table "\"(_eid) on delete cascade")
+           (str "unique(" to-field ")")])
+        (clojure.string/join
+          ",\n " 
+          [(str from-field " bigint not null references \"" from-table "\"(_eid) on delete cascade")
+           (str to-field " bigint not null references \"" to-table "\"(_eid) on delete cascade")
+           (str "unique(" from-field "," to-field ")")])))))
 
 
 (defn generate-relation-indexes-ddl
