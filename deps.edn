@@ -55,6 +55,12 @@
   {:extra-deps {cider/cider-nrepl {:mvn/version "0.30.0"}}
    :main-opts ["-m" "nrepl.cmdline" "--middleware" "[cider.nrepl/cider-middleware]"]}
   ;;
+  :datalevin
+  {:extra-deps {datalevin/datalevin {:mvn/version "0.9.5"}
+                io.airlift/aircompressor {:mvn/version "0.21"}}
+   :jvm-opts ["--add-opens=java.base/java.nio=ALL-UNNAMED"
+              "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]}
+  ;;
   :prod
   {:extra-paths ["src/prod"]}
   ;;

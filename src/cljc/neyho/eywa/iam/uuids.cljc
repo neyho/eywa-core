@@ -5,3 +5,6 @@
 (def user-role #uuid "4778f7b1-f946-4cb2-b356-b9cb336b4087")
 (def permission #uuid "6f525f5f-0504-498b-8b92-c353a0f9d141")
 (def service-location #uuid "1029c9bd-dc48-436a-b7a8-2245508a4a72")
+
+(def modified-on #uuid "969fd636-1800-4d0d-b90f-d91267246ccf")
+(def modified-at #uuid "8901e829-7740-4685-90fa-bff807d450e2")

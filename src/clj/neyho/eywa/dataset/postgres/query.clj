@@ -60,6 +60,9 @@
   (when-let [{schema :dataset/schema} (meta @dataset/*model*)]
     schema))
 
+(comment
+  (def entity-id neyho.eywa.iam.uuids/user))
+
 (defn deployed-schema-entity [entity-id]
   (if-some [entity (get (deployed-schema) entity-id)]
     entity
@@ -84,68 +87,85 @@
 ;; EXPERIMENTAL = NEW DB INSERTION
 (defn tmp-key [] (nano-id 10))
 
+(comment
+  (def entity neyho.eywa.iam.uuids/user)
+  (def data
+    (dataset/search-entity
+      neyho.eywa.iam.uuids/user
+      nil
+      {:euuid nil
+       :name nil
+       :settings nil
+       :password nil
+       :avatar nil
+       :roles [{:selections
+                {:euuid nil :name nil :avatar nil}}]})))
+
+
+
+;; TODO - This is slow, try to optimize
 (defn analyze-data
   ([entity data] (analyze-data entity data true))
   ([entity data stack?]
    (let [schema (deployed-schema)
          find-entity (memoize (fn [entity] (get schema entity)))
          type-mapping (memoize
-                       (fn [{:keys [fields]}]
-                         (reduce-kv
-                          (fn [result _ {:keys [type key]
-                                         ptype :postgres/type}]
-                            (assoc result key (or ptype type)))
-                          {:euuid "uuid"}
-                          fields)))
+                        (fn [{:keys [fields]}]
+                          (reduce-kv
+                            (fn [result _ {:keys [type key]
+                                           ptype :postgres/type}]
+                              (assoc result key (or ptype type)))
+                            {:euuid "uuid"}
+                            fields)))
          reference-mapping (memoize
-                            (fn [entity]
-                              (let [{:keys [fields]} (find-entity entity)]
-                                (reduce
-                                 (fn [result {k :key r :postgres/reference}]
-                                   (if (some? r)
-                                     (assoc result k r)
-                                     result))
-                                 nil
-                                 (vals fields)))))
+                             (fn [entity]
+                               (let [{:keys [fields]} (find-entity entity)]
+                                 (reduce
+                                   (fn [result {k :key r :postgres/reference}]
+                                     (if (some? r)
+                                       (assoc result k r)
+                                       result))
+                                   nil
+                                   (vals fields)))))
          get-constraints (memoize
-                          (fn [entity]
-                            (let [{:keys [fields]
-                                   {:keys [unique]} :constraints} (find-entity entity)]
-                              (if (or (empty? unique) (every? empty? unique))
-                                [[:euuid]]
-                                (conj
-                                 (mapv
-                                  (fn [constraints]
-                                    (mapv (fn [e] (get-in fields [e :key])) constraints))
-                                  unique)
-                                 [:euuid])))))
+                           (fn [entity]
+                             (let [{:keys [fields]
+                                    {:keys [unique]} :constraints} (find-entity entity)]
+                               (if (or (empty? unique) (every? empty? unique))
+                                 [[:euuid]]
+                                 (conj
+                                   (mapv
+                                     (fn [constraints]
+                                       (mapv (fn [e] (get-in fields [e :key])) constraints))
+                                     unique)
+                                   [:euuid])))))
          now (java.util.Date.)]
      (letfn [(get-indexes [data constraints]
                ;; to find out if ID already exists
                ;; first group constraint data
                ;; and remove empty values
                (remove
-                empty?
-                (map
-                 #(select-keys data %)
-                 constraints)))
+                 empty?
+                 (map
+                   #(select-keys data %)
+                   constraints)))
              (get-id [current table indexes]
                ;; then try to find in current
                ;; result if constraint index exists
                ;; for given table
                (or
-                (some
-                 #(get-in current [:index table %])
-                 indexes)
+                 (some
+                   #(get-in current [:index table %])
+                   indexes)
                  ;; If it doesn't than create new temp key
-                (tmp-key)))
+                 (tmp-key)))
              (shallow-snake [data]
                (reduce-kv
-                (fn [r k v]
-                  (if-not k r
-                          (assoc r (csk/->snake_case_keyword k :separator #"[\s\-]") v)))
-                nil
-                data))
+                 (fn [r k v]
+                   (if-not k r
+                     (assoc r (csk/->snake_case_keyword k :separator #"[\s\-]") v)))
+                 nil
+                 data))
              (transform-object
                ([entity-euuid data]
                 (transform-object nil entity-euuid data))
@@ -157,65 +177,65 @@
                       {references true
                        fields false} (try
                                        (group-by
-                                        (fn [definition]
-                                          (log/trace "Field definition: " definition)
-                                          (contains? definition :postgres/reference))
+                                         (fn [definition]
+                                           (log/trace "Field definition: " definition)
+                                           (contains? definition :postgres/reference))
                                          ;; Remove modifier data from input data
                                          ;; this is controled by platform
-                                        (vals (dissoc fields modifier modified-on)))
+                                         (vals (dissoc fields modifier modified-on)))
                                        (catch Throwable e
                                          (log/errorf
-                                          "Fields:%s\nModifier: %s\nModified on: %s"
-                                          (vals (dissoc fields modifier modified-on))
-                                          modifier modified-on)
+                                           "Fields:%s\nModifier: %s\nModified on: %s"
+                                           (vals (dissoc fields modifier modified-on))
+                                           modifier modified-on)
                                          (throw e)))
                       ;;
                       data (shallow-snake (dissoc data :tmp/id))
                       ;;
                       fields-data (select-keys
-                                   data
-                                   (conj
-                                    (map :key fields)
-                                    :euuid))
+                                    data
+                                    (conj
+                                      (map :key fields)
+                                      :euuid))
                       type-mapping (type-mapping entity)
                       ;; Cast data to Postgres
                       [fields-data avatars]
                       (reduce
-                       (fn [[fd a] k]
-                         (let [t (get type-mapping k)]
+                        (fn [[fd a] k]
+                          (let [t (get type-mapping k)]
 
-                           (if (#{"avatar"} t)
+                            (if (#{"avatar"} t)
                               ;; If there is avatar than remove it from fields-data
                               ;; and put it to avatars
-                             [(dissoc fd k) (assoc a k (get fd k))]
-                             (letfn [(->postgres [v]
-                                       (log/tracef "[%s]Casting %s to Postgres type %s" k v t)
-                                       (when v
-                                         (doto (PGobject.)
-                                           (.setType t)
-                                           (.setValue (name v)))))]
-                               [(update
-                                 fd k
-                                 (case t
+                              [(dissoc fd k) (assoc a k (get fd k))]
+                              (letfn [(->postgres [v]
+                                        (log/tracef "[%s]Casting %s to Postgres type %s" k v t)
+                                        (when v
+                                          (doto (PGobject.)
+                                            (.setType t)
+                                            (.setValue (name v)))))]
+                                [(update
+                                   fd k
+                                   (case t
                                      ;; Shortcircuit defaults
-                                   ("boolean" "string" "int" "float" "timestamp" "timeperiod" "currency" "uuid" "avatar" nil) identity
-                                   "json" (fn [data]
-                                            (doto (PGobject.)
-                                              (.setType "jsonb")
-                                              (.setValue (json/write-str
-                                                          data
-                                                          :key-fn (fn [data]
-                                                                    (if (keyword? data)
-                                                                      (if-let [n (namespace data)]
-                                                                        (str n "/" (name data))
-                                                                        (name data))
-                                                                      data))))))
-                                   "hashed" hashers/derive
-                                   "transit" freeze
-                                   ->postgres))
-                                a]))))
-                       [fields-data nil]
-                       (keys fields-data))
+                                     ("boolean" "string" "int" "float" "timestamp" "timeperiod" "currency" "uuid" "avatar" nil) identity
+                                     "json" (fn [data]
+                                              (doto (PGobject.)
+                                                (.setType "jsonb")
+                                                (.setValue (json/write-str
+                                                             data
+                                                             :key-fn (fn [data]
+                                                                       (if (keyword? data)
+                                                                         (if-let [n (namespace data)]
+                                                                           (str n "/" (name data))
+                                                                           (name data))
+                                                                         data))))))
+                                     "hashed" hashers/derive
+                                     "transit" freeze
+                                     ->postgres))
+                                 a]))))
+                        [fields-data nil]
+                        (keys fields-data))
                       constraints (get-constraints entity-euuid)
                       ;;
                       ;; Check if there are some changes to this record
@@ -223,20 +243,20 @@
                       indexes (remove empty? (map #(select-keys fields-data %) constraints))
                       ;;
                       id (or
-                          (some #(get-in result [:index table %]) indexes)
-                          id)
+                           (some #(get-in result [:index table %]) indexes)
+                           id)
                       constraint-keys (flatten constraints)
                       ;;
                       {:keys [references-data
                               resolved-references]}
                       (reduce-kv
-                       (fn [r k v]
-                         (if (map? v)
-                           (assoc-in r [:references-data k] v)
-                           (assoc-in r [:resolved-references k] v)))
-                       {:references-data nil
-                        :resolved-references nil}
-                       (select-keys data (map :key references)))
+                        (fn [r k v]
+                          (if (map? v)
+                            (assoc-in r [:references-data k] v)
+                            (assoc-in r [:resolved-references k] v)))
+                        {:references-data nil
+                         :resolved-references nil}
+                        (select-keys data (map :key references)))
                       relations-data (select-keys data (keys relations))
                       ;;
                       recursions-data (select-keys data recursions)
@@ -245,12 +265,12 @@
                       (letfn [(normalize-value [v]
                                 (select-keys (shallow-snake v) constraint-keys))]
                         (reduce-kv
-                         (fn [[r c] k v]
-                           (if (nil? v)
-                             [(assoc r k nil) c]
-                             [r (assoc c k (normalize-value v))]))
-                         [nil nil]
-                         recursions-data))
+                          (fn [[r c] k v]
+                            (if (nil? v)
+                              [(assoc r k nil) c]
+                              [r (assoc c k (normalize-value v))]))
+                          [nil nil]
+                          recursions-data))
                       ;; root elements are elements that have recursive relation
                       ;; set to nil explicitly
                       ;; since there is no reference to parent, add 
@@ -258,13 +278,13 @@
                       fields-data (merge fields-data root resolved-references)
                       ;;
                       fields-data (if (or
-                                       (not-empty references-data)
-                                       (not-empty (apply dissoc fields-data constraint-keys)))
+                                        (not-empty references-data)
+                                        (not-empty (apply dissoc fields-data constraint-keys)))
                                     (assoc fields-data
-                                      modifier (if (map? core/*user*)
-                                                 (:_eid core/*user*)
-                                                 core/*user*)
-                                      modified-on now)
+                                           modifier (if (map? core/*user*)
+                                                      (:_eid core/*user*)
+                                                      core/*user*)
+                                           modified-on now)
                                     fields-data)
                       ; fields-data (assoc fields-data
                       ;                    modifier (if (map? core/*user*)
@@ -274,116 +294,116 @@
                       ]
                   (as->
                     ;;
-                   (->
+                    (->
+                      result
+                      (update-in [:entity table id] (if stack? merge (fn [_ v] v)) fields-data)
+                      (update-in [:index table] merge (zipmap indexes (repeat id)))
+                      (assoc-in [:constraint table] constraints))
                     result
-                    (update-in [:entity table id] (if stack? merge (fn [_ v] v)) fields-data)
-                    (update-in [:index table] merge (zipmap indexes (repeat id)))
-                    (assoc-in [:constraint table] constraints))
-                   result
                     ;;
                     (if (empty? avatars) result
-                        (update-in result [:avatar table id] merge avatars))
+                      (update-in result [:avatar table id] merge avatars))
                     ;; Add recursions
                     ;; For recursions only save constraint data
                     ;; directly to entity and mark recursion link
                     ;; under :recursion in form [table key parent] #{children}
                     (reduce-kv
-                     (fn [result k data]
-                       (let [parent-indexes (get-indexes data constraints)
-                             pid (get-id result table parent-indexes)]
-                         (->
-                          result
-                          (update-in [:recursion table k pid] (fnil conj #{}) id)
-                          (update-in [:index table] merge (zipmap parent-indexes (repeat pid)))
-                          (update-in [:entity table pid] merge data))))
-                     result
-                     parents-mapping)
+                      (fn [result k data]
+                        (let [parent-indexes (get-indexes data constraints)
+                              pid (get-id result table parent-indexes)]
+                          (->
+                            result
+                            (update-in [:recursion table k pid] (fnil conj #{}) id)
+                            (update-in [:index table] merge (zipmap parent-indexes (repeat pid)))
+                            (update-in [:entity table pid] merge data))))
+                      result
+                      parents-mapping)
                     ;; Add references
                     (reduce-kv
-                     (fn [result attribute data]
-                       (let [reference-entity-euuid (get
-                                                     (reference-mapping entity-euuid)
-                                                     attribute)
-                             reference-entity (find-entity reference-entity-euuid)
-                             reference-data (some
-                                             (fn [ks]
-                                               (when (every? #(contains? data %) ks)
-                                                 (select-keys data ks)))
-                                             (get-constraints reference-entity-euuid))]
-                         (update-in
-                          result
-                          [:reference
-                           (:table reference-entity)
-                           reference-data]
-                          (fnil conj [])
-                          [(:table entity) id attribute])))
-                     result
-                     references-data)
+                      (fn [result attribute data]
+                        (let [reference-entity-euuid (get
+                                                       (reference-mapping entity-euuid)
+                                                       attribute)
+                              reference-entity (find-entity reference-entity-euuid)
+                              reference-data (some
+                                               (fn [ks]
+                                                 (when (every? #(contains? data %) ks)
+                                                   (select-keys data ks)))
+                                               (get-constraints reference-entity-euuid))]
+                          (update-in
+                            result
+                            [:reference
+                             (:table reference-entity)
+                             reference-data]
+                            (fnil conj [])
+                            [(:table entity) id attribute])))
+                      result
+                      references-data)
                     ;; Add relations
                     (reduce-kv
-                     (fn [result k data]
-                       (let [{{:keys [to]
-                               to-table :to/table
-                               rtype :type
-                               :as relation} k} relations
-                             constraints (get-constraints to)]
-                         (case rtype
-                           :many
-                           (if (or (empty? data) (nil? data))
-                             (update-in result [:relations/many relation] (fnil conj #{}) [id nil])
-                             (reduce
-                              (fn [result data]
-                                (let [relation-indexes (get-indexes data constraints)
-                                      rid (get-id result to-table relation-indexes)]
+                      (fn [result k data]
+                        (let [{{:keys [to]
+                                to-table :to/table
+                                rtype :type
+                                :as relation} k} relations
+                              constraints (get-constraints to)]
+                          (case rtype
+                            :many
+                            (if (or (empty? data) (nil? data))
+                              (update-in result [:relations/many relation] (fnil conj #{}) [id nil])
+                              (reduce
+                                (fn [result data]
+                                  (let [relation-indexes (get-indexes data constraints)
+                                        rid (get-id result to-table relation-indexes)]
                                     ;; For found rid that marks 
-                                  (transform-object
-                                   (->
-                                    result
-                                    (update-in
-                                     [:index to-table] merge
-                                     (zipmap relation-indexes (repeat rid)))
-                                    (update-in
-                                     [:relations/many relation] (fnil conj #{})
-                                     [id rid]))
-                                   to
-                                   (assoc data :tmp/id rid))))
-                              result
-                              data))
+                                    (transform-object
+                                      (->
+                                        result
+                                        (update-in
+                                          [:index to-table] merge
+                                          (zipmap relation-indexes (repeat rid)))
+                                        (update-in
+                                          [:relations/many relation] (fnil conj #{})
+                                          [id rid]))
+                                      to
+                                      (assoc data :tmp/id rid))))
+                                result
+                                data))
                             ;; If there is nil input don't touch it
                             ;; This will mark deletion
-                           :one
-                           (if (nil? data)
-                             (update-in result [:relations/one relation] (fnil conj #{}) [id nil])
-                             (let [relation-indexes (get-indexes data constraints)
-                                   rid (get-id result to-table relation-indexes)]
-                               (transform-object
-                                (->
-                                 result
-                                 (update-in
-                                  [:index to-table] merge
-                                  (zipmap relation-indexes (repeat rid)))
-                                 (update-in
-                                  [:relations/one relation] (fnil conj #{})
-                                  [id rid]))
-                                to
-                                (assoc data :tmp/id rid)))))))
-                     result
-                     relations-data)))))]
+                            :one
+                            (if (nil? data)
+                              (update-in result [:relations/one relation] (fnil conj #{}) [id nil])
+                              (let [relation-indexes (get-indexes data constraints)
+                                    rid (get-id result to-table relation-indexes)]
+                                (transform-object
+                                  (->
+                                    result
+                                    (update-in
+                                      [:index to-table] merge
+                                      (zipmap relation-indexes (repeat rid)))
+                                    (update-in
+                                      [:relations/one relation] (fnil conj #{})
+                                      [id rid]))
+                                  to
+                                  (assoc data :tmp/id rid)))))))
+                      result
+                      relations-data)))))]
        ;;
        (if (sequential? data)
          (let [data (map #(assoc % :tmp/id (tmp-key)) data)]
            (reduce
-            #(transform-object %1 entity %2)
-            {:root (mapv :tmp/id data)
-             :root/table (:table (find-entity entity))
-             :entity/euuid entity}
-            data))
+             #(transform-object %1 entity %2)
+             {:root (mapv :tmp/id data)
+              :root/table (:table (find-entity entity))
+              :entity/euuid entity}
+             data))
          (let [data (assoc data :tmp/id (tmp-key))]
            (transform-object
-            {:root (:tmp/id data)
-             :root/table (:table (find-entity entity))
-             :entity/euuid entity}
-            entity data)))))))
+             {:root (:tmp/id data)
+              :root/table (:table (find-entity entity))
+              :entity/euuid entity}
+             entity data)))))))
 
 ; (defn pull-references [tx reference-table references]
 ;   (let [table-constraint-mapping 
