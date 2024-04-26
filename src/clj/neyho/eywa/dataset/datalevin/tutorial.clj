@@ -1,5 +1,6 @@
 (ns neyho.eywa.dataset.datalevin.tutorial
   (:require
+    [nano-id.core :refer [nano-id]]
     [camel-snake-kebab.core :as csk]
     [datalevin.core :as d]
     [neyho.eywa.dataset :as dataset]
@@ -7,17 +8,20 @@
 
 
 (defn add-users-and-roles [conn]
-  (d/transact! conn
-               [{:db/id -1
-                 :role/name "Administrator"}
-                {:db/id -2
-                 :role/name "Editor"}
-                {:db/id -3 
-                 :user/name "Alice"
-                 :user/roles [-2]}
-                {:db/id -4 
-                 :user/name "Bob"
-                 :user/roles [-1]}]))
+  (let [role-id1 (nano-id)
+        role-id2 (nano-id)]
+    (d/tempid
+      (d/transact! conn
+                   [{:db/id role-id1 
+                     :role/name "Administrator"}
+                    {:db/id role-id2 
+                     :role/name "Editor"}
+                    {:db/id "3i1X6ak_KHhJ-zelnDCZ3"
+                     :user/name "Alice"
+                     :user/roles [role-id1]}
+                    {:db/id "2VV1jvKejr2SweZZdpDma"
+                     :user/name "Bob"
+                     :user/roles [role-id1 role-id2]}]))))
 
 (def conn
   (d/get-conn

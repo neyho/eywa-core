@@ -189,52 +189,17 @@
 
 
 
-; (defn transform-object
-;   [entity data]
-;   (let [mapping (get *schema* entity)
-;         [fields refs] (reduce-kv
-;                         (fn [[fields refs] k {t :type :as v}]
-;                           (case t
-;                             :ref [fields ((fnil conj #{}) refs k)]
-;                             :field [((fnil conj #{}) fields k) refs]
-;                             ))
-;                         [nil nil]
-;                         mapping)
-;         transform-fields (reduce
-;                            (fn [r field]
-;                              (let [k (field->key entity field)]
-;                                (assoc r field k)))
-;                            {}
-;                            fields)]
-;     (reduce
-;       (fn [r relation]
-;         (if-let [data (get r relation)]
-;           (if (map? data)
-;             (->
-;               r
-;               (assoc (relation->key entity relation)
-;                      (transform-object (relation->entity entity relation) data))
-;               (dissoc relation))
-;             (->
-;               r
-;               (dissoc relation)
-;               (assoc (relation->key entity relation)
-;                      (mapv
-;                        #(transform-object (relation->entity entity relation) %)
-;                        data))))
-;           r))
-;       (clojure.set/rename-keys data transform-fields)
-;       refs)))
+
 
 
 (defn tmp-key [] (nano-id 10))
 
 
-(defn delta
+(defn analzye
   "For given entity and data, function will produce
   delta structure that can be used to transact! or
   execute SQL query to insert/delete data"
-  ([entity data] (delta entity data true))
+  ([entity data] (analzye entity data true))
   ([entity data stack?]
    (let [prepare (memoize
                    (fn [entity]
@@ -432,71 +397,65 @@
              entity data)))))))
 
 
-(defn analyze
-  [entity data]
-  (letfn [(prepare [entity]
-            (let [mapping (get *schema* entity)
-                  [fields refs] (reduce-kv
-                                  (fn [[fields refs] k {t :type :as v}]
-                                    (case t
-                                      :ref [fields ((fnil conj #{}) refs k)]
-                                      :field [((fnil conj #{}) fields k) refs]
-                                      ))
-                                  [nil nil]
-                                  mapping)
-                  transform-fields (reduce
-                                     (fn [r field]
-                                       (let [k (field->key entity field)]
-                                         (assoc r field k)))
-                                     {}
-                                     fields)]
-              {:transformation transform-fields
-               :relations refs}))
-          (transform [entity data]
-            (let [{refs :relations
-                   transform-fields :transformation} (prepare entity)]
-              (reduce
-                (fn [object relation]
-                  (if-let [data (get object relation)]
-                    (if (map? data)
-                      (let [{id :db/id :as result} (transform (relation->entity entity relation) data)]
-                        [(->
-                           object
-                           (assoc (relation->key entity relation) id)
-                           (dissoc relation))])
-                      (let [result (mapv
-                                     #(transform (relation->entity entity relation) %)
-                                     data)]
-                        (->
-                          object
-                          (dissoc relation)
-                          (assoc (relation->key entity relation) (mapv :db/id result)))))
-                    object))
-                (assoc (clojure.set/rename-keys data transform-fields)
-                       :db/id (d/tempid entity))
-                refs)))]
-    (transform entity data)))
+(defn delta->transaction
+  ([delta] (delta->transaction (dataset/deployed-model) delta))
+  ([model {:keys [entity releation/many relation/one reference] :as delta}]
+   (let [[_ id-mapping] (reduce-kv
+                          (fn [[current-id result] _ records]
+                            (let [ks (keys records)
+                                  next-max-id (- current-id (count ks))
+                                  next-ids (range current-id next-max-id -1)]
+                              [next-max-id
+                               (merge result (zipmap ks next-ids))]))
+                          [-1 nil]
+                          entity)
+         transformation-keys (memoize
+                               (fn [entity]
+                                 (reduce-kv
+                                   (fn [r k {t :key}]
+                                     (assoc r k t))
+                                   nil
+                                   (get *schema* entity))))]
+     (as-> {:changes []
+            :retractions []}
+       transactions
+       ;; First handle entity insertion and retraction parts
+       (reduce-kv
+         (fn [transactions entity records]
+           (reduce-kv
+             (fn [transactions id record]
+               (let [{changes false
+                      retractions true} (group-by (comp nil? val) record)
+                     record (into {} changes)]
+                 (->
+                   transactions 
+                   (update :changes
+                           (fn [current]
+                             (conj current
+                                   (assoc (clojure.set/rename-keys record (transformation-keys entity))
+                                          :db/id (get id-mapping id)))))
+                   (update :retractions
+                           (fn [current]
+                             (reduce
+                               (fn [current [field]]
+                                 (conj current
+                                       [:db/retract (get id-mapping id) (get (transformation-keys entity) field)]))
+                               current
+                               retractions))))))
+             transactions
+             records))
+         transactions
+         entity)
+       ;; Then link references and relations
+       (reduce-kv
+         )))))
 
 
 (comment
-  (first data)
-  (def data users)
-  (time (delta entity users))
-  (def data (transform-object entity (first users)))
-  (analyze entity data))
-
-
-(defn object->transaction
-  ([data]
-   (object->transaction [[] []] data))
-  ([[add retract] data]
-   (let [{to-retract true
-          to-add false} (group-by (comp nil? val) data)]
-     [(conj add (into {} to-add))
-      (conj retract (into {} to-retract))])))
-
-
-(comment
+  (count users)
+  (def delta (analzye entity users))
+  (delta->transaction delta)
+  (sort (vals *1))
   (def model (dataset/deployed-model))
   (-> data first)
   (def entity neyho.eywa.iam.uuids/user)
