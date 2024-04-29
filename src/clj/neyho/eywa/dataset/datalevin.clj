@@ -805,27 +805,31 @@
     ~@filters])
 
 
+(defn targeting-args? [args]
+  (when args
+    (if (vector? args)
+      (some targeting-args? args)
+      (let [args' (dissoc args :_offset :_limit)
+            some-constraint? (not-empty (dissoc args' :_and :_or :_where :_maybe))]
+        (if some-constraint?
+          true
+          (some
+            targeting-args?
+            ((juxt :_and :_or :_where :_maybe) args')))))))
+
+
+(defn targeting-schema? [{:keys [args fields relations counted? aggregate]}]
+  (or
+    counted?
+    aggregate
+    (targeting-args? args)
+    (some targeting-args? (vals fields))
+    (some targeting-schema? (vals relations))))
+
+
 (defn search-entity-roots
   ([schema]
-   (letfn [(targeting-args? [args]
-             (when args
-               (if (vector? args)
-                 (some targeting-args? args)
-                 (let [args' (dissoc args :_offset :_limit)
-                       some-constraint? (not-empty (dissoc args' :_and :_or :_where :_maybe))]
-                   (if some-constraint?
-                     true
-                     (some
-                       targeting-args?
-                       ((juxt :_and :_or :_where :_maybe) args')))))))
-           (targeting-schema? [{:keys [args fields relations counted? aggregate]}]
-             (or
-               counted?
-               aggregate
-               (targeting-args? args)
-               (some targeting-args? (vals fields))
-               (some targeting-schema? (vals relations))))
-           (join-stack
+   (letfn [(join-stack
              ([{:keys [relations args] entity-symbol :entity/symbol}]
               (reduce-kv
                 (fn [[entities stack] rel rel-schema]
@@ -860,24 +864,72 @@
                            (map-indexed
                              (fn [idx entity]
                                {entity (distinct (map #(nth % idx) roots))})
-                             entities))]
-       {:entities entities
-        :roots roots
-        :to-pull to-pull}))))
-
+                             entities))
+           entity-idx (memoize (fn [entity] (.indexOf entities entity)))
+           references (letfn [(get-links [entity relation-symbol]
+                                (let [eidx (entity-idx entity)
+                                      ridx (entity-idx relation-symbol)]
+                                  (reduce
+                                    (fn [r record]
+                                      (let [ev (get record eidx)
+                                            rv (get record ridx)]
+                                        (update r ev (fnil conj []) rv)))
+                                    nil
+                                    roots)))
+                              (group-references
+                                ([schema] (group-references nil schema))
+                                ([result {entity :entity/symbol
+                                          :keys [relations]}]
+                                 (reduce-kv
+                                   (fn [result _ {relation :entity/symbol
+                                                  :as relation-schema}]
+                                     (merge result {entity {relation (get-links entity relation)}}))
+                                   result
+                                   relations)))]
+                        (group-references schema))]
+       {:link references
+        :pull to-pull}))))
 
 
 (defn pull-roots
-  [{:keys [selection/fields]
-    entity :entity/symbol} {:keys [entities roots to-pull]}]
-  (d/pull-many (d/db conn) (into [:db/id] (keys fields)) (get to-pull entity)))
+  ([{entity :entity/symbol :as schema} {data :pull
+                                        references :link}]
+   (letfn [(pull [{:keys [selection/fields relations] entity :entity/symbol}]
+             (reduce-kv
+               (fn [result _ relation-schema]
+                 (merge result (pull relation-schema)))
+               {entity (reduce
+                         (fn [r d] (assoc r (:db/id d) d))
+                         nil
+                         (d/pull-many (d/db conn) (into [:db/id] (keys fields)) (get data entity)))}
+               relations))]
+     ; (pull schema)
+     (let [db (pull schema)]
+       (letfn [(get-record [entity id] (get-in db [entity id]))
+               (link [id {:keys [relations] entity :entity/symbol}]
+                 (let [record (get-record entity id)]
+                   (reduce-kv
+                     (fn [record relation {relation-symbol :entity/symbol :as relation-schema}]
+                       (let [to-link-ids (get-in references [entity relation-symbol id])]
+                         (assoc record relation (map #(link % relation-schema) to-link-ids))))
+                     record
+                     relations)))]
+         (reduce
+           (fn [result id]
+             ((fnil conj []) result (link id schema)))
+           nil
+           (get data entity)))))))
 
 
 
 (comment
+  (time
+    (let [schema (selection->schema entity {:active {:_eq :TRUE}} selection)
+          roots (search-entity-roots schema)]
+      (pull-roots schema roots)))
   (def roots (search-entity-roots schema))
   (time (pull-roots schema roots))
-  (time (def schema (selection->schema entity {:active {:_eq :TRUE}} selection)))
+  (time (def schema ))
   (time (def schema (selection->schema #uuid "d304e6d9-07dd-4bc8-9b7f-dc2b289d06a6" selection)))
   (def entity iu/user)
   (def selection
