@@ -61,17 +61,29 @@
 
 (defn relation-key
   ([relation] (relation-key relation false))
-  ([{:keys [euuid]} reverse?]
-   (keyword  (str (if reverse? "_" "") euuid))))
+  ([{:keys [euuid cardinality]
+     {from-euuid :euuid} :from
+     {to-euuid :euuid} :to} reverse?]
+   (if (= cardinality "tree")
+     (keyword (str euuid))
+     (keyword (str euuid) (str (if reverse? to-euuid from-euuid))))))
 
 
 (defn relation->schema
   [{:keys [cardinality] :as relation}]
-  {(relation-key relation)
-   {:db/valueType :db.type/ref
-    :db/cardinality (case cardinality
-                      ("m2o" "o2m" "m2m") :db.cardinality/many
-                      :db.cardinality/one)}})
+  (let [db-cardinality (case cardinality
+                         ("m2o" "o2m" "m2m") :db.cardinality/many
+                         :db.cardinality/one)]
+    (if (= cardinality "tree")
+      {(relation-key relation false)
+       {:db/valueType :db.type/ref
+        :db/cardinality db-cardinality}}
+      {(relation-key relation false)
+       {:db/valueType :db.type/ref
+        :db/cardinality db-cardinality}
+       (relation-key relation true)
+       {:db/valueType :db.type/ref
+        :db/cardinality db-cardinality}})))
 
 
 (defn entity->schema
@@ -94,8 +106,9 @@
       (concat
         (map entity->schema entities)
         (map relation->schema relations)
-        [{:euuid :db.type/uuid
-          :entity :db.type/uuid}]))))
+        [{:euuid {:db/valueType :db.type/uuid
+                  :db/unique :db.unique/identity}
+          :entity {:db/valueType :db.type/uuid}}]))))
 
 
 (def conn (d/get-conn "/tmp/eywa/datalevin_db" (datalevin-schema)))
@@ -177,6 +190,7 @@
                              (and t (= to-euuid entity-euuid))
                              (assoc r f
                                     {:key (relation-key relation false)
+                                     :_key (relation-key relation true)
                                      :euuid relation-euuid
                                      :type :relation
                                      :recursive? recursive?
@@ -187,6 +201,7 @@
                              (and f (= from-euuid entity-euuid))
                              (assoc r t
                                     {:key (relation-key relation true) 
+                                     :_key (relation-key relation true)
                                      :euuid relation-euuid
                                      :type :relation
                                      :recursive? recursive?
@@ -490,7 +505,10 @@
                                    (fn [r k {t :key}]
                                      (assoc r k t))
                                    nil
-                                   (get *schema* entity))))]
+                                   (get *schema* entity))))
+         backreference (memoize
+                         (fn [entity field]
+                           (get-in *schema* [entity field :_key])))]
      (as-> {:changes []
             :retractions []
             :references []
@@ -555,10 +573,12 @@
                      (let [to-ids (map second records)]
                        (update transactions :relations/many
                                (fn [references]
-                                 (conj references
-                                       {:db/id from-id
-                                        (get (transformation-keys entity) attribute)
-                                        to-ids})))))
+                                 (concat references
+                                         [{:db/id from-id (get (transformation-keys entity) attribute) to-ids}]
+                                         (map
+                                           (fn [to-id]
+                                             {:db/id to-id (backreference entity attribute) from-id})
+                                           to-ids))))))
                    transactions
                    grouped)))
              transactions
@@ -576,7 +596,8 @@
                            (fn [references]
                              (conj references
                                    {:db/id from-id
-                                    (get (transformation-keys entity) attribute) to-id}))))
+                                    (get (transformation-keys entity) attribute) to-id}
+                                   {:db/id to-id (backreference entity attribute) from-id}))))
                  transactions
                  records))
              transactions
@@ -935,11 +956,23 @@
                    nil
                    {:euuid nil
                     :name nil
-                    :users [{:selections
-                             {:euuid nil
-                              :name nil}}]})
+                    :users [{:selections {:euuid nil
+                                          :name nil}}]})
           roots (search-entity-roots schema)]
       (<-keys (pull-roots schema roots))))
+  (time
+    (let [schema (selection->schema
+                   neyho.eywa.iam.uuids/user
+                   nil
+                   {:euuid nil
+                    :name nil
+                    :roles [{:selections {:euuid nil}}]})
+          roots (search-entity-roots schema)]
+      (<-keys (pull-roots schema roots))))
+  (d/q
+    '[:find ?entity_qUCn8 :in $ :where [?entity_qUCn8 :entity #uuid "edcab1db-ee6f-4744-bfea-447828893223"]]
+    (d/db conn))
+  (d/pull (d/db conn) '[*] 1)
   (def roots (search-entity-roots schema))
   (time (pull-roots schema roots))
   (time (def schema (selection->schema entity {:active {:_eq :FALSE}} selection)))
