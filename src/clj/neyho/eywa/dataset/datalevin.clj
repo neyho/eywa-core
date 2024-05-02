@@ -31,6 +31,7 @@
       "uuid" {:db/valueType :db.type/uuid}
       "int" {:db/valueType :db.type/long}
       "float" {:db/valueType :db.type/float}
+      "boolean" {:db/valueType :db.type/boolean}
       ("hashed" "encrypted" "string") {:db/valueType :db.type/string}
       ("user" "group" "role") (:db/valueType :db.type/ref)
       nil)
@@ -57,15 +58,11 @@
       hex-to-bigint
       bigint-to-base26))
 
+
 (defn relation-key
   ([relation] (relation-key relation false))
-  ([{:keys [euuid]
-     {from-euuid :euuid} :from
-     {to-euuid :euuid} :to}
-    reverse?]
-   (keyword  (str (if reverse? "_" "") euuid))
-   #_(keyword (str from-euuid "." to-euuid)  (str (if reverse? "_" "") (uuid-to-base26 euuid)))))
-
+  ([{:keys [euuid]} reverse?]
+   (keyword  (str (if reverse? "_" "") euuid))))
 
 
 (defn relation->schema
@@ -96,7 +93,9 @@
       merge
       (concat
         (map entity->schema entities)
-        (map relation->schema relations)))))
+        (map relation->schema relations)
+        [{:euuid :db.type/uuid
+          :entity :db.type/uuid}]))))
 
 
 (def conn (d/get-conn "/tmp/eywa/datalevin_db" (datalevin-schema)))
@@ -227,6 +226,9 @@
             [(get keymap k k) v])
           x))
       data)))
+
+
+
 
 
 (comment
@@ -482,16 +484,7 @@
 (defn delta->transactions
   ([delta] (delta->transactions (dataset/deployed-model) delta))
   ([model {:keys [entity relations/many relations/one reference] :as delta}]
-   (let [;[_ id-mapping] (reduce-kv
-         ;                 (fn [[current-id result] _ records]
-         ;                   (let [ks (keys records)
-         ;                         next-max-id (- current-id (count ks))
-         ;                         next-ids (range current-id next-max-id -1)]
-         ;                     [next-max-id
-         ;                      (merge result (zipmap ks next-ids))]))
-         ;                 [-1 nil]
-         ;                 entity)
-         transformation-keys (memoize
+   (let [transformation-keys (memoize
                                (fn [entity]
                                  (reduce-kv
                                    (fn [r k {t :key}]
@@ -517,6 +510,7 @@
                            (fn [current]
                              (conj current
                                    (assoc (rename-keys record (transformation-keys entity))
+                                          :entity entity
                                           :db/id id))))
                    (update :retractions
                            (fn [current]
@@ -588,7 +582,7 @@
              transactions
              refs-by-attribute))
          transactions
-         many)))))
+         one)))))
 
 
 (defn insert-transactions
@@ -615,37 +609,10 @@
   (data->transactions entity users)
   *schema*
   (data->transactions entity users)
+  (analyze entity users)
   (d/transact! conn (insert-transactions entity users))
   (d/close conn)
-  (d/q
-    '[:find ?id ?name ?euuid ?settings
-      :in $ ?name
-      :where
-      [?user :b9d88982-7d35-4b26-813a-a8d0365c68d6 ?name]
-      [?user :euuid ?euuid]
-      [?user :6a44cf06-d72c-4930-b2d2-3d607ebf5a04 ?settings]]
-    (d/db conn)
-    "rgersak")
-
-  (d/q
-    '[:find ?user ?name ?euuid ?settings
-      :in $
-      :where
-      [?user :b9d88982-7d35-4b26-813a-a8d0365c68d6 ?name]
-      [?user :euuid ?euuid]
-      [?user :6a44cf06-d72c-4930-b2d2-3d607ebf5a04 ?settings]]
-    (d/db conn))
-
-  (d/pull
-    (d/db conn)
-    ['* {:466b811e-0ec5-4871-a24d-5b2990e6db3d '[*]}] 44)
-  (time
-    (<-keys
-      (d/pull
-        (d/db conn)
-        ['* {:_466b811e-0ec5-4871-a24d-5b2990e6db3d
-             '[* {:466b811e-0ec5-4871-a24d-5b2990e6db3d [*]}]}] 106)))
-
+  (d/schema conn)
 
   (def users
     (dataset/search-entity
@@ -656,9 +623,9 @@
        :settings nil
        :password nil
        :avatar nil
+       :active nil
        :modified_on nil
-       :modified_by [{:selections
-                      {:euuid nil :name nil}}]
+       :modified_by [{:selections {:euuid nil :name nil}}]
        :roles [{:selections
                 {:euuid nil :name nil :avatar nil}}]}))
   (def roles
@@ -734,7 +701,7 @@
                                                  (if-some [field (get-in schema [k :key])]
                                                    (do
                                                      (when-not (contains? @f field)
-                                                       (vswap! f assoc field (gen-field)))
+                                                       (vswap! f assoc field (get fields field (gen-field))))
                                                      [field v])
                                                    [k v]))
                                                x))
@@ -827,39 +794,76 @@
     (some targeting-schema? (vals relations))))
 
 
+; (defn keyword-field->type 
+;   [schema field]
+;   (let [keymap (::field-mapping (meta *schema*))
+;         k (get keymap field)]
+;     (when k
+;       (get-in schema []))))
+
+
 (defn search-entity-roots
-  ([schema]
+  ([{root-symbol :entity/symbol
+     root-entity :entity
+     :as schema}]
    (letfn [(join-stack
              ([{:keys [relations args] entity-symbol :entity/symbol}]
               (reduce-kv
+                ; (fn [[entities stack] rel rel-schema]
+                ;   (if (or
+                ;         (some #(contains? % rel) (:_order_by args))
+                ;         (targeting-schema? rel-schema)
+                ;         (:counted? rel-schema)
+                ;         (not-empty (:aggregate rel-schema)))
+                ;     (let [{child-symbol :entity/symbol
+                ;            fields :args/fields} rel-schema
+                ;           [entities' stack'] (join-stack rel-schema)]
+                ;       [(into (conj entities child-symbol) entities')
+                ;        (into
+                ;          (conj stack [entity-symbol rel child-symbol])
+                ;          stack')])
+                ;     [entities stack]))
                 (fn [[entities stack] rel rel-schema]
-                  (if (or
-                        (some #(contains? % rel) (:_order_by args))
-                        (targeting-schema? rel-schema)
-                        (:counted? rel-schema)
-                        (not-empty (:aggregate rel-schema)))
-                    (let [{child-symbol :entity/symbol
-                           fields :args/fields} rel-schema
-                          [entities' stack'] (join-stack rel-schema)]
-                      [(into (conj entities child-symbol) entities')
-                       (into
-                         (reduce-kv
-                           (fn [r k s]
-                             (conj r [child-symbol k s]))
-                           (conj stack [entity-symbol rel child-symbol])
-                           fields)
-                         stack')])
-                    [entities stack]))
-                [[] []]
+                  (let [{child-symbol :entity/symbol
+                         fields :args/fields} rel-schema
+                        [entities' stack'] (join-stack rel-schema)]
+                    [(into (conj entities child-symbol) entities')
+                     (into
+                       (conj stack [entity-symbol rel child-symbol])
+                       stack')]))
+                [[] (letfn [(->datalog [stack args]
+                              (reduce-kv
+                                (fn [r k conditions]
+                                  (case k
+                                    ;;
+                                    :_where (into r (->datalog stack (:_where args)))
+                                    (reduce-kv
+                                      (fn [r condition v]
+                                        (conj r (case condition
+                                                  :_eq [entity-symbol k (case v
+                                                                          ("NOT_TRUE" :NOT_TRUE) false
+                                                                          ("NOT_FALSE" :NOT_FALSE) true
+                                                                          ("TRUE" :TRUE) true
+                                                                          ("FALSE" :FALSE) false
+                                                                          ; ("NULL" :NULL) " is null"
+                                                                          v)]
+                                                  [entity-symbol k :neznam])))
+                                      r
+                                      conditions)))
+                                []
+                                args))]
+                      (->datalog [] args))]
                 relations)))]
      (let [[entities statements] (join-stack schema)
+           statements (concat [[root-symbol :entity root-entity]] statements)
            entities (into [(:entity/symbol schema)] entities)
-           roots (d/q
-                   `[:find ~@entities
+           query `[:find ~@entities
                      :in ~'$
                      :where
                      ~@statements]
-                   (d/db conn))
+           _ (println "QUERY")
+           _ (println query)
+           roots (d/q query (d/db conn))
            to-pull (reduce merge
                            (map-indexed
                              (fn [idx entity]
@@ -881,8 +885,7 @@
                                 ([result {entity :entity/symbol
                                           :keys [relations]}]
                                  (reduce-kv
-                                   (fn [result _ {relation :entity/symbol
-                                                  :as relation-schema}]
+                                   (fn [result _ {relation :entity/symbol}]
                                      (merge result {entity {relation (get-links entity relation)}}))
                                    result
                                    relations)))]
@@ -903,7 +906,6 @@
                          nil
                          (d/pull-many (d/db conn) (into [:db/id] (keys fields)) (get data entity)))}
                relations))]
-     ; (pull schema)
      (let [db (pull schema)]
        (letfn [(get-record [entity id] (get-in db [entity id]))
                (link [id {:keys [relations] entity :entity/symbol}]
@@ -924,60 +926,50 @@
 
 (comment
   (time
-    (let [schema (selection->schema entity {:active {:_eq :TRUE}} selection)
+    (let [schema (selection->schema entity nil selection)
           roots (search-entity-roots schema)]
-      (pull-roots schema roots)))
+      (<-keys (pull-roots schema roots))))
+  (time
+    (let [schema (selection->schema
+                   neyho.eywa.iam.uuids/user-role
+                   nil
+                   {:euuid nil
+                    :name nil
+                    :users [{:selections
+                             {:euuid nil
+                              :name nil}}]})
+          roots (search-entity-roots schema)]
+      (<-keys (pull-roots schema roots))))
   (def roots (search-entity-roots schema))
   (time (pull-roots schema roots))
-  (time (def schema ))
+  (time (def schema (selection->schema entity {:active {:_eq :FALSE}} selection)))
   (time (def schema (selection->schema #uuid "d304e6d9-07dd-4bc8-9b7f-dc2b289d06a6" selection)))
   (def entity iu/user)
   (def selection
     {:euuid nil
      :name nil
      :settings nil
+     :active nil
      ;;
      :roles
      [{:selections
        {:euuid nil
         :name nil}
        :args {:_where {:name {:_eq "SUPERUSER"}}}}]})
-  (def find-mapping (schema->find-mapping schema))
   (d/q
-    (compose-query
-      {:find (schema->find-mapping schema)
-       :filter (schema->filter-clauses schema)})
-    (d/db conn))
-  (d/q
-    '[:find ?entity_G71Xb ?entity_WoEmw
-      :in
-      $
-      :where
-      [?entity_G71Xb :b9d88982-7d35-4b26-813a-a8d0365c68d6 ?field_1lqoA]
-      [?entity_G71Xb :6a44cf06-d72c-4930-b2d2-3d607ebf5a04 ?field_pVzvy]
-      [?entity_G71Xb :euuid ?field_Hsy_I]
-      [?entity_G71Xb :466b811e-0ec5-4871-a24d-5b2990e6db3d ?entity_WoEmw]
-      [?entity_WoEmw :56a8a49a-4125-4c96-8ab1-49e15c9b6e49 ?field_R5zUa]
-      [?entity_WoEmw :euuid ?field_FfD-q]]
-    (d/db conn))
-  (d/q
-    '[:find ?entity_G71Xb ?entity_WoEmw ?field_pVzvy ?field_R5zUa
-      :in
-      $
-      :where
-      [?entity_G71Xb :euuid ?field_Hsy_I]
-      [(get-else $ ?entity_G71Xb :b9d88982-7d35-4b26-813a-a8d0365c68d6 :nil) ?field_1lqoA]
-      [(get-else $ ?entity_G71Xb :6a44cf06-d72c-4930-b2d2-3d607ebf5a04 :nil) ?field_pVzvy]
-      [?entity_G71Xb :466b811e-0ec5-4871-a24d-5b2990e6db3d ?entity_WoEmw]
-      [(get-else $ ?entity_WoEmw :56a8a49a-4125-4c96-8ab1-49e15c9b6e49 :nil) ?field_R5zUa]
-      [(get-else $ ?entity_WoEmw :euuid ::nil) ?field_FfD-q]]
-    (d/db conn))
-  (d/q
-    '[:find ?e
+    '[:find ?entity__yeVu ?entity_Q0nMr ?euuid
       :in $
       :where
-      [?e :b9d88982-7d35-4b26-813a-a8d0365c68d6 ?f]]
+      [?entity__yeVu :_466b811e-0ec5-4871-a24d-5b2990e6db3d ?entity_Q0nMr]
+      [?entity_Q0nMr :euuid ?euuid]]
     (d/db conn))
+  (d/q
+    '[:find ?entity
+      :in $
+      :where
+      [?entity :entity #uuid "edcab1db-ee6f-4744-bfea-447828893223"]]
+    (d/db conn))
+  entity
   (find-mapping->clause find-mapping)
   (schema->filter-clauses schema)
   (schema->find-mapping schema)
