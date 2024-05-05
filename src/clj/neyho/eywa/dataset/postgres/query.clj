@@ -25,7 +25,7 @@
      :as core]
     [neyho.eywa.dataset :as dataset])
   (:import
-    [org.postgresql.util #_PSQLException PGobject]
+    [org.postgresql.util PGobject]
     java.nio.charset.StandardCharsets
     [java.sql PreparedStatement]))
 
@@ -2426,7 +2426,6 @@
           (pull-roots connection schema {(keyword as) roots}))))))
 
 
-
 (defn search-entity-tree
   "Function searches entity tree and returns results by requested selection."
   [entity-id on {order-by :_order_by :as args} selection]
@@ -2552,6 +2551,7 @@
                    (map
                      :_eid
                      (postgres/execute! connection sql-final *return-type*)))}))))))))
+
 
 ;; TODO - rething about reimplementing this differently. Instead of cursor aggregation
 ;; think about global search like aggregation

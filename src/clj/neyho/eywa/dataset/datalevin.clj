@@ -829,17 +829,12 @@
     (some targeting-schema? (vals relations))))
 
 
-; (defn keyword-field->type 
-;   [schema field]
-;   (let [keymap (::field-mapping (meta *schema*))
-;         k (get keymap field)]
-;     (when k
-;       (get-in schema []))))
-
-
 (defn search-entity-roots
   ([{root-symbol :entity/symbol
      root-entity :entity
+     {:keys [_limit _offset]
+      :or {_limit 1000
+           _offset 0}} :args
      :as schema}]
    (letfn [(join-stack
              ([{:keys [relations args] entity-symbol :entity/symbol
@@ -956,14 +951,115 @@
                    ~@statements]
            _ (println "QUERY")
            _ (println query)
-           roots (d/q query (d/db conn))
-           to-pull (reduce merge
+           roots (d/q query (d/db conn))]
+       {:entities entities
+        :entity-cardinality entity-cardinality
+        :roots roots}))))
+
+
+(comment
+  (type (:roots (search-entity-roots schema)))
+  (let [{:keys [entities roots entity-cardinality]} (search-entity-roots schema)]
+    (def entities entities) (def roots roots) (def entity-cardinality entity-cardinality))
+  (def data (search-entity-roots schema))
+  (time (focus-roots schema roots)))
+
+
+(defn incremental-pull-roots
+  "Function will pull roots by traversing schema and pulling entity attributes
+  and entity relations in recursive manner using cache while pulling. This is ok
+  when using _limit and _offset arguments, but not ok if there is any sorting included
+  since ALL data in DB should be pulled :|"
+  [{entity :entity/symbol
+    {:keys [_limit _offset]
+     :or {_limit 100000
+          _offset 0}} :args
+    :as schema} {:keys [entities roots]}]
+  (let [entity-idx (memoize (fn [entity] (.indexOf entities entity)))]
+    (letfn [(limited-result [entity limit]
+              (let [idx (entity-idx entity)]
+                (loop [[id & ids] (map #(nth % idx) roots)
+                       result []
+                       elements #{}]
+                  (cond
+                    ;;
+                    (nil? id) result
+                    ;;
+                    (and (pos? limit) (= (count result) limit)) result
+                    ;;
+                    (contains? elements id)
+                    (recur ids result elements)
+                    :else
+                    (recur ids (conj result id) (conj elements id))))))
+            (limited-relation-result
+              [from-entity to-entity from-id limit]
+              (let [fidx (entity-idx from-entity)
+                    tidx (entity-idx to-entity)]
+                (loop [[id & ids] (map #(vector (nth % fidx) (nth % tidx)) roots)
+                       result []
+                       elements #{}]
+                  (cond
+                    ;;
+                    (nil? id) (map second result)
+                    ;;
+                    (zero? (first id)) (recur ids result elements)
+                    ;;
+                    (= (count result) limit) (map second result)
+                    ;;
+                    (contains? elements id)
+                    (recur ids result elements)
+                    ;;
+                    (= from-id (first id))
+                    (recur ids (conj result id) (conj elements id))
+                    ;;
+                    :else
+                    (recur ids result elements)))))
+            ;;
+            (pull-relations
+              [[db
+                {from-id :db/id :as record}
+                {:keys [relations] :as schema
+                 {:keys [_limit _offset]} :args
+                 from-entity :entity/symbol}]]
+              (reduce-kv
+                (fn [[db record schema] k {c :cardinality :as relation-schema
+                                           to-entity :entity/symbol}]
+                  (case c
+                    :many (let [ids (limited-relation-result from-entity to-entity from-id _limit)
+                                [db result] (pull-roots [db [] relation-schema] ids)]
+                            [db (assoc record k result) schema])
+                    :one (let [[id] (limited-relation-result from-entity to-entity from-id 1)
+                               [db result] (pull-roots [db [] relation-schema] [id])]
+                           [db (assoc record k result) schema])
+                    [db record schema]))
+                [db record schema]
+                relations))
+            (pull-roots
+              ([[db result {:keys [selection/fields]
+                            entity :entity/symbol :as schema}] ids]
+               (let [already-pulled (get db entity)
+                     to-pull (remove #(or (zero? %) (contains? already-pulled %)) ids)
+                     records (d/pull-many (d/db conn) (into [:db/id] (keys fields)) to-pull)]
+                 (reduce
+                   (fn [[db result schema] record]
+                     (let [[db full-record] (pull-relations [db record schema])]
+                       [db (conj result full-record) schema]))
+                   [db result schema]
+                   records))))]
+      (let [root-ids (limited-result entity _limit)
+            [_ result] (pull-roots [nil [] schema] root-ids)]
+        result))))
+
+
+(defn prepare-roots
+  [{:keys [entities entity-cardinality roots]} schema]
+  (let [to-pull (reduce merge
                            (map-indexed
                              (fn [idx entity]
                                {entity (distinct (map #(nth % idx) roots))})
                              entities))
            entity-idx (memoize (fn [entity] (.indexOf entities entity)))
-           references (letfn [(get-links [entity relation-symbol]
+        references (letfn [(get-links [entity relation-symbol]
                                 (let [eidx (entity-idx entity)
                                       ridx (entity-idx relation-symbol)
                                       cardinality (get entity-cardinality relation-symbol)]
@@ -990,65 +1086,158 @@
                                    result
                                    relations)))]
                         (group-references schema))]
-       {:link references
-        :pull to-pull}))))
+    {:pull to-pull
+     :link references}))
+
+
+(defn pull-all-roots
+  "Pull all roots ignoring limit and offset"
+  ([roots {entity :entity/symbol :as schema}]
+   (let [{to-pull :pull
+          references :link} (prepare-roots roots schema)]
+     (letfn [(pull [{:keys [selection/fields relations] entity :entity/symbol}]
+               (let [entities (d/pull-many
+                                (d/db conn)
+                                (into [:db/id] (keys fields))
+                                (get to-pull entity))]
+                 (reduce-kv
+                   (fn [result _ relation-schema]
+                     (merge result (pull relation-schema)))
+                   {entity (reduce (fn [r d] (assoc r (:db/id d) d)) nil entities)}
+                   relations)))]
+       (let [db (pull schema)]
+         (letfn [(get-record [entity id] (get-in db [entity id]))
+                 (link [id {:keys [relations] entity :entity/symbol}]
+                   (let [record (get-record entity id)]
+                     (reduce-kv
+                       (fn [record relation {relation-symbol :entity/symbol :as relation-schema}]
+                         (let [to-link-ids (get-in references [entity relation-symbol id])]
+                           (cond
+                             ;;
+                             (or
+                               (nil? to-link-ids)
+                               (and (number? to-link-ids) (zero? to-link-ids))
+                               (and (sequential? to-link-ids) (every? zero? to-link-ids)))
+                             (assoc record relation nil)
+                             ;;
+                             (number? to-link-ids)
+                             (assoc record relation (link to-link-ids relation-schema))
+                             ;;
+                             :else
+                             (assoc record relation
+                                    (map
+                                      #(link % relation-schema)
+                                      to-link-ids)))))
+                       record
+                       relations)))]
+           (reduce
+             (fn [result id]
+               ((fnil conj []) result (link id schema)))
+             nil
+             (get to-pull entity))))))))
+
+
+(defrecord RString [value]
+  Comparable
+  (compareTo [this other]
+    (.compareTo ^String (.-value other) (.-value this))))
+
+
+(defn- gen-order-fn
+  [order]
+  (apply
+    juxt
+    (reduce-kv
+      (fn [r k o]
+        (conj 
+          r
+          (if (= o :asc) k
+            (comp
+              (fn [v]
+                (cond
+                  ;; FIXME - FIX STRING ORDERING - this isnt working for strings...
+                  (string? v) (RString. v) 
+                  (number? v) (- v)
+                  (keyword? v) (RString. (name v))
+                  (map? v) nil
+                  (vector? v) v
+                  (nil? v) nil
+                  ;;
+                  (instance? java.util.Date v)
+                  (- (.getTime v))))
+              k))))
+      []
+      order)))
 
 
 (defn pull-roots
-  ([{entity :entity/symbol :as schema
-     {:keys [_limit _offset]
-      :or {_limit 1000
-           _offset 0}} :args}
-    {data :pull
-     references :link}]
-   (letfn [(pull [{:keys [selection/fields relations] entity :entity/symbol
-                   {:keys [_limit _offset]
-                    :or {_limit 1000
-                         _offset 0}} :args}]
-             (let [entities (d/pull-many
-                              (d/db conn)
-                              (into [:db/id] (keys fields))
-                              ; (get data entity)
-                              (take _limit (drop _offset (get data entity))))]
-               (reduce-kv
-                 (fn [result _ relation-schema]
-                   (merge result (pull relation-schema)))
-                 {entity (reduce (fn [r d] (assoc r (:db/id d) d)) nil entities)}
-                 relations)))]
-     (let [db (pull schema)]
-       (letfn [(get-record [entity id] (get-in db [entity id]))
-               (link [id {:keys [relations] entity :entity/symbol}]
-                 (let [record (get-record entity id)]
-                   (reduce-kv
-                     (fn [record relation {relation-symbol :entity/symbol :as relation-schema
-                                           {:keys [_limit _offset]
-                                            :or {_limit 1000
-                                                 _offset 0}} :args}]
-                       (let [to-link-ids (get-in references [entity relation-symbol id])]
-                         (cond
-                           ;;
-                           (or
-                             (nil? to-link-ids)
-                             (and (number? to-link-ids) (zero? to-link-ids))
-                             (and (sequential? to-link-ids) (every? zero? to-link-ids)))
-                           (assoc record relation nil)
-                           ;;
-                           (number? to-link-ids)
-                           (assoc record relation (link to-link-ids relation-schema))
-                           ;;
-                           :else
-                           (assoc record relation
-                                  (map
-                                    #(link % relation-schema)
-                                    (to-link-ids))))))
-                     record
-                     relations)))]
-         (reduce
-           (fn [result id]
-             ((fnil conj []) result (link id schema)))
-           nil
-           #_(get data entity)
-           (take _limit (drop _offset (get data entity)))))))))
+  ([roots {entity :entity/symbol :as schema
+           {order :_order_by
+            limit :_limit
+            offset :_offset} :args}]
+   (let [{to-pull :pull
+          references :link} (prepare-roots roots schema)]
+     (letfn [(pull [{:keys [selection/fields relations] entity :entity/symbol}]
+               (let [entities (d/pull-many
+                                (d/db conn)
+                                (into [:db/id] (keys fields))
+                                (get to-pull entity))]
+                 (reduce-kv
+                   (fn [result _ relation-schema]
+                     (merge result (pull relation-schema)))
+                   {entity (reduce (fn [r d] (assoc r (:db/id d) d)) nil entities)}
+                   relations)))]
+       (let [db (pull schema)]
+         (letfn [(get-record [entity id] (get-in db [entity id]))
+                 (link [id {:keys [relations] entity :entity/symbol}]
+                   (let [record (get-record entity id)]
+                     (reduce-kv
+                       (fn [record relation {relation-symbol :entity/symbol :as relation-schema
+                                             {order :_order_by
+                                              limit :_limit
+                                              offset :_offset} :args}]
+                         (let [to-link-ids (get-in references [entity relation-symbol id])]
+                           (cond
+                             ;;
+                             (or
+                               (nil? to-link-ids)
+                               (and (number? to-link-ids) (zero? to-link-ids))
+                               (and (sequential? to-link-ids) (every? zero? to-link-ids)))
+                             (assoc record relation nil)
+                             ;;
+                             (number? to-link-ids)
+                             (assoc record relation (link to-link-ids relation-schema))
+                             ;;
+                             :else
+                             (assoc record relation
+                                    (let [default-result (map
+                                                           #(link % relation-schema)
+                                                           to-link-ids)
+                                          sorted-result (if (nil? order) default-result
+                                                          (let [pred (gen-order-fn order)
+                                                                result (sort-by pred default-result)]
+                                                            result))]
+                                      (as-> sorted-result final
+                                        (if-not offset final
+                                          (drop offset final))
+                                        (if-not limit final
+                                          (take limit final))))))))
+                       record
+                       relations)))]
+           (let [result (reduce
+                          (fn [result id]
+                            ((fnil conj []) result (link id schema)))
+                          nil
+                          (get to-pull entity))
+                 sorted-result (if (nil? order) result
+                                 (let [pred (gen-order-fn order)
+                                       result (sort-by pred result)]
+                                   result))]
+             (as-> sorted-result final
+               (if-not offset final
+                 (drop offset final))
+               (if-not limit final
+                 (take limit final))))))))))
 
 
 
@@ -1056,26 +1245,29 @@
   (time
     (let [schema (selection->schema entity nil selection)
           roots (search-entity-roots schema)]
-      (<-keys (pull-roots schema roots))))
+      (<-keys (pull-roots schema ))))
+  (sort ["SUPERUSER" "Manager" "Approval manager" "Key account manager" "Administrator"])
   (time
     (do
       (def schema
         (time
           (selection->schema
             neyho.eywa.iam.uuids/user-role
-            {:_limit 2}
+            {:_order_by {:name :asc}}
             {:euuid nil
              :name nil
              :modified_by [{:selections {:name nil}}]
              :users [{:selections {:name nil
-                                   :active [{:args {:_ge 0}}]}
-                      :args {:_limit 2}}]})))
+                                   :active nil}
+                      :args {:_order_by {:name :desc}}}]})))
       (def roots (time (search-entity-roots schema)))
-      (time (<-keys (pull-roots schema roots)))))
+      (time (<-keys (pull-roots roots schema)))))
+  (<-keys (pull-all-roots roots schema))
+  (def order {:name :desc})
   (time
     (let [schema (selection->schema
                    neyho.eywa.iam.uuids/user
-                   {:euuid nil}
+                   {:_order_by {:name :asc}}
                    {:euuid nil
                     :name nil
                     :active nil
@@ -1083,10 +1275,10 @@
                                    :args {:_where
                                           {:euuid
                                            {:_in [#uuid "c0e960bc-2515-11ed-8064-02a535895d2d"
-                                                      #uuid "fc8716c6-daf1-11ee-a940-02a535895d2d"
-                                                      #uuid "7ae30755-f592-4f12-99b0-0ee9fdc88471"]}}}}]})
+                                                  #uuid "fc8716c6-daf1-11ee-a940-02a535895d2d"
+                                                  #uuid "7ae30755-f592-4f12-99b0-0ee9fdc88471"]}}}}]})
           roots (search-entity-roots schema)]
-      (<-keys (pull-roots schema roots))))
+      (<-keys (pull-roots roots schema))))
   (<-keys (d/pull (d/db conn) '[*] 115))
   (<-keys (d/pull (d/db conn) '[*] 1))
   ((field->key entity :modified_by) (d/schema conn))
