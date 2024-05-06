@@ -826,7 +826,7 @@
          (store-entity-records tx result)
          (project-saved-entities result)
          (link-relations tx result stack?)
-         (update-avatars tx result)
+         ; (update-avatars tx result)
          (pull-roots result))))))
 
 ;;
@@ -845,10 +845,12 @@
    nil
    s))
 
+
 (def scalar-types
   #{"boolean" "string" "int" "float" "timestamp" "enum"
     "timeperiod" "currency" "json" "uuid"
     "encrypted" "hashed" "transit" "avatar"})
+
 
 (defn selection->schema
   ([entity-id selection]
@@ -2392,6 +2394,7 @@
               "[%s] Returning response\n%s"
               entity-id (pprint response))
              response)))))))
+
 
 (defn get-entity-tree
   [entity-id root on selection]

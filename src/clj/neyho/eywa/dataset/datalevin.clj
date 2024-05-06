@@ -624,24 +624,43 @@
   )
 
 
+(defn ensure-euuids
+  [{:keys [tempids]}]
+  (let [inserted (vals tempids)]
+    (when-some [missing-euuids (not-empty
+                                 (map
+                                   (fn [[id]]
+                                     {:db/id id :euuid (java.util.UUID/randomUUID)})
+                                   (d/q '[:find ?e
+                                          :in $ [?e ...]
+                                          :where
+                                          (not [?e :euuid _])]
+                                        (d/db conn)
+                                        inserted)))]
+      (d/transact! conn missing-euuids))))
+
+
 (comment
   (count users)
+  (d/pull (d/db conn) '[*] 64)
   (def entity iu/user)
-  (def delta (delta entity users))
+  (delta entity users)
   (delta->transactions (delta entity users))
+  (ensure-euuids result)
   *schema*
   (delta entity users)
   (insert-transactions entity users)
   (def result (d/transact! conn (insert-transactions entity users)))
-  (drop 500 (:tx-data result))
+  (def tempids (:tempids result))
+  (def inserted (vals tempids))
   (d/close conn)
-  (get (d/schema conn) (keyword (str iu/modified-by)))
+
 
   (def users
     (dataset/search-entity
       neyho.eywa.iam.uuids/user
       nil
-      {:euuid nil
+      {;:euuid nil
        :name nil
        :settings nil
        :password nil
@@ -651,6 +670,9 @@
        :modified_by [{:selections {:euuid nil :name nil}}]
        :roles [{:selections
                 {:euuid nil :name nil :avatar nil}}]}))
+
+
+  (def users (map #(dissoc % :euuid) users))
   (def roles
     (dataset/search-entity
       neyho.eywa.iam.uuids/user-role
@@ -832,9 +854,6 @@
 (defn search-entity-roots
   ([{root-symbol :entity/symbol
      root-entity :entity
-     {:keys [_limit _offset]
-      :or {_limit 1000
-           _offset 0}} :args
      :as schema}]
    (letfn [(join-stack
              ([{:keys [relations args] entity-symbol :entity/symbol
@@ -949,8 +968,6 @@
                    :in ~'$
                    :where
                    ~@statements]
-           _ (println "QUERY")
-           _ (println query)
            roots (d/q query (d/db conn))]
        {:entities entities
         :entity-cardinality entity-cardinality
@@ -1240,12 +1257,52 @@
                  (take limit final))))))))))
 
 
+(defn sync-entity
+  [entity data]
+  (let [{many-relations :relations/many
+         one-relations :relations/one
+         :keys [changes retractions references]} (delta->transactions (delta entity data))
+        to-insert (as-> changes transactions
+                    ; concat transactions retractions)
+                    (concat transactions references)
+                    (concat transactions many-relations)
+                    (concat transactions one-relations))
+        result (d/transact! conn to-insert)]
+    (ensure-euuids result)))
+
+
+(defn search-entity
+  [entity-id args selection]
+  (let [schema (selection->schema entity-id args selection)
+        roots (search-entity-roots schema)]
+    (<-keys (pull-roots roots schema))))
+
+
+(defn get-entity
+  [entity-id args selection]
+  (let [args' (reduce-kv
+                (fn [r k v]
+                  (assoc r k {:_eq v}))
+                nil
+                args)
+        schema (selection->schema entity-id args' selection)
+        roots (search-entity-roots schema)]
+    (first (<-keys (pull-roots roots schema)))))
+
 
 (comment
   (time
-    (let [schema (selection->schema entity nil selection)
-          roots (search-entity-roots schema)]
-      (<-keys (pull-roots schema ))))
+    (get-entity
+      iu/user
+      {:name "rgersak"}
+      {:euuid nil
+       :name nil
+       :settings nil
+       :modified_on nil
+       :modified_by [{:selections
+                      {:name nil}}]}))
+  (time
+    )
   (sort ["SUPERUSER" "Manager" "Approval manager" "Key account manager" "Administrator"])
   (time
     (do
