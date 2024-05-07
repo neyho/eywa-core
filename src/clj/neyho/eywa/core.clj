@@ -233,7 +233,9 @@
 (defn -main
   [& args]
   (let [[command subcommand] args]
-    (when (= command "version") (println version) (System/exit 0))
+    (when (= command "version")
+      (println version)
+      (System/exit 0))
     (try
       (case command
         "init" (initialize)
@@ -261,7 +263,6 @@
                   (init-default-encryption)
                   (neyho.eywa.db.postgres/init)
                   (neyho.eywa.dataset/init)
-                  (println "STARTING")
                   (neyho.eywa.avatars.postgres/init)
                   (neyho.eywa.administration/init)
                   (neyho.eywa.server/start
