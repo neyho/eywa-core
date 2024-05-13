@@ -476,9 +476,10 @@
               (reduce-kv
                 (fn [[entities stack entity-cardinality] rel rel-schema]
                   (let [{child-symbol :entity/symbol
-                         cardinality :cardinality} rel-schema
+                         cardinality :cardinality
+                         rel-args :args} rel-schema
                         [entities' stack'] (join-stack rel-schema)
-                        args' (dissoc args :_distinct :_offset :_limit :_order_by)]
+                        args' (dissoc rel-args :_maybe :_distinct :_offset :_limit :_order_by)]
                     (if (not-empty args')
                       [(into (conj entities child-symbol) entities')
                        (into
@@ -537,9 +538,13 @@
                                                  ("NULL" :NULL)
                                                  [(list 'missing? '$ entity-symbol k)]))
                                          ;;
-                                         :_eq (conj r [entity-symbol k v])
+                                         :_eq (conj r
+                                                    [entity-symbol k field-symbol]
+                                                    [(list '= field-symbol v)])
                                          ;;
-                                         :_neq (conj r (list 'not [entity-symbol k v]))
+                                         :_neq (conj r
+                                                     [entity-symbol k field-symbol]
+                                                     [(list 'not= field-symbol v)])
                                          ;;
                                          (:_lt :_gt :_le :_ge)
                                          (let [stack' ((fnil conj []) r
@@ -585,6 +590,7 @@
                    :where
                    ~@statements]
            roots (d/q query (d/db conn))]
+       ; (println "QUERY: " query)
        {:entities entities
         :entity-cardinality entity-cardinality
         :roots roots}))))
@@ -895,7 +901,12 @@
        :modified_on nil
        :modified_by [{:selections
                       {:name nil}}]}))
-  (sort ["SUPERUSER" "Manager" "Approval manager" "Key account manager" "Administrator"])
+  (sort
+    ["SUPERUSER"
+     "Manager"
+     "Approval manager"
+     "Key account manager"
+     "Administrator"])
   (time
     (do
       (def args {:_order_by {:name :asc}})
@@ -922,7 +933,7 @@
                    {:euuid nil
                     :name nil
                     :active nil
-                    :roles [{:selection {:name nil}}]
+                    :roles [{:selections {:name nil}}]
                     :modified_by [{:selections {:name nil}
                                    :args {:_where
                                           {:euuid
@@ -932,11 +943,6 @@
           roots (search-entity-roots schema)]
       (def schema schema)
       (<-keys (pull-roots roots schema))))
-  (<-keys (d/pull (d/db conn) '[*] 115))
-  (<-keys (d/pull (d/db conn) '[*] 1))
-  ((field->key entity :modified_by) (d/schema conn))
-  (def roots (search-entity-roots schema))
-  (time (pull-roots schema roots))
   (time (def schema (selection->schema entity {:active {:_eq :FALSE}} selection)))
   (time (def schema (selection->schema #uuid "d304e6d9-07dd-4bc8-9b7f-dc2b289d06a6" selection)))
   (def entity iu/user)
@@ -1325,35 +1331,92 @@
       (d/transact! conn missing-euuids))))
 
 
+(comment
+  (def entity iu/user)
+  (def args {:name "Terminator"}))
+
+(defn delete-entity
+  [entity args]
+  (when-some [{:keys [db/id]} (get-entity entity args nil)]
+    (d/transact! conn [[:db/retractEntity id]])))
+
+
+(comment
+  (def entity iu/user)
+  (def args {:_where {:name {:_eq "Terminator"}}})
+
+  (def schema (selection->schema entity args selection))
+  )
+
+
 (defn slice-entity
   [entity args selection]
-  (let [schema (selection->schema entity args selection)
-        roots (search-entity-roots schema)
-        result (pull-roots roots schema)]
-    (letfn [(slice-transactions
-              [result {:keys [relations]} {from-id :db/id :as data}]
-              (concat
-                result
-                (reduce-kv
-                  (fn [r k schema]
-                    (let [relation-data (get data k)
-                          relation-ids (map :db/id relation-data)
-                          reversed? (reverse? k)
-                          k (if reversed? (invert k) k)]
-                      (concat
-                        (if reversed?
-                          (map #(vector :db/retract % k from-id) relation-ids)
-                          (map #(vector :db/retract from-id k %) relation-ids))
-                        (slice-transactions r schema relation-data))))
-                  []
-                  relations)))]
-      (when-some [transactions (not-empty
-                                 (mapcat
-                                   (fn [data]
-                                     (slice-transactions [] schema data))
-                                   result))]
-        (d/transact! conn transactions))
-      result)))
+  (let [{:keys [relations] :as schema
+         entity :entity/symbol} (selection->schema entity args selection)
+        {:keys [roots entities]} (search-entity-roots schema)
+        retractions (reduce-kv
+                      (fn [r relation-key {relation-entity :entity/symbol}]
+                        (let [idx (.indexOf entities relation-entity)
+                              reversed? (reverse? relation-key)
+                              k (if reversed? (invert relation-key) relation-key)]
+                          (if-some [transactions (not-empty
+                                                   (keep
+                                                     (fn [[from-id :as row]]
+                                                       (println "ROW:"  idx from-id (get row idx))
+                                                       (when-some [to-id (get row idx)]
+                                                         (when-not (zero? to-id)
+                                                           (if reversed?
+                                                             [:db/retract to-id k from-id]
+                                                             [:db/retract from-id k to-id]))))
+                                                     roots))]
+                            (concat r transactions)
+                            r)))
+                      []
+                      relations)]
+    (when (not-empty retractions)
+      (d/transact! conn retractions))
+    (reduce-kv
+      (fn [r k _]
+        (assoc r k true))
+      nil
+      relations)))
+
+;; This works by first finding all roots
+;; than pulling all records and composing
+;; slice transactions... This is more advanced than currently
+;; supported in postgres, so maybe someday
+; (defn slice-entity
+;   [entity args selection]
+;   ;; TODO - result should be map with relation fields
+;   ;; marked as bla... look at documentation
+;   ;; And selection is different as well
+;   (let [schema (selection->schema entity args selection)
+;         roots (search-entity-roots schema)
+;         result (pull-roots roots schema)]
+;     (letfn [(slice-transactions
+;               [result {:keys [relations]} {from-id :db/id :as data}]
+;               (concat
+;                 result
+;                 (reduce-kv
+;                   (fn [r k schema]
+;                     (let [relation-data (get data k)
+;                           relation-ids (map :db/id relation-data)
+;                           reversed? (reverse? k)
+;                           k (if reversed? (invert k) k)]
+;                       (concat
+;                         (if reversed?
+;                           (map #(vector :db/retract % k from-id) relation-ids)
+;                           (map #(vector :db/retract from-id k %) relation-ids))
+;                         (slice-transactions r schema relation-data))))
+;                   []
+;                   relations)))]
+;       (when-some [transactions (not-empty
+;                                  (mapcat
+;                                    (fn [data]
+;                                      (slice-transactions [] schema data))
+;                                    result))]
+;         (d/transact! conn transactions))
+;       result)))
 
 
 (defn sync-entity
@@ -1408,14 +1471,16 @@
         (d/transact! conn slice-transactions))
       (ensure-euuids result)))) 
 
+
+
 (comment
   (sync-entity
     entity
     {:name "Terminator"
      :roles [{:name "SUPERUSER"}
              {:name "User"}]})
-  ; (time (sync-entity iu/user users))
-  ; (time (slice-entity iu/user-role args selection))
+  (time (sync-entity iu/user users))
+  (time (slice-entity iu/user-role args selection))
   (def transaction (first many-relations))
   
   (d/q
