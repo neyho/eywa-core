@@ -898,17 +898,19 @@
   (sort ["SUPERUSER" "Manager" "Approval manager" "Key account manager" "Administrator"])
   (time
     (do
+      (def args {:_order_by {:name :asc}})
+      (def selection
+        {:euuid nil
+         :name nil
+         :modified_by [{:selections {:name nil}}]
+         :users [{:selections {:name nil
+                               :active nil}
+                  :args {:_order_by {:name :desc}}}]})
       (def schema
         (time
           (selection->schema
             neyho.eywa.iam.uuids/user-role
-            {:_order_by {:name :asc}}
-            {:euuid nil
-             :name nil
-             :modified_by [{:selections {:name nil}}]
-             :users [{:selections {:name nil
-                                   :active nil}
-                      :args {:_order_by {:name :desc}}}]})))
+            args selection)))
       (def roots (time (search-entity-roots schema)))
       (time (<-keys (pull-roots roots schema)))))
   (<-keys (pull-all-roots roots schema))
@@ -920,6 +922,7 @@
                    {:euuid nil
                     :name nil
                     :active nil
+                    :roles [{:selection {:name nil}}]
                     :modified_by [{:selections {:name nil}
                                    :args {:_where
                                           {:euuid
@@ -953,23 +956,6 @@
 
   schema
 
-
-  (time
-    (d/q
-      '[:find ?op ?e ?a ?v
-        :in $ ?op ?e ?a
-        :where [?v ?a ?e]]
-      (d/db conn)
-      :db/retract
-      115
-      :466b811e-0ec5-4871-a24d-5b2990e6db3d))
-  
-  (d/q
-    '[:find ?entity
-      :in $
-      :where
-      [?entity :entity #uuid "edcab1db-ee6f-4744-bfea-447828893223"]]
-    (d/db conn))
   entity
   (find-mapping->clause find-mapping)
   (schema->filter-clauses schema)
@@ -1340,12 +1326,34 @@
 
 
 (defn slice-entity
-  [entity-id args selection]
-  (let [schema (selection->schema entity-id args selection)
+  [entity args selection]
+  (let [schema (selection->schema entity args selection)
         roots (search-entity-roots schema)
-        result (pull-roots roots schema)
-        ]
-    (<-keys result)))
+        result (pull-roots roots schema)]
+    (letfn [(slice-transactions
+              [result {:keys [relations]} {from-id :db/id :as data}]
+              (concat
+                result
+                (reduce-kv
+                  (fn [r k schema]
+                    (let [relation-data (get data k)
+                          relation-ids (map :db/id relation-data)
+                          reversed? (reverse? k)
+                          k (if reversed? (invert k) k)]
+                      (concat
+                        (if reversed?
+                          (map #(vector :db/retract % k from-id) relation-ids)
+                          (map #(vector :db/retract from-id k %) relation-ids))
+                        (slice-transactions r schema relation-data))))
+                  []
+                  relations)))]
+      (when-some [transactions (not-empty
+                                 (mapcat
+                                   (fn [data]
+                                     (slice-transactions [] schema data))
+                                   result))]
+        (d/transact! conn transactions))
+      result)))
 
 
 (defn sync-entity
@@ -1406,6 +1414,8 @@
     {:name "Terminator"
      :roles [{:name "SUPERUSER"}
              {:name "User"}]})
+  ; (time (sync-entity iu/user users))
+  ; (time (slice-entity iu/user-role args selection))
   (def transaction (first many-relations))
   
   (d/q
