@@ -7,7 +7,6 @@
     [camel-snake-kebab.core :as csk]
     [datalevin.core :as d]
     [buddy.hashers :as hashers]
-    [neyho.eywa.transit :refer [<-transit ->transit]]
     [neyho.eywa.iam.uuids :as iu]
     [neyho.eywa.dataset :as dataset]
     [neyho.eywa.dataset.core :as core]))
@@ -18,6 +17,7 @@
 
 
 (defonce ^:dynamic *schema* nil)
+(defonce ^:dynamic syncing? false)
 
 
 (defn entity-key [{:keys [euuid]}] (keyword (str euuid)))
@@ -68,7 +68,8 @@
      {to-euuid :euuid} :to} reverse?]
    (if (#{"tree" "o2o"} cardinality)
      (keyword (str euuid))
-     (keyword (str euuid) (str (if reverse? to-euuid from-euuid))))))
+     #_(keyword (str euuid) (str (if reverse? to-euuid from-euuid)))
+     (keyword (str (if reverse? "_" "") euuid)))))
 
 
 (defn relation->schema
@@ -296,396 +297,6 @@
   (get *schema* entity))
 
 
-(defn tmp-key [] (nano-id 10))
-
-
-(defn delta
-  "For given entity and data, function will produce
-  delta structure that can be used to transact! or
-  execute SQL query to insert/delete data"
-  ([entity data]
-   (let [prepare (memoize
-                   (fn [entity]
-                     (let [mapping (get *schema* entity)
-                           [fields relations recursions refs]
-                           (reduce-kv
-                             (fn [[fields relations recursions refs] k {t :type :as relation}]
-                               (case t
-                                 :relation (if (:recursive? relation)
-                                             [fields relations ((fnil conj #{}) relations k) refs]
-                                             [fields ((fnil conj #{}) relations k) recursions refs])
-                                 :ref [fields relations recursions ((fnil conj #{}) refs k)]
-                                 :field [((fnil conj #{}) fields k) relations recursions refs]
-                                 ))
-                             [nil nil nil nil]
-                             mapping)]
-                       {:fields (conj fields :euuid)
-                        :constraints (::constraints (meta mapping))
-                        :recursions recursions
-                        :relations relations
-                        :refs refs})))
-         get-constraints (memoize (fn [euuid] (::constraints (meta (get *schema* euuid)))))
-         get-field-schema (memoize (fn [euuid k] (get-in *schema* [euuid k])))]
-     (letfn [(get-indexes [data constraints]
-               (remove
-                 empty?
-                 (map
-                   #(select-keys data %)
-                   constraints)))
-
-             (get-id [current table indexes]
-               ;; then try to find in current
-               ;; result if constraint index exists
-               ;; for given table
-               (or
-                 (some
-                   #(get-in current [:index table %])
-                   indexes)
-                 ;; If it doesn't than create new temp key
-                 (tmp-key)))
-             (shallow-snake [data]
-               (reduce-kv
-                 (fn [r k v]
-                   (if-not k r
-                     (assoc r (csk/->snake_case_keyword k :separator #"[\s\-]") v)))
-                 nil
-                 data))
-             (transform-object
-               ([entity-euuid data]
-                (transform-object nil entity-euuid data))
-               ([result entity-euuid {:keys [tmp/id] :or {id (tmp-key)} :as data}]
-                (let [{:keys [constraints fields relations refs recursions]} (prepare entity-euuid)
-                      ;;
-                      data (shallow-snake (dissoc data :tmp/id))
-                      ;;
-                      fields-data (select-keys data fields)
-                      ;;
-                      ;; Check if there are some changes to this record
-                      ;; other than constraints
-                      indexes (remove empty? (map #(select-keys fields-data %) constraints))
-                      ;;
-                      id (or
-                           (some #(get-in result [:index entity-euuid %]) indexes)
-                           id)
-                      ;;
-                      [root parents-mapping]
-                      (letfn [(normalize-value [v]
-                                (select-keys (shallow-snake v) constraints))]
-                        (reduce-kv
-                          (fn [[r c] k v]
-                            (if (nil? v)
-                              [(assoc r k nil) c]
-                              [r (assoc c k (normalize-value v))]))
-                          [nil nil]
-                          (select-keys data recursions)))
-                      relations-data (select-keys data relations)
-                      ;; Check if reference is in form of map (object)
-                      ;; or if it is already resolved, that is if db/id
-                      ;; is already known
-                      {:keys [references-data
-                              resolved-references]}
-                      (reduce-kv
-                        (fn [r k v]
-                          (if (map? v)
-                            (assoc-in r [:references-data k] v)
-                            (assoc-in r [:resolved-references k] v)))
-                        {:references-data nil
-                         :resolved-references nil}
-                        (select-keys data refs))
-                      ;; Merge original field data with root recursive relations
-                      ;; and resolved references (for which we know db/id)
-                      fields-data (merge fields-data root resolved-references)]
-                  (as->
-                    ;;
-                    (->
-                      result
-                      (update-in [:entity entity-euuid id] merge fields-data)
-                      (update-in [:index entity-euuid] merge (zipmap indexes (repeat id))))
-                    result
-                    ;;
-                    ;; Add recursions
-                    ;; For recursions only save constraint data
-                    ;; directly to entity and mark recursion link
-                    ;; under :recursion in form [table key parent] #{children}
-                    (reduce-kv
-                      (fn [result k data]
-                        (let [parent-indexes (get-indexes data constraints)
-                              pid (get-id result entity-euuid parent-indexes)]
-                          (->
-                            result
-                            (update-in [:recursion entity-euuid k pid] (fnil conj #{}) id)
-                            (update-in [:index entity-euuid] merge (zipmap parent-indexes (repeat pid)))
-                            (update-in [:entity entity-euuid pid] merge data))))
-                      result
-                      parents-mapping)
-                    ;; Add references
-                    (reduce-kv
-                      (fn [result field data]
-                        (let [{reference-entity-euuid :ref} (get-field-schema entity-euuid field) 
-                              ref-constraints (get-constraints reference-entity-euuid)
-                              relation-indexes (get-indexes data ref-constraints)
-                              reference-id (get-id result reference-entity-euuid relation-indexes)]
-                          (->
-                            result
-                            (update-in
-                              [:index reference-entity-euuid] merge
-                              (zipmap relation-indexes (repeat reference-id)))
-                            (assoc-in
-                              [:reference entity-euuid reference-entity-euuid id]
-                              [field reference-id]))))
-                      result
-                      references-data)
-                    ;; Add relations
-                    (reduce-kv
-                      (fn [result k data]
-                        (let [{to :ref
-                               :keys [cardinality euuid]} (get-field-schema entity-euuid k)
-                              constraints (get-constraints to)]
-                          (case cardinality
-                            :many
-                            (if (or (empty? data) (nil? data))
-                              (update-in result [:relations/many euuid {:entity entity-euuid :attribute k}]
-                                         (fnil conj #{}) [id nil])
-                              (reduce
-                                (fn [result data]
-                                  (let [relation-indexes (get-indexes data constraints)
-                                        rid (get-id result to relation-indexes)]
-                                    ;; For found rid that marks 
-                                    (transform-object
-                                      (->
-                                        result
-                                        (update-in
-                                          [:index to] merge
-                                          (zipmap relation-indexes (repeat rid)))
-                                        (update-in
-                                          [:relations/many euuid {:entity entity-euuid :attribute k}] (fnil conj #{})
-                                          [id rid]))
-                                      to
-                                      (assoc data :tmp/id rid))))
-                                result
-                                data))
-                            ;; If there is nil input don't touch it
-                            ;; This will mark deletion
-                            :one
-                            (if (nil? data)
-                              (update-in result [:relations/one euuid {:entity entity-euuid :attribute k}]
-                                         (fnil conj #{}) [id nil])
-                              (let [relation-indexes (get-indexes data constraints)
-                                    rid (get-id result to relation-indexes)]
-                                (transform-object
-                                  (->
-                                    result
-                                    (update-in
-                                      [:index to] merge
-                                      (zipmap relation-indexes (repeat rid)))
-                                    (update-in
-                                      [:relations/one euuid {:entity entity-euuid :attribute k}] (fnil conj #{})
-                                      [id rid]))
-                                  to
-                                  (assoc data :tmp/id rid)))))))
-                      result
-                      relations-data)))))]
-       (if (sequential? data)
-         (let [data (map #(assoc % :tmp/id (tmp-key)) data)]
-           (reduce
-             #(transform-object %1 entity %2)
-             {:root (mapv :tmp/id data)
-              :entity/euuid entity}
-             data))
-         (let [data (assoc data :tmp/id (tmp-key))]
-           (transform-object
-             {:root (:tmp/id data)
-              :entity/euuid entity}
-             entity data)))))))
-
-
-(defn delta->transactions
-  ([delta] (delta->transactions (dataset/deployed-model) delta))
-  ([model {:keys [entity relations/many relations/one reference]}]
-   (let [transformation-keys (memoize
-                               (fn [entity]
-                                 (reduce-kv
-                                   (fn [r k {t :key}]
-                                     (assoc r k t))
-                                   nil
-                                   (get *schema* entity))))
-         backreference (memoize
-                         (fn [entity field]
-                           (get-in *schema* [entity field :_key])))]
-     (as-> {:changes []
-            :retractions []
-            :references []
-            :relations []}
-       transactions
-       ;; First handle entity insertion and retraction parts
-       (reduce-kv
-         (fn [transactions entity records]
-           (reduce-kv
-             (fn [transactions id record]
-               (let [{changes false
-                      retractions true} (group-by (comp nil? val) record)
-                     record (into {} changes)]
-                 (->
-                   transactions 
-                   (update :changes
-                           (fn [current]
-                             (conj current
-                                   (assoc (rename-keys record (transformation-keys entity))
-                                          :entity entity
-                                          :db/id id))))
-                   (update :retractions
-                           (fn [current]
-                             (reduce
-                               (fn [current [field]]
-                                 (conj current
-                                       [:db/retract id (get (transformation-keys entity) field)]))
-                               current
-                               retractions))))))
-             transactions
-             records))
-         transactions
-         entity)
-       ;; Then link references and relations
-       (reduce-kv
-         (fn [transactions entity ref-by-constraints]
-           (reduce-kv
-             (fn [transactions _ mapping]
-               (reduce-kv
-                 (fn [transactions record-id [field ref-id]]
-                   (update transactions :references
-                           (fn [references]
-                             (conj references {:db/id record-id (get (transformation-keys entity) field) ref-id}))))
-                 transactions
-                 mapping))
-             transactions
-             ref-by-constraints))
-         transactions
-         reference)
-       ;; Relations
-       (reduce-kv
-         (fn [transactions _ refs-by-attribute]
-           (reduce-kv
-             (fn [transactions {:keys [entity attribute]} records]
-               (let [grouped (group-by first records)]
-                 ;; TODO - add retractions here
-                 (reduce-kv
-                   (fn [transactions from-id records]
-                     (let [to-ids (map second records)]
-                       (update transactions :relations/many
-                               (fn [references]
-                                 (concat references
-                                         [{:db/id from-id (get (transformation-keys entity) attribute) to-ids}]
-                                         (map
-                                           (fn [to-id]
-                                             {:db/id to-id (backreference entity attribute) from-id})
-                                           to-ids))))))
-                   transactions
-                   grouped)))
-             transactions
-             refs-by-attribute))
-         transactions
-         many)
-       (reduce-kv
-         (fn [transactions _ refs-by-attribute]
-           (reduce-kv
-             (fn [transactions {:keys [entity attribute]} records]
-               ;; TODO - add retractions here
-               (reduce
-                 (fn [transactions [from-id to-id]]
-                   (update transactions :relations/one
-                           (fn [references]
-                             (let [references (conj
-                                                references
-                                                {:db/id from-id
-                                                 (get (transformation-keys entity) attribute) to-id})])
-                             references)))
-                 transactions
-                 records))
-             transactions
-             refs-by-attribute))
-         transactions
-         one)))))
-
-
-(defn insert-transactions
-  [entity data]
-  (let [{many-relations :relations/many
-         one-relations :relations/one
-         :keys [changes retractions references]} (delta->transactions (delta entity data))]
-    (as-> changes transactions
-      ; concat transactions retractions)
-      (concat transactions references)
-      (concat transactions many-relations)
-      (concat transactions one-relations))))
-
-
-(defn retraction-transactions
-  [entity data]
-  )
-
-
-(defn ensure-euuids
-  [{:keys [tempids]}]
-  (let [inserted (vals tempids)]
-    (when-some [missing-euuids (not-empty
-                                 (map
-                                   (fn [[id]]
-                                     {:db/id id :euuid (java.util.UUID/randomUUID)})
-                                   (d/q '[:find ?e
-                                          :in $ [?e ...]
-                                          :where
-                                          (not [?e :euuid _])]
-                                        (d/db conn)
-                                        inserted)))]
-      (d/transact! conn missing-euuids))))
-
-
-(comment
-  (count users)
-  (d/pull (d/db conn) '[*] 64)
-  (def entity iu/user)
-  (delta entity users)
-  (delta->transactions (delta entity users))
-  (ensure-euuids result)
-  *schema*
-  (delta entity users)
-  (insert-transactions entity users)
-  (def result (d/transact! conn (insert-transactions entity users)))
-  (def tempids (:tempids result))
-  (def inserted (vals tempids))
-  (d/close conn)
-
-
-  (def users
-    (dataset/search-entity
-      neyho.eywa.iam.uuids/user
-      nil
-      {;:euuid nil
-       :name nil
-       :settings nil
-       :password nil
-       :avatar nil
-       :active nil
-       :modified_on nil
-       :modified_by [{:selections {:euuid nil :name nil}}]
-       :roles [{:selections
-                {:euuid nil :name nil :avatar nil}}]}))
-
-
-  (def users (map #(dissoc % :euuid) users))
-  (def roles
-    (dataset/search-entity
-      neyho.eywa.iam.uuids/user-role
-      nil
-      {:euuid nil
-       :name nil
-       :users [{:selections
-                {:euuid nil :name nil}}]})))
-
-
-(defn freeze [data]
-  (if (string? data) data (->transit data)))
-
 
 (defn- flatten-selection [s]
   (reduce
@@ -759,13 +370,6 @@
         :args args
         :args/fields arg-fields
         :selection/fields fields
-        ; :refs (reduce-kv
-        ;         (fn [r field {k :key
-        ;                       entity :ref}]
-        ;           (let [{[{:keys [args selections]}] field} selection]
-        ;             (assoc r k (selection->schema entity args selections))))
-        ;         nil
-        ;         (select-keys refs selection-keys))
         :relations (reduce-kv
                      (fn [r field {k :key
                                    entity :ref
@@ -851,6 +455,17 @@
     (some targeting-schema? (vals relations))))
 
 
+(defn reverse?
+             [relation-key]
+             (str/starts-with? (name relation-key) "_"))
+
+(defn invert [relation-key]
+        (let [k (name relation-key)]
+          (if (str/starts-with? k "_")
+            (keyword (subs k 1))
+            (str "_" k))))
+
+
 (defn search-entity-roots
   ([{root-symbol :entity/symbol
      root-entity :entity
@@ -874,7 +489,9 @@
                        (into
                          (conj stack (list
                                        'or-join [entity-symbol child-symbol]
-                                       [entity-symbol rel child-symbol]
+                                       (if (reverse? rel)
+                                         [child-symbol (invert rel) entity-symbol]
+                                         [entity-symbol rel child-symbol])
                                        (list 'and
                                              [(list 'missing? '$ entity-symbol rel)]
                                              [(list 'ground 0) child-symbol])))
@@ -925,8 +542,7 @@
                                          :_neq (conj r (list 'not [entity-symbol k v]))
                                          ;;
                                          (:_lt :_gt :_le :_ge)
-                                         (let [
-                                               stack' ((fnil conj []) r
+                                         (let [stack' ((fnil conj []) r
                                                        [entity-symbol k field-symbol]
                                                        [(list (case condition
                                                                 :_gt '>
@@ -973,13 +589,6 @@
         :entity-cardinality entity-cardinality
         :roots roots}))))
 
-
-(comment
-  (type (:roots (search-entity-roots schema)))
-  (let [{:keys [entities roots entity-cardinality]} (search-entity-roots schema)]
-    (def entities entities) (def roots roots) (def entity-cardinality entity-cardinality))
-  (def data (search-entity-roots schema))
-  (time (focus-roots schema roots)))
 
 
 (defn incremental-pull-roots
@@ -1172,7 +781,6 @@
             (comp
               (fn [v]
                 (cond
-                  ;; FIXME - FIX STRING ORDERING - this isnt working for strings...
                   (string? v) (RString. v) 
                   (number? v) (- v)
                   (keyword? v) (RString. (name v))
@@ -1192,8 +800,7 @@
            {order :_order_by
             limit :_limit
             offset :_offset} :args}]
-   (let [{to-pull :pull
-          references :link} (prepare-roots roots schema)]
+   (let [{to-pull :pull references :link} (prepare-roots roots schema)]
      (letfn [(pull [{:keys [selection/fields relations] entity :entity/symbol}]
                (let [entities (d/pull-many
                                 (d/db conn)
@@ -1257,19 +864,6 @@
                  (take limit final))))))))))
 
 
-(defn sync-entity
-  [entity data]
-  (let [{many-relations :relations/many
-         one-relations :relations/one
-         :keys [changes retractions references]} (delta->transactions (delta entity data))
-        to-insert (as-> changes transactions
-                    ; concat transactions retractions)
-                    (concat transactions references)
-                    (concat transactions many-relations)
-                    (concat transactions one-relations))
-        result (d/transact! conn to-insert)]
-    (ensure-euuids result)))
-
 
 (defn search-entity
   [entity-id args selection]
@@ -1301,8 +895,6 @@
        :modified_on nil
        :modified_by [{:selections
                       {:name nil}}]}))
-  (time
-    )
   (sort ["SUPERUSER" "Manager" "Approval manager" "Key account manager" "Administrator"])
   (time
     (do
@@ -1335,6 +927,7 @@
                                                   #uuid "fc8716c6-daf1-11ee-a940-02a535895d2d"
                                                   #uuid "7ae30755-f592-4f12-99b0-0ee9fdc88471"]}}}}]})
           roots (search-entity-roots schema)]
+      (def schema schema)
       (<-keys (pull-roots roots schema))))
   (<-keys (d/pull (d/db conn) '[*] 115))
   (<-keys (d/pull (d/db conn) '[*] 1))
@@ -1359,32 +952,17 @@
 
 
   schema
-  (d/q
-    {:query
-     '[:find ?entity_YImrn ?entity_mfaGJ ?entity_Eurl8
-       :in $
-       :where
-       [?entity_YImrn :entity #uuid "4778f7b1-f946-4cb2-b356-b9cb336b4087"]
-       (or-join [?entity_YImrn ?entity_mfaGJ] [?entity_YImrn :8901e829-7740-4685-90fa-bff807d450e2 ?entity_mfaGJ] (and [(missing? $ ?entity_YImrn :8901e829-7740-4685-90fa-bff807d450e2)] [(ground 0) ?entity_mfaGJ]))
-       (or-join [?entity_YImrn ?entity_Eurl8] [?entity_YImrn :466b811e-0ec5-4871-a24d-5b2990e6db3d/edcab1db-ee6f-4744-bfea-447828893223 ?entity_Eurl8] (and [(missing? $ ?entity_YImrn :466b811e-0ec5-4871-a24d-5b2990e6db3d/edcab1db-ee6f-4744-bfea-447828893223)] [(ground 0) ?entity_Eurl8]))
-       (not [?entity_Eurl8 :euuid #uuid "c0e960bc-2515-11ed-8064-02a535895d2d"])
-       (not [?entity_Eurl8 :euuid #uuid "fc8716c6-daf1-11ee-a940-02a535895d2d"])
-       (not [?entity_Eurl8 :euuid #uuid "7ae30755-f592-4f12-99b0-0ee9fdc88471"])]
-     :offset 3
-     :limit 2
-     :args [(d/db conn)]})
 
-  (d/q
-    '[:find ?entity_wLJVH ?entity__6NI0 ?entity_FZTrL
-      :in $
-      :where
-      [?entity_wLJVH :entity #uuid "4778f7b1-f946-4cb2-b356-b9cb336b4087"]
-      [?entity_wLJVH :8901e829-7740-4685-90fa-bff807d450e2 ?entity__6NI0]
-      [?entity_wLJVH :466b811e-0ec5-4871-a24d-5b2990e6db3d/edcab1db-ee6f-4744-bfea-447828893223 ?entity_FZTrL]
-      (not [?entity_FZTrL :euuid #uuid "c0e960bc-2515-11ed-8064-02a535895d2d"])
-      (not [?entity_FZTrL :euuid #uuid "fc8716c6-daf1-11ee-a940-02a535895d2d"])
-      (not [?entity_FZTrL :euuid #uuid "7ae30755-f592-4f12-99b0-0ee9fdc88471"])]
-    (d/db conn))
+
+  (time
+    (d/q
+      '[:find ?op ?e ?a ?v
+        :in $ ?op ?e ?a
+        :where [?v ?a ?e]]
+      (d/db conn)
+      :db/retract
+      115
+      :466b811e-0ec5-4871-a24d-5b2990e6db3d))
   
   (d/q
     '[:find ?entity
@@ -1417,3 +995,494 @@
               {:_and
                [{:euuid {:_neq nil}
                  :active {:_eq true}}]}}}]}))
+
+
+;; Mutations
+(defn tmp-key [] (nano-id 10))
+
+
+(defn delta
+  "For given entity and data, function will produce
+  delta structure that can be used to transact! or
+  execute SQL query to insert/delete data"
+  ([entity data]
+   (let [prepare (memoize
+                   (fn [entity]
+                     (let [mapping (get *schema* entity)
+                           [fields relations recursions refs]
+                           (reduce-kv
+                             (fn [[fields relations recursions refs] k {t :type :as relation}]
+                               (case t
+                                 :relation (if (:recursive? relation)
+                                             [fields relations ((fnil conj #{}) relations k) refs]
+                                             [fields ((fnil conj #{}) relations k) recursions refs])
+                                 :ref [fields relations recursions ((fnil conj #{}) refs k)]
+                                 :field [((fnil conj #{}) fields k) relations recursions refs]
+                                 ))
+                             [nil nil nil nil]
+                             mapping)]
+                       {:fields (conj fields :euuid)
+                        :constraints (::constraints (meta mapping))
+                        :recursions recursions
+                        :relations relations
+                        :refs refs})))
+         get-constraints (memoize (fn [euuid] (::constraints (meta (get *schema* euuid)))))
+         get-field-schema (memoize (fn [euuid k] (get-in *schema* [euuid k])))]
+     (letfn [(get-indexes [data constraints]
+               (remove
+                 empty?
+                 (map
+                   #(select-keys data %)
+                   constraints)))
+
+             (get-id [current table indexes]
+               ;; then try to find in current
+               ;; result if constraint index exists
+               ;; for given table
+               (or
+                 (some
+                   #(get-in current [:index table %])
+                   indexes)
+                 ;; If it doesn't than create new temp key
+                 (tmp-key)))
+             (shallow-snake [data]
+               (reduce-kv
+                 (fn [r k v]
+                   (if-not k r
+                     (assoc r (csk/->snake_case_keyword k :separator #"[\s\-]") v)))
+                 nil
+                 data))
+             (transform-object
+               ([entity-euuid data]
+                (transform-object nil entity-euuid data))
+               ([result entity-euuid {:keys [tmp/id] :or {id (tmp-key)} :as data}]
+                (let [{:keys [constraints fields relations refs recursions]} (prepare entity-euuid)
+                      ;;
+                      data (shallow-snake (dissoc data :tmp/id))
+                      ;;
+                      fields-data (select-keys data fields)
+                      ;;
+                      ;; Check if there are some changes to this record
+                      ;; other than constraints
+                      indexes (remove empty? (map #(select-keys fields-data %) constraints))
+                      ;;
+                      id (or
+                           (some #(get-in result [:index entity-euuid %]) indexes)
+                           id)
+                      ;;
+                      [root parents-mapping]
+                      (letfn [(normalize-value [v]
+                                (select-keys (shallow-snake v) constraints))]
+                        (reduce-kv
+                          (fn [[r c] k v]
+                            (if (nil? v)
+                              [(assoc r k nil) c]
+                              [r (assoc c k (normalize-value v))]))
+                          [nil nil]
+                          (select-keys data recursions)))
+                      relations-data (select-keys data relations)
+                      ;; Check if reference is in form of map (object)
+                      ;; or if it is already resolved, that is if db/id
+                      ;; is already known
+                      {:keys [references-data
+                              resolved-references]}
+                      (reduce-kv
+                        (fn [r k v]
+                          (if (map? v)
+                            (assoc-in r [:references-data k] v)
+                            (assoc-in r [:resolved-references k] v)))
+                        {:references-data nil
+                         :resolved-references nil}
+                        (select-keys data refs))
+                      ;; Merge original field data with root recursive relations
+                      ;; and resolved references (for which we know db/id)
+                      fields-data (merge fields-data root resolved-references)]
+                  (as->
+                    ;;
+                    (->
+                      result
+                      (update-in [:entity entity-euuid id] merge fields-data)
+                      (update-in [:index entity-euuid] merge (zipmap indexes (repeat id))))
+                    result
+                    ;;
+                    ;; Add recursions
+                    ;; For recursions only save constraint data
+                    ;; directly to entity and mark recursion link
+                    ;; under :recursion in form [table key parent] #{children}
+                    (reduce-kv
+                      (fn [result k data]
+                        (let [parent-indexes (get-indexes data constraints)
+                              pid (get-id result entity-euuid parent-indexes)]
+                          (->
+                            result
+                            (update-in [:recursion entity-euuid k pid] (fnil conj #{}) id)
+                            (update-in [:index entity-euuid] merge (zipmap parent-indexes (repeat pid)))
+                            (update-in [:entity entity-euuid pid] merge data))))
+                      result
+                      parents-mapping)
+                    ;; Add references
+                    (reduce-kv
+                      (fn [result field data]
+                        (let [{reference-entity-euuid :ref} (get-field-schema entity-euuid field) 
+                              ref-constraints (get-constraints reference-entity-euuid)
+                              relation-indexes (get-indexes data ref-constraints)
+                              reference-id (get-id result reference-entity-euuid relation-indexes)]
+                          (->
+                            result
+                            (update-in
+                              [:index reference-entity-euuid] merge
+                              (zipmap relation-indexes (repeat reference-id)))
+                            (assoc-in
+                              [:reference entity-euuid reference-entity-euuid id]
+                              [field reference-id]))))
+                      result
+                      references-data)
+                    ;; Add relations
+                    (reduce-kv
+                      (fn [result k data]
+                        (let [{to :ref
+                               :keys [cardinality euuid]} (get-field-schema entity-euuid k)
+                              constraints (get-constraints to)]
+                          (case cardinality
+                            :many
+                            (if (or (empty? data) (nil? data))
+                              (update-in result [:relations/many euuid {:entity entity-euuid :attribute k}]
+                                         (fnil conj #{}) [id nil])
+                              (reduce
+                                (fn [result data]
+                                  (let [relation-indexes (get-indexes data constraints)
+                                        rid (get-id result to relation-indexes)]
+                                    ;; For found rid that marks 
+                                    (transform-object
+                                      (->
+                                        result
+                                        (update-in
+                                          [:index to] merge
+                                          (zipmap relation-indexes (repeat rid)))
+                                        (update-in
+                                          [:relations/many euuid {:entity entity-euuid :attribute k}]
+                                          (fnil conj #{})
+                                          [id rid]))
+                                      to
+                                      (assoc data :tmp/id rid))))
+                                result
+                                data))
+                            ;; If there is nil input don't touch it
+                            ;; This will mark deletion
+                            :one
+                            (if (nil? data)
+                              (update-in result [:relations/one euuid {:entity entity-euuid :attribute k}]
+                                         (fnil conj #{}) [id nil])
+                              (let [relation-indexes (get-indexes data constraints)
+                                    rid (get-id result to relation-indexes)]
+                                (transform-object
+                                  (->
+                                    result
+                                    (update-in
+                                      [:index to] merge
+                                      (zipmap relation-indexes (repeat rid)))
+                                    (update-in
+                                      [:relations/one euuid {:entity entity-euuid :attribute k}] (fnil conj #{})
+                                      [id rid]))
+                                  to
+                                  (assoc data :tmp/id rid)))))))
+                      result
+                      relations-data)))))]
+       (if (sequential? data)
+         (let [data (map #(assoc % :tmp/id (tmp-key)) data)]
+           (reduce
+             #(transform-object %1 entity %2)
+             {:root (mapv :tmp/id data)
+              :entity/euuid entity}
+             data))
+         (let [data (assoc data :tmp/id (tmp-key))]
+           (transform-object
+             {:root (:tmp/id data)
+              :entity/euuid entity}
+             entity data)))))))
+
+
+(defn delta->transactions
+  ([{:keys [entity relations/many relations/one reference]}]
+   (let [transformation-keys (memoize
+                               (fn [entity]
+                                 (reduce-kv
+                                   (fn [r k {t :key}]
+                                     (assoc r k t))
+                                   nil
+                                   (get *schema* entity))))
+         backreference (memoize
+                         (fn [entity field]
+                           (get-in *schema* [entity field :_key])))]
+     (as-> {:changes []
+            :retractions []
+            :references []
+            :relations []}
+       transactions
+       ;; First handle entity insertion and retraction parts
+       (reduce-kv
+         (fn [transactions entity records]
+           (reduce-kv
+             (fn [transactions id record]
+               (let [{changes false
+                      retractions true} (group-by (comp nil? val) record)
+                     record (into {} changes)]
+                 (->
+                   transactions 
+                   (update :changes
+                           (fn [current]
+                             (conj current
+                                   (assoc (rename-keys record (transformation-keys entity))
+                                          :entity entity
+                                          :db/id id))))
+                   (update :retractions
+                           (fn [current]
+                             (reduce
+                               (fn [current [field]]
+                                 (conj current
+                                       [:db/retract id (get (transformation-keys entity) field)]))
+                               current
+                               retractions))))))
+             transactions
+             records))
+         transactions
+         entity)
+       ;; Then link references and relations
+       (reduce-kv
+         (fn [transactions entity ref-by-constraints]
+           (reduce-kv
+             (fn [transactions _ mapping]
+               (reduce-kv
+                 (fn [transactions record-id [field ref-id]]
+                   (update transactions :references
+                           (fn [references]
+                             (let [db-attribute (get (transformation-keys entity) field)]
+                               (conj references {:db/id record-id db-attribute ref-id})
+                               #_(if syncing?
+                                 (conj references
+                                       [:db/retract record-id db-attribute]
+                                       {:db/id record-id db-attribute ref-id})
+                                 (conj references {:db/id record-id db-attribute ref-id}))))))
+                 transactions
+                 mapping))
+             transactions
+             ref-by-constraints))
+         transactions
+         reference)
+       ;; Relations
+       (reduce-kv
+         (fn [transactions _ refs-by-attribute]
+           (reduce-kv
+             (fn [transactions {:keys [entity attribute]} records]
+               (let [grouped (group-by first records)]
+                 (reduce-kv
+                   (fn [transactions from-id records]
+                     (let [to-ids (map second records)]
+                       (update transactions :relations/many
+                               (fn [references]
+                                 (concat references
+                                         [{:db/id from-id (get (transformation-keys entity) attribute) to-ids}])))))
+                   transactions
+                   grouped)))
+             transactions
+             refs-by-attribute))
+         transactions
+         many)
+       (reduce-kv
+         (fn [transactions _ refs-by-attribute]
+           (reduce-kv
+             (fn [transactions {:keys [entity attribute]} records]
+               ;; TODO - add retractions here
+               (reduce
+                 (fn [transactions [from-id to-id]]
+                   (update transactions :relations/one
+                           (fn [references]
+                             (let [references (conj
+                                                references
+                                                {:db/id from-id
+                                                 (get (transformation-keys entity) attribute) to-id})]
+                               references))))
+                 transactions
+                 records))
+             transactions
+             refs-by-attribute))
+         transactions
+         one)))))
+
+
+;; DEPRECATED
+(defn insert-transactions
+  [entity data]
+  (let [{many-relations :relations/many
+         one-relations :relations/one
+         :keys [changes references]}
+        (delta->transactions (delta entity data))]
+    (as-> changes transactions
+      (concat transactions references)
+      (concat transactions many-relations)
+      (concat transactions one-relations))))
+
+
+(defn ensure-euuids
+  [{:keys [tempids]}]
+  (let [inserted (vals tempids)]
+    (when-some [missing-euuids (not-empty
+                                 (map
+                                   (fn [[id]]
+                                     {:db/id id :euuid (java.util.UUID/randomUUID)})
+                                   (d/q '[:find ?e
+                                          :in $ [?e ...]
+                                          :where
+                                          (not [?e :euuid _])]
+                                        (d/db conn)
+                                        inserted)))]
+      (d/transact! conn missing-euuids))))
+
+
+(defn slice-entity
+  [entity-id args selection]
+  (let [schema (selection->schema entity-id args selection)
+        roots (search-entity-roots schema)
+        result (pull-roots roots schema)
+        ]
+    (<-keys result)))
+
+
+(defn sync-entity
+  [entity data]
+  (let [{many-relations :relations/many
+         one-relations :relations/one
+         :keys [changes retractions references]}
+        (delta->transactions (delta entity data))
+        ;;
+        {:keys [tempids] :as result}
+        (d/transact! conn (concat changes references many-relations one-relations))
+        ;;
+        remove-attributes (map
+                            (fn [[o id attribute]]
+                              [o (get tempids id) attribute])
+                            retractions)]
+    (letfn [(sync-slice-transactions
+              [transaction]
+              (let [[k connections] (first (dissoc transaction :db/id))
+                    final-connections (set (map tempids connections))
+                    db-id (get tempids (:db/id transaction))
+                    reversed? (reverse? k)
+                    all-connections (if reversed?
+                                      (d/q
+                                        '[:find ?entity ?key ?target
+                                          :in $ ?key ?target
+                                          :where
+                                          [?entity ?key ?target]]
+                                        (d/db conn)
+                                        (invert k)
+                                        db-id)
+                                      (d/q
+                                        '[:find ?target ?key ?entity
+                                          :in $ ?key ?target
+                                          :where
+                                          [?target ?key ?entity]]
+                                        (d/db conn)
+                                        k
+                                        db-id))]
+                (reduce
+                  (fn [r [from-id link to-id]]
+                    (if (contains? final-connections (if reversed? from-id to-id)) r
+                      (conj r (vector :db/retract from-id link to-id))))
+                  []
+                  all-connections)))]
+      ; (def retractions retractions)
+      ; (def many-relations many-relations)
+      ; (def tempids tempids)
+      ; (def slice-transactions (mapcat sync-slice-transactions many-relations))
+      (d/transact! conn remove-attributes)
+      (when-some [slice-transactions (not-empty (mapcat sync-slice-transactions many-relations))]
+        (d/transact! conn slice-transactions))
+      (ensure-euuids result)))) 
+
+(comment
+  (sync-entity
+    entity
+    {:name "Terminator"
+     :roles [{:name "SUPERUSER"}
+             {:name "User"}]})
+  (def transaction (first many-relations))
+  
+  (d/q
+    '[:find ?target ?key ?entity
+      :in $ ?key ?target
+      :where
+      [?target ?key ?entity]]
+    (d/db conn)
+    :466b811e-0ec5-4871-a24d-5b2990e6db3d
+    5)
+  (tempids "B8v2xjZ7w7")
+  (tempids "8poXKlp8VU")
+  (field->key #uuid "edcab1db-ee6f-4744-bfea-447828893223" :roles)
+  (count users)
+  (d/pull (d/db conn) '[*] 64)
+  (def entity iu/user)
+  (delta entity users)
+  (delta->transactions (delta entity users))
+  (ensure-euuids result)
+  *schema*
+  (delta entity users)
+  (def r (time (stack-entity entity users)))
+  (insert-transactions entity users)
+  (def result (d/transact! conn (insert-transactions entity users)))
+  (def tempids (:tempids result))
+  (def inserted (vals tempids))
+  (d/close conn)
+  (d/q
+    '[:find ?entity
+      :in $ ?target
+      :where
+      [?target :466b811e-0ec5-4871-a24d-5b2990e6db3d ?entity]]
+    (d/db conn ))
+
+
+  (def data users)
+  (def users
+    (dataset/search-entity
+      neyho.eywa.iam.uuids/user
+      nil
+      {;:euuid nil
+       :name nil
+       :settings nil
+       :password nil
+       :avatar nil
+       :active nil
+       :modified_on nil
+       :modified_by [{:selections {:euuid nil :name nil}}]
+       :roles [{:selections
+                {:euuid nil :name nil :avatar nil}}]}))
+
+
+  (def users (map #(dissoc % :euuid) users))
+  (def roles
+    (dataset/search-entity
+      neyho.eywa.iam.uuids/user-role
+      nil
+      {:euuid nil
+       :name nil
+       :users [{:selections
+                {:euuid nil :name nil}}]})))
+
+
+(defn stack-entity
+    [entity data]
+    (let [{many-relations :relations/many
+           one-relations :relations/one
+           :keys [changes retractions references]}
+          (delta->transactions (delta entity data))
+          ;;
+          {:keys [tempids] :as result}
+          (d/transact! conn (concat changes references many-relations one-relations))
+          remove-attributes (map
+                              (fn [[o id attribute]]
+                                [o (get tempids id) attribute])
+                              retractions)]
+      (d/transact! conn remove-attributes)
+      (ensure-euuids result)))
+
+
