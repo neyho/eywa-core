@@ -25,7 +25,7 @@
      :as core]
     [neyho.eywa.dataset :as dataset])
   (:import
-    [org.postgresql.util #_PSQLException PGobject]
+    [org.postgresql.util PGobject]
     java.nio.charset.StandardCharsets
     [java.sql PreparedStatement]))
 
@@ -826,7 +826,7 @@
          (store-entity-records tx result)
          (project-saved-entities result)
          (link-relations tx result stack?)
-         (update-avatars tx result)
+         ; (update-avatars tx result)
          (pull-roots result))))))
 
 ;;
@@ -845,10 +845,12 @@
    nil
    s))
 
+
 (def scalar-types
   #{"boolean" "string" "int" "float" "timestamp" "enum"
     "timeperiod" "currency" "json" "uuid"
     "encrypted" "hashed" "transit" "avatar"})
+
 
 (defn selection->schema
   ([entity-id selection]
@@ -2393,6 +2395,7 @@
               entity-id (pprint response))
              response)))))))
 
+
 (defn get-entity-tree
   [entity-id root on selection]
   (let [{:keys [entity/table entity/as]
@@ -2424,7 +2427,6 @@
                     *return-type*))]
         (when (not-empty roots)
           (pull-roots connection schema {(keyword as) roots}))))))
-
 
 
 (defn search-entity-tree
@@ -2552,6 +2554,7 @@
                    (map
                      :_eid
                      (postgres/execute! connection sql-final *return-type*)))}))))))))
+
 
 ;; TODO - rething about reimplementing this differently. Instead of cursor aggregation
 ;; think about global search like aggregation
