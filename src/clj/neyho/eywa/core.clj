@@ -266,7 +266,7 @@
                   (neyho.eywa.avatars.postgres/init)
                   (neyho.eywa.administration/init)
                   (neyho.eywa.server/start
-                    {:port (when-some [port (env :eywa-server-port "8080")] (Integer/parseInt port))
+                    {:port (when-some [port (env :eywa-server-port "8080")] (if (number? port) port (Integer/parseInt port)))
                      :host (env :eywa-server-host "0.0.0.0")
                      :context-configurator neyho.eywa.server.jetty/context-configuration}))
         (do

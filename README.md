@@ -60,7 +60,7 @@ run
 eywa core gen-config
 ```
 
-Since configuration file will contain credential data in plaintext it is recommended to add
+Since configuration file will contain credentials data in plaintext it is recommended to add
 ```
 eywa.json
 eywa.edn

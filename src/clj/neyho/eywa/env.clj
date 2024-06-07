@@ -6,6 +6,6 @@
 
 (def home (str (fs/expand-home (env :eywa-home "~/.eywa"))))
 (def pid (str home "/pid"))
-(def log-dir (env :eywa-log-dir (str home "/logs")))
-(def config-dir (env :eywa-config-dir (str home "/config")))
-(def git-dir (env :eywa-git-dir (str home "/git")))
+(def log-dir (str (fs/absolutize (env :eywa-log-dir (str home "/logs")))))
+(def config-dir (str (fs/absolutize (env :eywa-config-dir (str home "/config")))))
+(def git-dir (str (fs/absolutize (env :eywa-git-dir (str home "/git")))))

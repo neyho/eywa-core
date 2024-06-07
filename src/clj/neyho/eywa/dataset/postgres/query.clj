@@ -1,4 +1,4 @@
-(ns neyho.eywa.dataset.postgres.query
+(ns neho.eywa.dataset.postgres.query
   (:require
     clojure.set
     [clojure.pprint :as pp]

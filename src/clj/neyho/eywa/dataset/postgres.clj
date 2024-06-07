@@ -261,6 +261,7 @@
         old-table (entity->table-name oentity)
         diff (core/diff attribute)] 
     (if (core/new-attribute? attribute)
+      ;;
       (do
         (log/debugf "Adding attribute %s to table %s" name old-table)
         (case type
@@ -273,6 +274,7 @@
           ;; Add new scalar column to table
           [(cond-> (str "alter table \"" old-table "\" add column if not exists " (column-name name) " " (type->ddl type))
              (= "mandatory" constraint) (str " not null"))]))
+      ;;
       (when (or 
               (:name (core/diff entity)) ;; If entity name has changed check if there are some enums
               (not-empty (dissoc diff :pk))) ;; If any other change happend follow steps

@@ -115,7 +115,7 @@
       [:image
        {:id "background-image"
         :x 0 :y 0 :height 1000 :width 1000
-        :href "images/login_normal.png"}]]
+        :href "https://docs.eywaonline.com/eywa/images/login_normal.png"}]]
      [:div {:class $login-wrapper}
       [:div
        {:class $login-greeting}

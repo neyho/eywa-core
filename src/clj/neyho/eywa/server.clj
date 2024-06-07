@@ -63,7 +63,7 @@
        context'))})
 
 
-(def apps 
+(def apps
   (let [root "app"]
     {:name :extension.app/service
      :enter
@@ -330,8 +330,16 @@
                           "/eywa/app" context
                           "/eywa/docs" context
                           (chain/terminate (assoc context :response (-> eywa-spa (head/head-response request)))))
-                        ;;
+                        ;; Try to resolve mapping
                         context)))))})))
+
+
+(comment
+  
+  (println ::neki-key)
+  (println
+    #:neka-mapa {:server-port 8080}
+    #:druga-mapa {:server-port 8090}))
 
 
 
@@ -347,8 +355,8 @@
                      graphql-routes
                      oauth2/routes))
           context-configurator jetty/context-configuration}}]
+   (log/infof "Starting EYWA server %s:%s" host port)
    (stop)
-   (log/info "Starting EYWA server")
    (let [router (route/router routes :map-tree)
          _server (->
                    {::http/type :jetty
