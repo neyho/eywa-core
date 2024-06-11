@@ -311,13 +311,13 @@
                       (condp #(clojure.string/starts-with? %2 %1) path
                         ;;
                         "/eywa/css"
-                        (chain/terminate (chain/terminate (resource-response)))
+                        (chain/terminate (resource-response))
                         ;;
                         "/eywa/images"
-                        (chain/terminate (chain/terminate (resource-response)))
+                        (chain/terminate (resource-response))
                         ;;
                         "/eywa/js"
-                        (chain/terminate (chain/terminate (resource-response)))
+                        (chain/terminate (resource-response))
                         ;;
                         "/eywa"
                         (condp #(clojure.string/starts-with? %2 %1) path
