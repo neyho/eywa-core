@@ -1,10 +1,11 @@
 (ns neyho.eywa.iam.access
   (:require
+    [clojure.set :as set]
+    [neyho.eywa.data :refer [*ROOT*]]
     [neyho.eywa.dataset :as dataset]
-    [neyho.eywa.iam.uuids :as iu]))
-
-
-(defonce ^:dynamic *rules* nil)
+    [neyho.eywa.dataset.core :refer [*user*]]
+    [neyho.eywa.iam.uuids :as iu]
+    [neyho.eywa.iam.access.context :refer [*rules* *roles*]]))
 
 
 (defn get-roles-access-data
@@ -66,3 +67,34 @@
 (defn load-rules
   []
   (alter-var-root #'*rules* (fn [_] (transform-roles-data (get-roles-access-data)))))
+
+
+(defn superuser? [roles]
+  (or
+    (nil? *user*)
+    (contains? roles (:euuid *ROOT*))))
+
+
+(defn entity-allows?
+  ([entity rules] (entity-allows? entity rules *roles*))
+  ([entity rules roles]
+   (if (or (nil? *rules*) (superuser? roles)) true
+     (letfn [(ok? [rule]
+               (boolean (not-empty (set/intersection roles (get-in *rules* [:entity entity rule])))))]
+       (some ok? rules)))))
+
+
+
+(defn relation-allows?
+  ([relation direction rules] (relation-allows? relation direction rules *roles*))
+  ([relation direction rules roles]
+   (if (or (nil? *rules*) (superuser? roles)) true
+     (letfn [(ok? [rule]
+               (boolean (not-empty (set/intersection roles (get-in *rules* [:relation relation direction rule])))))]
+       ; (def relation relation)
+       ; (def rules rules)
+       ; (def roles roles)
+       ; (def direction direction)
+       ; (def rule (first rules))
+       #_(def roles #{#uuid "97b95ab8-4ca3-498d-b578-b12e6d1a2df8"})
+       (some ok? rules)))))

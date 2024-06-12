@@ -7,6 +7,7 @@
     [clojure.tools.logging :as log]
     [clojure.core.async :as async]
     neyho.eywa
+    [neyho.eywa.iam.access.context :as access]
     [neyho.eywa.data :refer [*ROOT*]]
     [neyho.eywa.administration.uuids :as au]
     [neyho.eywa.authorization :refer [role-permissions]]
@@ -82,8 +83,7 @@
   (dataset/get-entity (deployed-model) id))
 
 (defn save-model [new-model]
-  (dosync
-    (ref-set *model* new-model)))
+  (dosync (ref-set *model* new-model)))
 
 (defn list-entity-ids []
   (sort 
@@ -261,11 +261,12 @@
 (defn deploy-dataset
   ([model] (deploy-dataset nil model nil))
   ([context model] (deploy-dataset context model nil))
-  ([{:keys [user username]
+  ([{:keys [user username roles]
      :as context}
     {version :version}
     _]
-   (binding [dataset/*user* user]
+   (binding [dataset/*user* user
+             access/*roles* roles]
      (let [selection (executor/selections-tree context)] 
        (log/infof
          "User %s deploying dataset %s@%s"
@@ -388,7 +389,6 @@
   "Function initializes EYWA datasets by loading last deployed model."
   ([] (init *db*))
   ([db]
-   (is-supported? db)
    (log/info "Initializing Datasets...")
    (try
      (dataset/reload db {:model (dataset/get-last-deployed db)})

@@ -28,6 +28,7 @@
              delete-entity]]
     [neyho.eywa.dataset.lacinia
      :refer [normalized-enum-value]]
+    [neyho.eywa.dataset.postgres.query :as query]
     [neyho.eywa.lacinia :as lacinia]
     [neyho.eywa.data :refer [*EYWA*]]
     [neyho.eywa.administration :as administration]
@@ -35,6 +36,7 @@
     [neyho.eywa.dataset.uuids :as du]))
 
 
+;; TODO - remove this... probably not necessary
 (defonce ^:dynamic *model* nil)
 
 
@@ -762,7 +764,8 @@
                                    :to (:name to) 
                                    :cardinality cardinality})
                                 (assoc relations (keyword (normalize-name to-label))
-                                       {:from (:euuid from)
+                                       {:relation euuid
+                                        :from (:euuid from)
                                         :from/field (entity->relation-field from)
                                         :from/table (entity->table-name from)
                                         :to (:euuid to)
@@ -907,12 +910,10 @@
   (core/recall! [this version]
     (core/unmount this version)
     (let [db-model (db->model this)
-          model (core/get-model this)
-          final-model (with-meta
-                        db-model
-                        (meta model))]
+          model (core/get-model this)]
       (delete-entity this du/dataset-version {:euuid (:euuid version)})
-      (dataset/save-model final-model) 
+      (dataset/save-model db-model) 
+      (query/deploy-schema (model->schema model))
       (core/reload this)))
   ;;
   (core/destroy! [this
@@ -929,9 +930,9 @@
           (log/infof "Destroying dataset version %s@%s" module-name version-name)
           (delete-entity this du/dataset-version {:euuid euuid}))
         (let [db-model (core/get-last-deployed this) 
-              model (core/get-model this)
-              final-model (with-meta db-model (meta model))]
-          (dataset/save-model final-model)
+              model (core/get-model this)]
+          (dataset/save-model db-model)
+          (query/deploy-schema (model->schema model))
           (let [global-model (core/reload this)]
             (core/add-to-deploy-history this global-model)
             ;; Restart core
@@ -942,33 +943,32 @@
   (core/reload
     ([this]
      (let [model' (db->model this)
-           schema (model->schema model')
-           model'' (->
-                     model'
-                     (with-meta {:dataset/schema schema}))]
-       (dataset/save-model model'')
+           schema (model->schema model')]
+       (dataset/save-model model')
+       (query/deploy-schema schema)
        (try
-         (comment (def this neyho.eywa.db/*db*))
+         (comment
+           (def this neyho.eywa.db/*db*)
+           (def model' (db->model this))
+           (def schema (time (model->schema model'))))
          (lacinia/add-shard ::datasets (fn [] (lacinia/generate-lacinia-schema this)))
          (catch Throwable e
            (log/error e "Couldn't add lacinia schema shard")))
-       model''))
+       model'))
     ([this {:keys [model]}]
      (let [model' (core/join-models
                     (or
                       (core/get-model this)
                       (core/map->ERDModel nil))
                     model)
-           schema (model->schema model')
-           model'' (->
-                     model'
-                     (with-meta {:dataset/schema schema}))]
-       (dataset/save-model model'')
+           schema (model->schema model')]
+       (query/deploy-schema schema)
+       (dataset/save-model model')
        (try
          (lacinia/add-shard ::datasets (fn [] (lacinia/generate-lacinia-schema this)))
          (catch Throwable e
            (log/error e "Couldn't add lacinia schema shard")))
-       model'')))
+       model')))
   (core/mount
     [this {model :model :as version}]
     (log/debugf "Mounting dataset version %s@%s" (:name version) (get-in version [:dataset :name]))
