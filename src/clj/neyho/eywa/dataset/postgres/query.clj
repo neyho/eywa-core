@@ -8,7 +8,6 @@
     [nano-id.core :refer [nano-id] :as nano]
     [buddy.hashers :as hashers]
     [clojure.tools.logging :as log]
-    ; [io.pedestal.log :as log]
     [taoensso.nippy :as nippy]
     [camel-snake-kebab.core :as csk]
     [next.jdbc :as jdbc]
@@ -16,15 +15,14 @@
     [neyho.eywa.storage :as storage :refer [*storage*]]
     [neyho.eywa.transit :refer [<-transit ->transit]]
     [clojure.data.codec.base64 :as b64]
-    ; [neyho.eywa.administration.avatars :as avatars]
     [neyho.eywa.iam.access :as access]
+    [neyho.eywa.iam.access.context :refer [*roles*]]
     [neyho.eywa.avatars :as avatars]
     [neyho.eywa.db :refer [*db*] :as db]
     [neyho.eywa.db.postgres.next :as postgres]
     [neyho.eywa.dataset.core
      :refer [*return-type*]
-     :as core]
-    [neyho.eywa.dataset :as dataset])
+     :as core])
   (:import
     [org.postgresql.util PGobject]
     java.nio.charset.StandardCharsets
@@ -32,6 +30,7 @@
 
 
 (defonce ^:private -deployed-schema- (atom nil))
+(defonce ^:dynamic *operation-rules* nil)
 
 
 (defn pprint
@@ -176,225 +175,241 @@
                ([entity-euuid data]
                 (transform-object nil entity-euuid data))
                ([result entity-euuid {:keys [tmp/id] :or {id (tmp-key)} :as data}]
-                (let [{:keys [relations fields recursions table]
-                       modifier :audit/who
-                       modified-on :audit/when
-                       :as entity} (find-entity entity-euuid)
-                      {references true
-                       fields false} (try
-                                       (group-by
-                                         (fn [definition]
-                                           (log/trace "Field definition: " definition)
-                                           (contains? definition :postgres/reference))
-                                         ;; Remove modifier data from input data
-                                         ;; this is controled by platform
-                                         (vals (dissoc fields modifier modified-on)))
-                                       (catch Throwable e
-                                         (log/errorf
-                                           "Fields:%s\nModifier: %s\nModified on: %s"
-                                           (vals (dissoc fields modifier modified-on))
-                                           modifier modified-on)
-                                         (throw e)))
-                      ;;
-                      data (shallow-snake (dissoc data :tmp/id))
-                      ;;
-                      fields-data (select-keys
-                                    data
-                                    (conj
-                                      (map :key fields)
-                                      :euuid))
-                      type-mapping (type-mapping entity)
-                      ;; Cast data to Postgres
-                      [fields-data avatars]
-                      (reduce
-                        (fn [[fd a] k]
-                          (let [t (get type-mapping k)]
+                (if-not (access/entity-allows? entity-euuid #{:write :owns}) result
+                  (let [{:keys [relations fields recursions table]
+                         modifier :audit/who
+                         modified-on :audit/when
+                         :as entity} (find-entity entity-euuid)
+                        {references true
+                         fields false} (try
+                                         (group-by
+                                           (fn [definition]
+                                             (log/trace "Field definition: " definition)
+                                             (contains? definition :postgres/reference))
+                                           ;; Remove modifier data from input data
+                                           ;; this is controled by platform
+                                           (vals (dissoc fields modifier modified-on)))
+                                         (catch Throwable e
+                                           (log/errorf
+                                             "Fields:%s\nModifier: %s\nModified on: %s"
+                                             (vals (dissoc fields modifier modified-on))
+                                             modifier modified-on)
+                                           (throw e)))
+                        ;;
+                        data (shallow-snake (dissoc data :tmp/id))
+                        ;;
+                        fields-data (select-keys
+                                      data
+                                      (conj
+                                        (map :key fields)
+                                        :euuid))
+                        type-mapping (type-mapping entity)
+                        ;; Cast data to Postgres
+                        [fields-data avatars]
+                        (reduce
+                          (fn [[fd a] k]
+                            (let [t (get type-mapping k)]
 
-                            (if (#{"avatar"} t)
-                              ;; If there is avatar than remove it from fields-data
-                              ;; and put it to avatars
-                              [(dissoc fd k) (assoc a k (get fd k))]
-                              (letfn [(->postgres [v]
-                                        (log/tracef "[%s]Casting %s to Postgres type %s" k v t)
-                                        (when v
-                                          (doto (PGobject.)
-                                            (.setType t)
-                                            (.setValue (name v)))))]
-                                [(update
-                                   fd k
-                                   (case t
-                                     ;; Shortcircuit defaults
-                                     ("boolean" "string" "int" "float" "timestamp" "timeperiod" "currency" "uuid" "avatar" nil) identity
-                                     "json" (fn [data]
-                                              (doto (PGobject.)
-                                                (.setType "jsonb")
-                                                (.setValue (json/write-str
-                                                             data
-                                                             :key-fn (fn [data]
-                                                                       (if (keyword? data)
-                                                                         (if-let [n (namespace data)]
-                                                                           (str n "/" (name data))
-                                                                           (name data))
-                                                                         data))))))
-                                     "hashed" hashers/derive
-                                     "transit" freeze
-                                     ->postgres))
-                                 a]))))
-                        [fields-data nil]
-                        (keys fields-data))
-                      constraints (get-constraints entity-euuid)
-                      ;;
-                      ;; Check if there are some changes to this record
-                      ;; other than constraints
-                      indexes (remove empty? (map #(select-keys fields-data %) constraints))
-                      ;;
-                      id (or
-                           (some #(get-in result [:index table %]) indexes)
-                           id)
-                      constraint-keys (flatten constraints)
-                      ;;
-                      {:keys [references-data
-                              resolved-references]}
-                      (reduce-kv
-                        (fn [r k v]
-                          (if (map? v)
-                            (assoc-in r [:references-data k] v)
-                            (assoc-in r [:resolved-references k] v)))
-                        {:references-data nil
-                         :resolved-references nil}
-                        (select-keys data (map :key references)))
-                      relations-data (select-keys data (keys relations))
-                      ;;
-                      recursions-data (select-keys data recursions)
-                      ;;
-                      [root parents-mapping]
-                      (letfn [(normalize-value [v]
-                                (select-keys (shallow-snake v) constraint-keys))]
+                              (if (#{"avatar"} t)
+                                ;; If there is avatar than remove it from fields-data
+                                ;; and put it to avatars
+                                [(dissoc fd k) (assoc a k (get fd k))]
+                                (letfn [(->postgres [v]
+                                          (log/tracef "[%s]Casting %s to Postgres type %s" k v t)
+                                          (when v
+                                            (doto (PGobject.)
+                                              (.setType t)
+                                              (.setValue (name v)))))]
+                                  [(update
+                                     fd k
+                                     (case t
+                                       ;; Shortcircuit defaults
+                                       ("boolean" "string" "int" "float" "timestamp" "timeperiod" "currency" "uuid" "avatar" nil) identity
+                                       "json" (fn [data]
+                                                (doto (PGobject.)
+                                                  (.setType "jsonb")
+                                                  (.setValue (json/write-str
+                                                               data
+                                                               :key-fn (fn [data]
+                                                                         (if (keyword? data)
+                                                                           (if-let [n (namespace data)]
+                                                                             (str n "/" (name data))
+                                                                             (name data))
+                                                                           data))))))
+                                       "hashed" hashers/derive
+                                       "transit" freeze
+                                       ->postgres))
+                                   a]))))
+                          [fields-data nil]
+                          (keys fields-data))
+                        constraints (get-constraints entity-euuid)
+                        ;;
+                        ;; Check if there are some changes to this record
+                        ;; other than constraints
+                        indexes (remove empty? (map #(select-keys fields-data %) constraints))
+                        ;;
+                        id (or
+                             (some #(get-in result [:index table %]) indexes)
+                             id)
+                        constraint-keys (flatten constraints)
+                        ;;
+                        {:keys [references-data
+                                resolved-references]}
                         (reduce-kv
-                          (fn [[r c] k v]
-                            (if (nil? v)
-                              [(assoc r k nil) c]
-                              [r (assoc c k (normalize-value v))]))
-                          [nil nil]
-                          recursions-data))
-                      ;; root elements are elements that have recursive relation
-                      ;; set to nil explicitly
-                      ;; since there is no reference to parent, add 
-                      ;; this data to fields directly
-                      fields-data (merge fields-data root resolved-references)
+                          (fn [r k v]
+                            (if (map? v)
+                              (assoc-in r [:references-data k] v)
+                              (assoc-in r [:resolved-references k] v)))
+                          {:references-data nil
+                           :resolved-references nil}
+                          (select-keys data (map :key references)))
+                        ;; Remove relation data that isn't allowed
+                        valid-relation-keys (let [recursions (set recursions)]
+                                              (reduce
+                                                (fn [result field]
+                                                  (if (contains? recursions field) result
+                                                    (let [{:keys [relation to]} (get relations field)
+                                                          direction (if (= to entity-euuid) :from :to)]
+                                                      (if-not relation result
+                                                        (let [allowed? (access/relation-allows? relation direction #{:write :owns})]
+                                                          ; (println "CHECKING: " direction field allowed?)
+                                                          (if allowed? (conj result field)
+                                                            result))))))
+                                                []
+                                                (keys relations))) 
+                        relations-data (when (not-empty valid-relation-keys)
+                                         (select-keys data valid-relation-keys))
+                        ;;
+                        recursions-data (select-keys data recursions)
+                        ;;
+                        [root parents-mapping]
+                        (letfn [(normalize-value [v]
+                                  (select-keys (shallow-snake v) constraint-keys))]
+                          (reduce-kv
+                            (fn [[r c] k v]
+                              (if (nil? v)
+                                [(assoc r k nil) c]
+                                [r (assoc c k (normalize-value v))]))
+                            [nil nil]
+                            recursions-data))
+                        ;; root elements are elements that have recursive relation
+                        ;; set to nil explicitly
+                        ;; since there is no reference to parent, add 
+                        ;; this data to fields directly
+                        fields-data (merge fields-data root resolved-references)
+                        ;;
+                        fields-data (if (or
+                                          (not-empty references-data)
+                                          (not-empty (apply dissoc fields-data constraint-keys)))
+                                      (assoc fields-data
+                                             modifier (if (map? core/*user*)
+                                                        (:_eid core/*user*)
+                                                        core/*user*)
+                                             modified-on now)
+                                      fields-data)
+                        ; fields-data (assoc fields-data
+                        ;                    modifier (if (map? core/*user*)
+                        ;                               (:_eid core/*user*)
+                        ;                               core/*user*)
+                        ;                    modified-on now)
+                        ]
+                    (as->
                       ;;
-                      fields-data (if (or
-                                        (not-empty references-data)
-                                        (not-empty (apply dissoc fields-data constraint-keys)))
-                                    (assoc fields-data
-                                           modifier (if (map? core/*user*)
-                                                      (:_eid core/*user*)
-                                                      core/*user*)
-                                           modified-on now)
-                                    fields-data)
-                      ; fields-data (assoc fields-data
-                      ;                    modifier (if (map? core/*user*)
-                      ;                               (:_eid core/*user*)
-                      ;                               core/*user*)
-                      ;                    modified-on now)
-                      ]
-                  (as->
-                    ;;
-                    (->
+                      (->
+                        result
+                        (update-in [:entity table id] (if stack? merge (fn [_ v] v)) fields-data)
+                        (update-in [:index table] merge (zipmap indexes (repeat id)))
+                        (assoc-in [:constraint table] constraints))
                       result
-                      (update-in [:entity table id] (if stack? merge (fn [_ v] v)) fields-data)
-                      (update-in [:index table] merge (zipmap indexes (repeat id)))
-                      (assoc-in [:constraint table] constraints))
-                    result
-                    ;;
-                    (if (empty? avatars) result
-                      (update-in result [:avatar table id] merge avatars))
-                    ;; Add recursions
-                    ;; For recursions only save constraint data
-                    ;; directly to entity and mark recursion link
-                    ;; under :recursion in form [table key parent] #{children}
-                    (reduce-kv
-                      (fn [result k data]
-                        (let [parent-indexes (get-indexes data constraints)
-                              pid (get-id result table parent-indexes)]
-                          (->
-                            result
-                            (update-in [:recursion table k pid] (fnil conj #{}) id)
-                            (update-in [:index table] merge (zipmap parent-indexes (repeat pid)))
-                            (update-in [:entity table pid] merge data))))
-                      result
-                      parents-mapping)
-                    ;; Add references
-                    (reduce-kv
-                      (fn [result attribute data]
-                        (let [reference-entity-euuid (get
-                                                       (reference-mapping entity-euuid)
-                                                       attribute)
-                              reference-entity (find-entity reference-entity-euuid)
-                              reference-data (some
-                                               (fn [ks]
-                                                 (when (every? #(contains? data %) ks)
-                                                   (select-keys data ks)))
-                                               (get-constraints reference-entity-euuid))]
-                          (update-in
-                            result
-                            [:reference
-                             (:table reference-entity)
-                             reference-data]
-                            (fnil conj [])
-                            [(:table entity) id attribute])))
-                      result
-                      references-data)
-                    ;; Add relations
-                    (reduce-kv
-                      (fn [result k data]
-                        (let [{{:keys [to]
-                                to-table :to/table
-                                rtype :type
-                                :as relation} k} relations
-                              constraints (get-constraints to)]
-                          (case rtype
-                            :many
-                            (if (or (empty? data) (nil? data))
-                              (update-in result [:relations/many relation] (fnil conj #{}) [id nil])
-                              (reduce
-                                (fn [result data]
-                                  (let [relation-indexes (get-indexes data constraints)
-                                        rid (get-id result to-table relation-indexes)]
-                                    ;; For found rid that marks 
-                                    (transform-object
-                                      (->
-                                        result
-                                        (update-in
-                                          [:index to-table] merge
-                                          (zipmap relation-indexes (repeat rid)))
-                                        (update-in
-                                          [:relations/many relation] (fnil conj #{})
-                                          [id rid]))
-                                      to
-                                      (assoc data :tmp/id rid))))
-                                result
-                                data))
-                            ;; If there is nil input don't touch it
-                            ;; This will mark deletion
-                            :one
-                            (if (nil? data)
-                              (update-in result [:relations/one relation] (fnil conj #{}) [id nil])
-                              (let [relation-indexes (get-indexes data constraints)
-                                    rid (get-id result to-table relation-indexes)]
-                                (transform-object
-                                  (->
-                                    result
-                                    (update-in
-                                      [:index to-table] merge
-                                      (zipmap relation-indexes (repeat rid)))
-                                    (update-in
-                                      [:relations/one relation] (fnil conj #{})
-                                      [id rid]))
-                                  to
-                                  (assoc data :tmp/id rid)))))))
-                      result
-                      relations-data)))))]
+                      ;;
+                      (if (empty? avatars) result
+                        (update-in result [:avatar table id] merge avatars))
+                      ;; Add recursions
+                      ;; For recursions only save constraint data
+                      ;; directly to entity and mark recursion link
+                      ;; under :recursion in form [table key parent] #{children}
+                      (reduce-kv
+                        (fn [result k data]
+                          (let [parent-indexes (get-indexes data constraints)
+                                pid (get-id result table parent-indexes)]
+                            (->
+                              result
+                              (update-in [:recursion table k pid] (fnil conj #{}) id)
+                              (update-in [:index table] merge (zipmap parent-indexes (repeat pid)))
+                              (update-in [:entity table pid] merge data))))
+                        result
+                        parents-mapping)
+                      ;; Add references
+                      (reduce-kv
+                        (fn [result attribute data]
+                          (let [reference-entity-euuid (get
+                                                         (reference-mapping entity-euuid)
+                                                         attribute)
+                                reference-entity (find-entity reference-entity-euuid)
+                                reference-data (some
+                                                 (fn [ks]
+                                                   (when (every? #(contains? data %) ks)
+                                                     (select-keys data ks)))
+                                                 (get-constraints reference-entity-euuid))]
+                            (update-in
+                              result
+                              [:reference
+                               (:table reference-entity)
+                               reference-data]
+                              (fnil conj [])
+                              [(:table entity) id attribute])))
+                        result
+                        references-data)
+                      ;; Add relations
+                      (reduce-kv
+                        (fn [result k data]
+                          (let [{{:keys [to]
+                                  to-table :to/table
+                                  rtype :type
+                                  :as relation} k} relations
+                                constraints (get-constraints to)]
+                            (case rtype
+                              :many
+                              (if (or (empty? data) (nil? data))
+                                (update-in result [:relations/many relation] (fnil conj #{}) [id nil])
+                                (reduce
+                                  (fn [result data]
+                                    (let [relation-indexes (get-indexes data constraints)
+                                          rid (get-id result to-table relation-indexes)]
+                                      ;; For found rid that marks 
+                                      (transform-object
+                                        (->
+                                          result
+                                          (update-in
+                                            [:index to-table] merge
+                                            (zipmap relation-indexes (repeat rid)))
+                                          (update-in
+                                            [:relations/many relation] (fnil conj #{})
+                                            [id rid]))
+                                        to
+                                        (assoc data :tmp/id rid))))
+                                  result
+                                  data))
+                              ;; If there is nil input don't touch it
+                              ;; This will mark deletion
+                              :one
+                              (if (nil? data)
+                                (update-in result [:relations/one relation] (fnil conj #{}) [id nil])
+                                (let [relation-indexes (get-indexes data constraints)
+                                      rid (get-id result to-table relation-indexes)]
+                                  (transform-object
+                                    (->
+                                      result
+                                      (update-in
+                                        [:index to-table] merge
+                                        (zipmap relation-indexes (repeat rid)))
+                                      (update-in
+                                        [:relations/one relation] (fnil conj #{})
+                                        [id rid]))
+                                    to
+                                    (assoc data :tmp/id rid)))))))
+                        result
+                        relations-data))))))]
        ;;
        (if (sequential? data)
          (let [data (map #(assoc % :tmp/id (tmp-key)) data)]
@@ -838,6 +853,30 @@
          ; (update-avatars tx result)
          (pull-roots result))))))
 
+
+(comment
+  (binding [*roles* #{
+                      ; (:euuid neyho.eywa.data/*ROOT*)
+                      #uuid "97b95ab8-4ca3-498d-b578-b12e6d1a2df8"
+                      #uuid "7fc035e2-812e-4861-a25c-eb172b39577f"
+                      }
+            neyho.eywa.dataset.core/*user* 100]
+    (analyze-data
+      neyho.eywa.iam.uuids/user
+      [{:euuid #uuid "2f1338c2-4659-4c96-8b80-15c01a5362f3"
+        :name "test 1"
+        :type :person}
+       {:euuid #uuid "83c1b3b6-e4e7-4c7c-8673-ef020e6355d5"
+        :name "test 2"
+        :type :person
+        :service_locations [{:euuid #uuid "61468ae5-7c30-41cd-9cfb-7d31eac02d4a"
+                             :name "Location1"}
+                            {:euuid #uuid "99fca851-69c5-4541-b7e1-3d59bb9e6b8a"
+                             :name "Location2"}]}
+       {:euuid #uuid "319b4ded-f8fc-4f1b-8718-128050e06912"
+        :name "test 3"
+        :roles [{:euuid #uuid "601ee98d-796b-43f3-ac1f-881851407f34"}]}])))
+
 ;;
 (defn- flatten-selection [s]
   (reduce
@@ -941,7 +980,7 @@
                                  (let [{:keys [relation to]} (get relations field)
                                        direction (if (= to entity-id) :from :to)]
                                    (if-not relation result
-                                     (let [allowed? (access/relation-allows? relation direction #{:read})]
+                                     (let [allowed? (access/relation-allows? relation direction *operation-rules*)]
                                        (if allowed? result
                                          (disj result field)))))))
                              valid-relations
@@ -1277,121 +1316,9 @@
      (if (empty? s) "" (clojure.string/join " " s)))))
 
 
-(comment
-  (def schema
-    {:args
-     {:_order_by {:modified_on :desc},
-      :_offset 0,
-      :_limit 10,
-      :_where {:_or {:id {:_ilike "test"}, :subject {:_ilike "test"}}}},
-     :encoders nil,
-     :decoders nil,
-     :relations
-     {:client
-      {:args
-       {:_maybe {:_or {:name {:_like "test"}}, :oib {:_like "test"}}},
-       :encoders nil,
-       :decoders nil,
-       :relations nil,
-       :entity/table "client",
-       :counted? false,
-       :fields {:euuid nil},
-       :type :one,
-       :recursions #{},
-       :to/field "client_id",
-       :entity/as "data_188636",
-       :to/table "client",
-       :relation/table "task_32w13z00wx0x021y_clie",
-       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
-       :relation/as "link_188634",
-       :aggregate nil,
-       :from/table "task",
-       :from/field "task_id",
-       :to #uuid "f7d826be-bb9f-4f8e-a5c5-3b3a57571a56"},
-      #_:assignee_group
-      #_{:args {:_maybe {:name {:_ilike "test"}}},
-       :encoders nil,
-       :decoders nil,
-       :relations nil,
-       :entity/table "user_group",
-       :counted? false,
-       :fields {:euuid nil},
-       :type :one,
-       :recursions #{},
-       :to/field "_eid",
-       :entity/as "data_188639",
-       :to/table "user_group",
-       :relation/table "task",
-       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
-       :relation/as "link_188637",
-       :aggregate nil,
-       :from/table "task",
-       :from/field "assignee_group",
-       :to #uuid "95afb558-3d28-45e5-9fbf-a2625afc5675"},
-      :assignee
-      {:args {:_maybe {:name {:_ilike "test"}}},
-       :encoders nil,
-       :decoders nil,
-       :relations nil,
-       :entity/table "user",
-       :counted? false,
-       :fields {:euuid nil},
-       :type :one,
-       :recursions #{},
-       :to/field "_eid",
-       :entity/as "data_188642",
-       :to/table "user",
-       :relation/table "task",
-       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
-       :relation/as "link_188640",
-       :aggregate nil,
-       :from/table "task",
-       :from/field "assignee",
-       :to #uuid "edcab1db-ee6f-4744-bfea-447828893223"},
-      :services
-      {:args {:_maybe {:name {:_ilike "test"}}},
-       :encoders nil,
-       :decoders nil,
-       :relations nil,
-       :entity/table "ict_service",
-       :counted? false,
-       :fields {:euuid nil},
-       :type :many,
-       :recursions #{},
-       :to/field "ict_service_id",
-       :entity/as "data_188645",
-       :to/table "ict_service",
-       :relation/table "ict_serv_310w3y22zwwx1zyx_task",
-       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
-       :relation/as "link_188643",
-       :aggregate nil,
-       :from/table "task",
-       :from/field "task_id",
-       :to #uuid "556303dc-b508-48a4-bf13-4557f47396b8"}},
-     :entity/table "task",
-     :counted? false,
-     :fields
-     {:euuid nil,
-      :description nil,
-      :id nil,
-      :time_remaining nil,
-      :ready_for_approval nil,
-      :subject nil,
-      :data nil},
-     :recursions #{:parent},
-     :entity/as "data_188646",
-     :aggregate nil})
-
-  (selection->schema schema)
-
-
-  (def schema {:args [:subject {:_ilike "test"}], :encoders nil, :decoders nil, :relations nil, :entity/table "task", :counted? false, :fields {:euuid nil, :id nil, :data nil, :subject nil, :description nil, :ready_for_approval nil, :time_remaining nil}, :recursions #{:parent}, :entity/as "data_92299", :aggregate nil})
-  (def data [])
-  (query-selection->sql schema))
-
-
 (def ^:dynamic *ignore-maybe* true)
 (def ^:dynamic *deep* true)
+
 
 ;; TODO - IMPORTANT check wyh query-selection->sql is not passing on data
 (defn query-selection->sql
@@ -1589,23 +1516,6 @@
                   (str (when-not (zero? idx) j) statement)))
               stack))
           data])))))
-
-
-(comment
-  (def selection
-    {:euuid nil
-     :name nil
-     :settings nil
-     ;;
-     :roles
-     [{:selections
-       {:euuid nil
-        :name nil
-        :permissions [{:selection {:euuid nil :name nil}
-                       :args {:_where {:name {:_eq "Add"}}}}]}
-       :args {:name {:_eq "SUPERUSER"}}}]})
-  (def schema (selection->schema neyho.eywa.iam.uuids/user selection))
-  (search-stack-from schema))
 
 
 (defn search-stack-from
@@ -2072,13 +1982,6 @@
        (shave schema)))))
 
 
-(comment
-  (def focused-schema (focus-order schema))
-  (search-stack-from schema)
-  (search-stack-args schema))
-
-
-
 (defn search-entity-roots
   ([schema]
    (with-open [connection (jdbc/get-connection (:datasource *db*))]
@@ -2137,186 +2040,6 @@
        (if (nil? ids) {} nil)))))
 
 
-(comment
-  (def args nil)
-  (def entity-id #uuid "d304e6d9-07dd-4bc8-9b7f-dc2b289d06a6")
-  (def selection
-    {:euuid nil
-     :url nil
-     :name nil
-     ;;
-     :service_locations
-     [{:selections
-       {:euuid nil
-        :name nil}}]
-     ;;
-     :robots
-     [{:selections
-       {:_eid nil
-        :euuid nil
-        :name nil
-        :settings nil
-        :active nil}
-       :args {:_where
-              {:_and
-               [{:euuid {:_neq nil}
-                 :active {:_eq true}}]}}}]})
-  (def schema (selection->schema #uuid "d304e6d9-07dd-4bc8-9b7f-dc2b289d06a6" selection))
-  (def schema
-    {:args
-     {:ready_for_approval {:_boolean :NOT_TRUE},
-      :_limit 30,
-      :_order_by {:modified_on :desc}},
-     :encoders nil,
-     :decoders nil,
-     :relations
-     {:assigned_by
-      {:args nil,
-       :encoders nil,
-       :decoders nil,
-       :relations nil,
-       :entity/table "user",
-       :counted? false,
-       :fields {:euuid nil, :avatar nil, :type nil, :name nil},
-       :type :one,
-       :recursions #{},
-       :to/field "_eid",
-       :entity/as "data_79289",
-       :to/table "user",
-       :relation/table "task",
-       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
-       :relation/as "link_79287",
-       :aggregate nil,
-       :from/table "task",
-       :from/field "assigned_by",
-       :to #uuid "edcab1db-ee6f-4744-bfea-447828893223"},
-      :resolved_by
-      {:args nil,
-       :encoders nil,
-       :decoders nil,
-       :relations nil,
-       :entity/table "user",
-       :counted? false,
-       :fields {:euuid nil, :avatar nil, :type nil, :name nil},
-       :type :one,
-       :recursions #{},
-       :to/field "_eid",
-       :entity/as "data_79292",
-       :to/table "user",
-       :relation/table "task",
-       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
-       :relation/as "link_79290",
-       :aggregate nil,
-       :from/table "task",
-       :from/field "resolved_by",
-       :to #uuid "edcab1db-ee6f-4744-bfea-447828893223"},
-      :assignee_group
-      {:args nil,
-       :encoders nil,
-       :decoders nil,
-       :relations nil,
-       :entity/table "user_group",
-       :counted? false,
-       :fields {:euuid nil, :name nil, :avatar nil},
-       :type :one,
-       :recursions #{},
-       :to/field "_eid",
-       :entity/as "data_79295",
-       :to/table "user_group",
-       :relation/table "task",
-       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
-       :relation/as "link_79293",
-       :aggregate nil,
-       :from/table "task",
-       :from/field "assignee_group",
-       :to #uuid "95afb558-3d28-45e5-9fbf-a2625afc5675"},
-      :modified_by
-      {:args nil,
-       :encoders nil,
-       :decoders nil,
-       :relations nil,
-       :entity/table "user",
-       :counted? false,
-       :fields {:euuid nil, :name nil, :type nil, :avatar nil},
-       :type :one,
-       :recursions #{},
-       :to/field "_eid",
-       :entity/as "data_79298",
-       :to/table "user",
-       :relation/table "task",
-       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
-       :relation/as "link_79296",
-       :aggregate nil,
-       :from/table "task",
-       :from/field "modified_by",
-       :to #uuid "edcab1db-ee6f-4744-bfea-447828893223"},
-      :created_by
-      {:args nil,
-       :encoders nil,
-       :decoders nil,
-       :relations nil,
-       :entity/table "user",
-       :counted? false,
-       :fields {:euuid nil, :avatar nil, :type nil, :name nil},
-       :type :one,
-       :recursions #{},
-       :to/field "_eid",
-       :entity/as "data_79301",
-       :to/table "user",
-       :relation/table "task",
-       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
-       :relation/as "link_79299",
-       :aggregate nil,
-       :from/table "task",
-       :from/field "created_by",
-       :to #uuid "edcab1db-ee6f-4744-bfea-447828893223"},
-      :assignee
-      {:args nil,
-       :encoders nil,
-       :decoders nil,
-       :relations nil,
-       :entity/table "user",
-       :counted? false,
-       :fields {:euuid nil, :avatar nil, :type nil, :name nil},
-       :type :one,
-       :recursions #{},
-       :to/field "_eid",
-       :entity/as "data_79304",
-       :to/table "user",
-       :relation/table "task",
-       :from #uuid "21e22051-702d-4da2-a58c-9faaf812470b",
-       :relation/as "link_79302",
-       :aggregate nil,
-       :from/table "task",
-       :from/field "assignee",
-       :to #uuid "edcab1db-ee6f-4744-bfea-447828893223"}},
-     :entity/table "task",
-     :counted? false,
-     :fields
-     {:description nil,
-      :started nil,
-      :modified_on nil,
-      :assigned_on nil,
-      :type nil,
-      :finished nil,
-      :created_on nil,
-      :priority nil,
-      :status nil,
-      :id nil,
-      :euuid nil,
-      :exception nil,
-      :time_remaining nil,
-      :resolved_on nil,
-      :bucket_name nil,
-      :ready_for_approval nil,
-      :subject nil,
-      :decision nil,
-      :message nil,
-      :data nil},
-     :recursions #{:parent},
-     :entity/as "data_79305",
-     :aggregate nil}))
-
 (defn search-entity
   ([entity-id args selection]
    (with-open [connection (jdbc/get-connection (:datasource *db*))]
@@ -2328,32 +2051,42 @@
          (log/tracef "[%s] Found roots: %s" entity-id (str/join ", " roots))
          (pull-roots connection schema roots))))))
 
+
 (defn purge-entity
   ([entity-id args selection]
    (with-open [connection (jdbc/get-connection (:datasource *db*))]
      (let [schema (selection->schema entity-id selection args)
-           ; _ (log/info
-           ;     :entity entity-id
-           ;     :args args
-           ;     :selection selection
-           ;     :schema schema)
-           roots (search-entity-roots connection schema)]
-       (if (some? roots)
-         (letfn [(construct-statement
-                   [table _eids]
-                   (log/debugf "[%s]Constructing purge for eids #%d: %s" table (count _eids) (str/join ", " _eids))
-                   [(str "delete from \"" table "\" where _eid=any(?)") (int-array _eids)])
-                 ; [(str "delete from \"" table "\" where _eid in (select _eid from \"" table "\" where _eid=any(?))") (int-array _eids)])
-                 (process-statement [r k v]
-                   (conj r (construct-statement k (keys v))))]
-           (let [db (pull-cursors connection schema roots)
-                 response (construct-response schema db roots)
-                 delete-statements (reduce-kv process-statement [] db)]
-             (doseq [query delete-statements]
-               (log/debugf "[%s]Purgin entity rows with %s" entity-id query)
-               (postgres/execute! connection query *return-type*))
-             response))
-         [])))))
+           enforced-schema (binding [*operation-rules* #{:owns}]
+                             (selection->schema entity-id selection args))]
+       ; (log/info
+       ;   :entity entity-id
+       ;   :args args
+       ;   :selection selection
+       ;   :schema schema)
+       (if (not= enforced-schema schema)
+         (throw
+           (ex-info
+             "Purge not allowed. User doesn't own all entites included in purge"
+             {:type ::enforce-purge
+              :roles *roles*}))
+         (let [roots (search-entity-roots connection schema)]
+           (if (some? roots)
+             (letfn [(construct-statement
+                       [table _eids]
+                       (log/debugf "[%s]Constructing purge for eids #%d: %s" table (count _eids) (str/join ", " _eids))
+                       [(str "delete from \"" table "\" where _eid=any(?)") (int-array _eids)])
+                     ; [(str "delete from \"" table "\" where _eid in (select _eid from \"" table "\" where _eid=any(?))") (int-array _eids)])
+                     (process-statement [r k v]
+                       (conj r (construct-statement k (keys v))))]
+               (let [db (pull-cursors connection schema roots)
+                     response (construct-response schema db roots)
+                     delete-statements (reduce-kv process-statement [] db)]
+                 (doseq [query delete-statements]
+                   (log/debugf "[%s]Purgin entity rows with %s" entity-id query)
+                   (postgres/execute! connection query *return-type*))
+                 response))
+             [])))))))
+
 
 (comment
   (def selection
@@ -2398,11 +2131,12 @@
                                                     ; #uuid "7fc035e2-812e-4861-a25c-eb172b39577f"
                                                     }
             neyho.eywa.dataset.core/*user* 100]
-    (selection->schema neyho.eywa.iam.uuids/user selection args))
+    (time (selection->schema neyho.eywa.iam.uuids/user selection args)))
   (search-stack-from schema)
   (def connection (jdbc/get-connection (:datasource *db*)))
   (search-entity-roots connection schema)
   (.close connection))
+
 
 (defn get-entity
   ([entity-id args selection]
@@ -2416,7 +2150,8 @@
                nil
                args)]
      (with-open [connection (jdbc/get-connection (:datasource *db*))]
-       (let [schema (selection->schema entity-id selection args)
+       (let [schema (binding [*operation-rules* #{:read}]
+                      (selection->schema entity-id selection args))
              roots (search-entity-roots connection schema)]
          (when (not-empty roots)
            (let [roots' (pull-roots connection schema roots)
@@ -2430,7 +2165,8 @@
 (defn get-entity-tree
   [entity-id root on selection]
   (let [{:keys [entity/table entity/as]
-         :as schema} (selection->schema entity-id selection)
+         :as schema} (binding [*operation-rules* #{:read}]
+                       (selection->schema entity-id selection))
         on' (name on)
         sql (if (some? root)
               (format
@@ -2465,10 +2201,11 @@
   [entity-id on {order-by :_order_by :as args} selection]
   (let [{:keys [entity/table entity/as]
          :as schema}
-        (selection->schema
-         entity-id
-         selection
-         args)
+        (binding [*operation-rules* #{:read}]
+          (selection->schema
+            entity-id
+            selection
+            args))
         ;;
         on' (name on)]
     (with-open [connection (jdbc/get-connection (:datasource *db*))]
@@ -2592,7 +2329,8 @@
 (defn aggregate-entity
   ([entity-id args selection]
    (let [{:keys [fields]
-          :as schema} (selection->schema entity-id selection args)
+          :as schema} (binding [*operation-rules* #{:read}]
+                        (selection->schema entity-id selection args))
          cursors (schema->aggregate-cursors schema)
          args (reduce-kv
                (fn [args k v]
@@ -2603,9 +2341,6 @@
                fields)
          schema (assoc schema :args args)]
      (log/tracef  "[%s] Aggregate cursors:\n%s" entity-id (pprint cursors))
-     ; (def entity-id entity-id)
-     ; (def selection selection)
-     ; (def args args)
      (letfn [(cursor-field [cursor & fields]
                (clojure.string/join "$$" (map name (concat cursor fields))))]
        (with-open [connection (jdbc/get-connection (:datasource *db*))]
@@ -2668,10 +2403,11 @@
 (defn aggregate-entity-tree
   [entity-id on args selection]
   (let [{:keys [entity/table entity/as]
-         :as schema} (selection->schema
-                      entity-id
-                      selection
-                      args)
+         :as schema} (binding [*operation-rules* #{:read}]
+                       (selection->schema
+                         entity-id
+                         selection
+                         args))
         on' (name on)]
     (with-open [connection (jdbc/get-connection (:datasource *db*))]
       (when-let [found-roots (search-entity-roots
@@ -2705,31 +2441,32 @@
 
 (defn delete-entity
   [entity-id args]
-  (let [{:keys [entity/table]} (selection->schema entity-id nil nil)]
+  (let [{:keys [entity/table]} (binding [*operation-rules* #{:delete}]
+                                 (selection->schema entity-id nil nil))]
     (boolean
-     (when (some? args)
+     (when (and (some? args) table)
        (with-open [connection (jdbc/get-connection (:datasource *db*))]
          (let [[statements data] (reduce-kv
-                                  (fn [[statements data] k v]
-                                    [(conj statements (str (name k) "=?"))
-                                     (conj data v)])
-                                  [[] []]
-                                  args)
+                                   (fn [[statements data] k v]
+                                     [(conj statements (str (name k) "=?"))
+                                      (conj data v)])
+                                   [[] []]
+                                   args)
                sql (cond->
-                    [(format
-                      "delete from \"%s\" where %s"
-                      table
-                      (j-and statements))]
+                     [(format
+                        "delete from \"%s\" where %s"
+                        table
+                        (j-and statements))]
                      (not-empty data) (into data))
                _ (log/tracef
-                  "[%s] Deleting entity\n%s"
-                  entity-id sql)]
+                   "[%s] Deleting entity\n%s"
+                   entity-id sql)]
            (postgres/execute! connection sql *return-type*)
-            ; (async/put!
-            ;   core/client
-            ;   {:type :entity/delete
-            ;    :entity entity-id
-            ;    :args args})
+           ; (async/put!
+           ;   core/client
+           ;   {:type :entity/delete
+           ;    :entity entity-id
+           ;    :args args})
            true))))))
 
 ;; FIXME
@@ -2747,65 +2484,73 @@
                    (if some-constraint?
                      true
                      (some
-                      targeting-args?
-                      ((juxt :_and :_or :_where :_maybe) args')))))))]
+                       targeting-args?
+                       ((juxt :_and :_or :_where :_maybe) args')))))))]
      (let [{:keys [relations entity/table entity/as] :as schema}
            (selection->schema entity-id selection args)
-           queries (reduce-kv
-                    (fn [r k {tt :to/table tf :to/field
-                              ff :from/field
-                              rt :relation/table
-                              tas :entity/as
-                              args' :args :as schema'}]
-                      (let [query  (str "delete from " \" rt \")
-                            ;;
-                            [where-from from-data] (search-stack-args (dissoc schema :relations))
-                            ;;
-                            select-from
-                            (when (targeting-args? args)
-                              (format
-                                "(select _eid from \"%s\" as %s where %s)"
-                                table as where-from))
-                            ;;
-                            [where-to to-data] (search-stack-args schema')
-                            ;;
-                            select-to
-                            (when (targeting-args? args')
-                              (format
-                                "(select _eid from \"%s\" as %s where %s)"
-                                tt tas where-to))
-                            ;;
-                            where (when (or select-to select-from)
-                                    (j-and
-                                      (cond-> []
-                                        select-from (conj (str ff " in " select-from))
-                                        select-to (conj (str tf " in " select-to)))))]
-                        (assoc r k (into
-                                     [(str query (when (not-empty where) "\nwhere ") where)]
-                                     (into from-data to-data)))))
-                    nil
-                    relations)]
-       (reduce-kv
-        (fn [r k query]
-          (assoc r k
-                 (try
-                   (log/debugf
-                    "[%s] slicing query:\n%s"
-                    entity-id query)
-                   (postgres/execute! tx query core/*return-type*)
-               ;; TODO - Enable this
-               ; (async/put!
-               ;   core/client
-               ;   {:type :entity/slice
-               ;    :entity entity-id
-               ;    :args args
-               ;    :selection selection})
-                   true
-                   (catch Throwable e
-                     (log/errorf e "Couldn't slice entity")
-                     false))))
-        nil
-        queries)))))
+           enforced-schema (binding [*operation-rules* #{:delete}]
+                             (selection->schema entity-id selection args))]
+       (if (not= enforced-schema schema)
+         (throw
+           (ex-info
+             "User doesn't have :delete rule for some of sliced relations or entities"
+             {:type ::enforce-slice
+              :roles *roles*}))
+         (let [queries (reduce-kv
+                         (fn [r k {tt :to/table tf :to/field
+                                   ff :from/field
+                                   rt :relation/table
+                                   tas :entity/as
+                                   args' :args :as schema'}]
+                           (let [query  (str "delete from " \" rt \")
+                                 ;;
+                                 [where-from from-data] (search-stack-args (dissoc schema :relations))
+                                 ;;
+                                 select-from
+                                 (when (targeting-args? args)
+                                   (format
+                                     "(select _eid from \"%s\" as %s where %s)"
+                                     table as where-from))
+                                 ;;
+                                 [where-to to-data] (search-stack-args schema')
+                                 ;;
+                                 select-to
+                                 (when (targeting-args? args')
+                                   (format
+                                     "(select _eid from \"%s\" as %s where %s)"
+                                     tt tas where-to))
+                                 ;;
+                                 where (when (or select-to select-from)
+                                         (j-and
+                                           (cond-> []
+                                             select-from (conj (str ff " in " select-from))
+                                             select-to (conj (str tf " in " select-to)))))]
+                             (assoc r k (into
+                                          [(str query (when (not-empty where) "\nwhere ") where)]
+                                          (into from-data to-data)))))
+                         nil
+                         relations)]
+           (reduce-kv
+             (fn [r k query]
+               (assoc r k
+                      (try
+                        (log/debugf
+                          "[%s] slicing query:\n%s"
+                          entity-id query)
+                        (postgres/execute! tx query core/*return-type*)
+                        ;; TODO - Enable this
+                        ; (async/put!
+                        ;   core/client
+                        ;   {:type :entity/slice
+                        ;    :entity entity-id
+                        ;    :args args
+                        ;    :selection selection})
+                        true
+                        (catch Throwable e
+                          (log/errorf e "Couldn't slice entity")
+                          false))))
+             nil
+             queries)))))))
 
 (extend-type neyho.eywa.Postgres
   db/ModelQueryProtocol

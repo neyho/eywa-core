@@ -16,7 +16,7 @@
     {:euuid nil
      :name nil
      ;; Entities
-     :write_entites [{:selections {:euuid nil}}]
+     :write_entities [{:selections {:euuid nil}}]
      :read_entities [{:selections {:euuid nil}}]
      :delete_entities [{:selections {:euuid nil}}]
      :owned_entities [{:selections {:euuid nil}}]
@@ -45,14 +45,14 @@
               relations))]
     (reduce
       (fn [r {:keys [euuid
-                     write_entites read_entities delete_entities owned_entites
+                     write_entities read_entities delete_entities owned_entities
                      to_read_relations to_write_relations to_delete_relations
                      from_read_relations from_write_relations from_delete_relations]}]
         (-> r
             (x-entity euuid :read (map :euuid read_entities))
-            (x-entity euuid :write (map :euuid write_entites))
+            (x-entity euuid :write (map :euuid write_entities))
             (x-entity euuid :delete (map :euuid delete_entities))
-            (x-entity euuid :owners (map :euuid owned_entites))
+            (x-entity euuid :owners (map :euuid owned_entities))
             (x-relation euuid :from :read (map :euuid from_read_relations))
             (x-relation euuid :from :write (map :euuid from_write_relations))
             (x-relation euuid :from :delete (map :euuid from_delete_relations))
@@ -80,6 +80,8 @@
   ([entity rules roles]
    (if (or (nil? *rules*) (superuser? roles)) true
      (letfn [(ok? [rule]
+               ; (println "Checking roles: " rule entity roles (get-in *rules* [:entity entity rule]))
+               ; (println "Result: " (set/intersection roles (get-in *rules* [:entity entity rule])))
                (boolean (not-empty (set/intersection roles (get-in *rules* [:entity entity rule])))))]
        (some ok? rules)))))
 
