@@ -90,10 +90,22 @@
          (type->ddl t)]))))
 
 
+; (defn generate-enum-type-ddl [enum-name values]
+;   (format
+;     "do $$\nbegin\nif not exists ( select 1 from pg_type where typname='%s') then create type \"%s\" as enum%s;\nend if;\nend\n$$;"
+;     enum-name
+;     enum-name 
+;     (when (not-empty values)
+;       (str " (" 
+;            (clojure.string/join 
+;              ", "
+;              (map (comp #(str \' % \') normalized-enum-value :name) values))
+;            \)))))
+
+
 (defn generate-enum-type-ddl [enum-name values]
   (format
-    "do $$\nbegin\nif not exists ( select 1 from pg_type where typname='%s') then create type \"%s\" as enum%s;\nend if;\nend\n$$;"
-    enum-name
+    "create type \"%s\" as enum%s;"
     enum-name 
     (when (not-empty values)
       (str " (" 
@@ -617,15 +629,12 @@
         (execute-one! tx [table-sql])
         (let [sql (format 
                     "alter table \"%s\" add column \"%s\" int references \"%s\"(_eid) on delete set null"
-                    table
-                    "modified_by"
-                    amt)]
+                    table "modified_by" amt)]
           (log/tracef "Adding table audit reference[who] column\n%s" sql)
           (execute-one! tx [sql]))
         (let [sql (format 
                     "alter table \"%s\" add column \"%s\" timestamp not null default localtimestamp"
-                    table
-                    "modified_on")] 
+                    table "modified_on")] 
           (log/tracef "Adding table audit reference[when] column\n%s" sql)
           (execute-one! tx [sql])))
       ;; Change entities
