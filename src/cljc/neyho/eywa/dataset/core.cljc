@@ -22,13 +22,12 @@
     (reduce m maps)))
 
 (defonce ^:dynamic *return-type* :graphql)
-(defonce ^:dynamic *user* nil)
-(def client (async/chan 1000))
-(def publisher
+(def delta-client (async/chan 1000))
+(def delta-publisher
   (async/pub
-    client
-    (fn [{:keys [type entity]}]
-      [entity type])))
+    delta-client
+    (fn [{:keys [element]}]
+      element)))
 
 
 (defn generate-uuid []

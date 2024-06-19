@@ -8,16 +8,12 @@
     [nano-id.core :refer [nano-id] :as nano]
     [buddy.hashers :as hashers]
     [clojure.tools.logging :as log]
-    [taoensso.nippy :as nippy]
     [camel-snake-kebab.core :as csk]
     [next.jdbc :as jdbc]
     [next.jdbc.prepare :as p]
-    [neyho.eywa.storage :as storage :refer [*storage*]]
     [neyho.eywa.transit :refer [<-transit ->transit]]
-    [clojure.data.codec.base64 :as b64]
     [neyho.eywa.iam.access :as access]
-    [neyho.eywa.iam.access.context :refer [*roles*]]
-    [neyho.eywa.avatars :as avatars]
+    [neyho.eywa.iam.access.context :refer [*roles* *user*]]
     [neyho.eywa.db :refer [*db*] :as db]
     [neyho.eywa.db.postgres.next :as postgres]
     [neyho.eywa.dataset.core
@@ -25,7 +21,6 @@
      :as core])
   (:import
     [org.postgresql.util PGobject]
-    java.nio.charset.StandardCharsets
     [java.sql PreparedStatement]))
 
 
@@ -302,14 +297,14 @@
                                           (not-empty references-data)
                                           (not-empty (apply dissoc fields-data constraint-keys)))
                                       (assoc fields-data
-                                             modifier (if (map? core/*user*)
-                                                        (:_eid core/*user*)
-                                                        core/*user*)
+                                             modifier (if (map? *user*)
+                                                        (:_eid *user*)
+                                                        *user*)
                                              modified-on now)
                                       fields-data)
                         ; fields-data (assoc fields-data
-                        ;                    modifier (if (map? core/*user*)
-                        ;                               (:_eid core/*user*)
+                        ;                    modifier (if (map? *user*)
+                        ;                               (:_eid *user*)
                         ;                               core/*user*)
                         ;                    modified-on now)
                         ]
@@ -318,6 +313,7 @@
                       (->
                         result
                         (update-in [:entity table id] (if stack? merge (fn [_ v] v)) fields-data)
+                        (assoc-in [:entity/mapping table] entity-euuid)
                         (update-in [:index table] merge (zipmap indexes (repeat id)))
                         (assoc-in [:constraint table] constraints))
                       result
@@ -580,21 +576,21 @@
   (as-> analysis analysis
     ;; Project to one relations
     (reduce-kv
-     (fn [analysis
-          {from-table :from/table
-           to-table :to/table
-           :as table}
-          ks]
-       (assoc-in analysis [:relations/one table]
-                 (reduce
-                  (fn [result [from to]]
-                    (conj result
-                          [(get-in entity [from-table from :_eid])
-                           (get-in entity [to-table to :_eid])]))
-                  []
-                  ks)))
-     analysis
-     one)
+      (fn [analysis
+           {from-table :from/table
+            to-table :to/table
+            :as table}
+           ks]
+        (assoc-in analysis [:relations/one table]
+                  (reduce
+                    (fn [result [from to]]
+                      (conj result
+                            [(get-in entity [from-table from :_eid])
+                             (get-in entity [to-table to :_eid])]))
+                    []
+                    ks)))
+      analysis
+      one)
     ;; Project to many relations
     (reduce-kv
      (fn [analysis
@@ -722,109 +718,37 @@
    analysis))
 
 
-(defn update-avatars
-  ([tx analysis]
-   (let [{avatars :avatar
-          entity-euuid :entity/euuid
-          :keys [entity]} analysis
-         {:keys [field->attribute]} (deployed-schema-entity entity-euuid)]
-     (cond
-       (empty? avatars) analysis
-       ;;
-       :else
-       (do
-         (log/tracef
-          "[%s]Updating avatars %s"
-          entity avatars)
-         (reduce-kv
-          (fn [result table mapping]
-             ;; Gather all table avatars
-            (let [table-avatars
-                  (reduce-kv
-                   (fn [result temp-id bindings]
-                       ;; Gather all avatars per entity
-                     (let [{:keys [euuid]} (get-in entity [table temp-id])
+(comment
+  (publish-delta analysis))
 
-                             ;;
-                           records
-                           (reduce-kv
-                            (fn [result field avatar]
-                              (let [;short-id (str euuid \: (name field))
-                                       ;; nano id is just salt
-                                    record {:entity entity-euuid
-                                            :attribute (field->attribute field)
-                                            :record euuid}
-                                       ; link (avatars/encrypt (str short-id \: (nano-id 4)))
-                                    link (String.
-                                          (b64/encode
-                                           (nippy/freeze
-                                            (assoc record :salt (nano-id 4))))
-                                          StandardCharsets/UTF_8)
-                                    data {:key record
-                                          :euuid euuid
-                                          :field field
-                                          :upload-location (str "uploads/avatars/" (:entity record) \/ (:attribute record) \/ (:record record))
-                                          :link link
-                                          :avatar avatar}]
-                                (conj result data)))
-                            []
-                            bindings)]
-                         ;; Upload avatars that are available
-                       (doseq [{:keys [avatar upload-location] k :key} records]
-                         (when (some? avatar)
-                           (let [payload (re-find #"(?<=data:image/.{2,4};base64,).*" avatar)]
-                               ;; If there is payload than upload image
-                             (if (not-empty payload)
-                               (do
-                                   ;; TODO - this should be avoided
-                                   ;; avatars can go to database, rocksdb, fs, s3 or other
-                                   ;; implementations. Don't use storage as well...
-                                 (when (and *storage* upload-location)
-                                   (async/go
-                                     (log/infof "[%s]Uploading avatar to storage %s" entity upload-location)
-                                     (try
-                                       (storage/upload
-                                        (b64/decode (.getBytes payload))
-                                        upload-location)
-                                       (catch Throwable e
-                                         (log/errorf e "Couldn't upload avatar to storage")))))
-                                 (avatars/set k (b64/decode (.getBytes payload))))
-                               (log/errorf
-                                "[%s]Couldn't read payload. Make sure to encode to base64 image:\n%s"
-                                entity (str (take 100 payload) "..."))))))
-                         ;;
-                       (into result records)))
-                   []
-                   mapping)
-                  table-avatars-per-field (group-by :field table-avatars)]
-               ; (when (not-empty table-avatars)
-               ;   (log/trace
-               ;     :message "Preparing update of avatars in DB"
-               ;     :avatars table-avatars
-               ;     :table table
-               ;     :entities entity))
-              (reduce-kv
-               (fn [_ field records]
-                   ;; Maybe use update instead of upsert
-                 (let [sql (str
-                            "insert into \"" table "\" (\"euuid\", \"" (name field)
-                            "\") values (?,?) on conflict (euuid) do update set \""
-                            (name field) "\"=excluded." (name field))
-                       args (map
-                             (fn [{:keys [euuid link]}]
-                               [euuid link])
-                             records)
-                       statement (jdbc/prepare tx [sql])]
-                   (log/tracef
-                    "[%s]Updating avatars in DB\n%s"
-                    entity sql)
-                   (jdbc/execute-batch! statement args (get postgres/defaults *return-type*))))
-               nil
-               table-avatars-per-field)
-              result)
-            result)
-          analysis
-          avatars))))))
+
+(defn publish-delta
+  [{many-relations :relations/many
+    one-relations :relations/one
+    entities :entity
+    entity-mapping :entity/mapping
+    :as analysis}]
+  ;; (def analysis analysis)
+  (doseq [[{:keys [relation]} delta] many-relations]
+    (log/debugf "[Datasets] Publishing relation delta: %s" relation)
+    (async/put!
+      core/delta-client
+      {:element relation
+       :delta delta}))
+  (doseq [[{:keys [relation]} delta] one-relations]
+    (log/debugf "[Datasets] Publishing relation delta: %s" relation)
+    (async/put!
+      core/delta-client
+      {:element relation
+       :delta delta}))
+  (doseq [[table delta] entities]
+    (log/debugf "[Datasets] Publishing entity delta: %s" (get entity-mapping table))
+    (async/put!
+      core/delta-client
+      {:element (get entity-mapping table)
+       :delta delta}))
+  analysis)
+
 
 (defn set-entity
   ([entity-id data]
@@ -838,8 +762,8 @@
   ([tx entity-id data stack?]
    (letfn [(pull-roots [{:keys [root entity root/table]}]
              (log/tracef
-              "[%s]Pulling root(%s) entity after mutation"
-              entity-id root)
+               "[%s]Pulling root(%s) entity after mutation"
+               entity-id root)
              (if (sequential? root)
                (mapv #(get-in entity [table %]) root)
                (get-in entity [table root])))]
@@ -850,7 +774,7 @@
          (store-entity-records tx result)
          (project-saved-entities result)
          (link-relations tx result stack?)
-         ; (update-avatars tx result)
+         (publish-delta result)
          (pull-roots result))))))
 
 
@@ -860,11 +784,12 @@
                       #uuid "97b95ab8-4ca3-498d-b578-b12e6d1a2df8"
                       #uuid "7fc035e2-812e-4861-a25c-eb172b39577f"
                       }
-            neyho.eywa.dataset.core/*user* 100]
+            *user* 100]
     (analyze-data
       neyho.eywa.iam.uuids/user
       [{:euuid #uuid "2f1338c2-4659-4c96-8b80-15c01a5362f3"
         :name "test 1"
+        :modified_by {:euuid (:euuid neyho.eywa.data/*EYWA*)}
         :type :person}
        {:euuid #uuid "83c1b3b6-e4e7-4c7c-8673-ef020e6355d5"
         :name "test 2"
@@ -2462,6 +2387,7 @@
                    "[%s] Deleting entity\n%s"
                    entity-id sql)]
            (postgres/execute! connection sql *return-type*)
+           (async/put! core/delta-client {:element entity-id :delta {:delete args}})
            ; (async/put!
            ;   core/client
            ;   {:type :entity/delete
@@ -2490,7 +2416,9 @@
            (selection->schema entity-id selection args)
            enforced-schema (binding [*operation-rules* #{:delete}]
                              (selection->schema entity-id selection args))]
-       (if (not= enforced-schema schema)
+       (if (and
+             (not= enforced-schema schema)
+             (not (access/superuser?)))
          (throw
            (ex-info
              "User doesn't have :delete rule for some of sliced relations or entities"
@@ -2529,28 +2457,34 @@
                                           [(str query (when (not-empty where) "\nwhere ") where)]
                                           (into from-data to-data)))))
                          nil
-                         relations)]
-           (reduce-kv
-             (fn [r k query]
-               (assoc r k
-                      (try
-                        (log/debugf
-                          "[%s] slicing query:\n%s"
-                          entity-id query)
-                        (postgres/execute! tx query core/*return-type*)
-                        ;; TODO - Enable this
-                        ; (async/put!
-                        ;   core/client
-                        ;   {:type :entity/slice
-                        ;    :entity entity-id
-                        ;    :args args
-                        ;    :selection selection})
-                        true
-                        (catch Throwable e
-                          (log/errorf e "Couldn't slice entity")
-                          false))))
-             nil
-             queries)))))))
+                         relations)
+               result (reduce-kv
+                        (fn [r k query]
+                          (assoc r k
+                                 (try
+                                   (log/debugf
+                                     "[%s] slicing query:\n%s"
+                                     entity-id query)
+                                   (postgres/execute! tx query core/*return-type*)
+                                   ;; TODO - Enable this
+                                   ; (async/put!
+                                   ;   core/client
+                                   ;   {:type :entity/slice
+                                   ;    :entity entity-id
+                                   ;    :args args
+                                   ;    :selection selection})
+                                   true
+                                   (catch Throwable e
+                                     (log/errorf e "Couldn't slice entity")
+                                     false))))
+                        nil
+                        queries)]
+           ; (def relations relations)
+           (doseq [[label {:keys [relation] :as slice}] relations]
+             (async/put! core/delta-client
+                         {:element relation
+                          :delta {:slice {label slice}}}))
+           result))))))
 
 (extend-type neyho.eywa.Postgres
   db/ModelQueryProtocol

@@ -892,9 +892,9 @@
 
 (defn sync-mutation
   [{{euuid :euuid} :eywa/entity
-    :keys [user eywa/roles]
+    :keys [user roles]
     :as context} data _]
-  (binding [core/*user* user
+  (binding [access/*user* user
             access/*roles* roles]
     (log-query context)
     (let [{row :euuid} (sync-entity *db* euuid (val (first data)))
@@ -907,13 +907,13 @@
 
 
 (defn sync-list-mutation
-  [{:keys [user eywa/roles]
+  [{:keys [user roles]
     {euuid :euuid} :eywa/entity
     :as context}
    data
    _]
   (log-query context)
-  (binding [core/*user* user
+  (binding [access/*user* user
             access/*roles* roles] 
     (let [rows (sync-entity *db* euuid (val (first data)))
           rows' (mapv :euuid rows)
@@ -926,12 +926,12 @@
 
 
 (defn stack-mutation
-  [{:keys [user eywa/roles] :as context
+  [{:keys [user roles] :as context
     {euuid :euuid} :eywa/entity}
    data
    _]
   (log-query context)
-  (binding [core/*user* user
+  (binding [access/*user* user
             access/*roles* roles] 
     (let [{row :euuid} (stack-entity *db* euuid (val (first data)))
           selection (executor/selections-tree context)
@@ -939,13 +939,13 @@
       value)))
 
 (defn stack-list-mutation
-  [{:keys [user eywa/roles]
+  [{:keys [user roles]
     {euuid :euuid} :eywa/entity
     :as context}
    data
    _]
   (log-query context)
-  (binding [core/*user* user
+  (binding [access/*user* user
             access/*roles* roles]
     (let [rows (stack-entity *db* euuid (val (first data)))
           rows' (mapv :euuid rows)
@@ -958,7 +958,7 @@
 
 
 (defn slice-mutation
-  [{:keys [user eywa/roles]
+  [{:keys [user roles]
     :as context
     {euuid :euuid} :eywa/entity}
    data
@@ -970,7 +970,7 @@
     ;   :euuid euuid :args args :selection selection
     ;   (with-out-str (pprint args)) 
     ;   (with-out-str (pprint selection)))
-    (binding [core/*user* user
+    (binding [access/*user* user
               access/*roles* roles]
       (slice-entity *db* euuid args selection))))
 
@@ -992,14 +992,14 @@
 
 
 (defn purge-mutation
-  [{:keys [user eywa/roles] :as context
+  [{:keys [user roles] :as context
     {euuid :euuid} :eywa/entity}
    data
    _]
   (log-query context)
   (let [args data
         selection (executor/selections-tree context)] 
-    (binding [core/*user* user
+    (binding [access/*user* user
               access/*roles* roles]
       (purge-entity *db* euuid args selection))))
 

@@ -265,7 +265,7 @@
      :as context}
     {version :version}
     _]
-   (binding [dataset/*user* user
+   (binding [access/*user* user
              access/*roles* roles]
      (let [selection (executor/selections-tree context)] 
        (log/infof

@@ -28,6 +28,7 @@
              delete-entity]]
     [neyho.eywa.dataset.lacinia
      :refer [normalized-enum-value]]
+    [neyho.eywa.iam.access.context :refer [*user*]]
     [neyho.eywa.dataset.postgres.query :as query]
     [neyho.eywa.lacinia :as lacinia]
     [neyho.eywa.data :refer [*EYWA*]]
@@ -113,6 +114,7 @@
              ", "
              (map (comp #(str \' % \') normalized-enum-value :name) values))
            \)))))
+
 
 (defn generate-entity-attribute-enum-ddl
   [table {n :name t :type {values :values} :configuration}]
@@ -1059,7 +1061,7 @@
          (dataset/sync-entity au/user *EYWA*)
          (dataset/bind-service-user #'neyho.eywa.data/*EYWA*))
        (log/info "*EYWA* user created")
-       (binding [core/*user* (:_eid *EYWA*)]
+       (binding [*user* (:_eid *EYWA*)]
          (as-> (<-transit (slurp (io/resource "dataset/dataset.edm"))) model
            (core/mount db model)
            (core/reload db model))

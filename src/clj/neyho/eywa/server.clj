@@ -276,6 +276,51 @@
 (defonce _response (atom nil))
 
 
+;; { "site-name" "resource-directory" } e.g.
+;; { "ring" "tmp/ring}
+(def sites-map
+  {"s1" "service1"
+   "s2" "service2"
+   "ring" "ring"})
+
+
+;; redirect when missing trailing slash:
+;; * relative links don't work when slash is missing
+;; * assists with content-type determination - assumes text/html
+(def sites-redirect
+  (interceptor/interceptor
+    {:name :sites-redirect
+     :enter
+     (fn [{{:keys [uri]} :request :as context}]
+       (if ((into #{} (keys sites-map)) (subs uri 1))
+         (chain/terminate (assoc context :response (response/redirect (str uri "/"))))
+         context))}))
+
+
+(letfn [(get-first-uri [uri sites]
+          (some
+            (fn [[site dest]]
+              (when (clojure.string/starts-with? uri site)
+                (clojure.string/replace-first uri site dest)))
+            sites))
+        (add-content-type [uri resp]
+          (if (clojure.string/ends-with? uri "/")
+            (response/content-type resp "text/html")
+            resp))]
+  (def sites
+    (interceptor/interceptor
+      {:name :sites
+       :enter
+       (fn [{{:keys [uri]} :request :as context}]
+
+         (if-let [resource (io/resource (get-first-uri (subs uri 1) sites-map))]
+           (chain/terminate (assoc context :response
+                                   (add-content-type
+                                     uri
+                                     (response/file-response (.getPath resource)))))
+           context))})))
+
+
 (def eywa-web-interceptor
   (let [eywa-spa {:status 200
                   :headers {"Content-Type" "text/html"}
