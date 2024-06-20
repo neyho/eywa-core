@@ -1052,26 +1052,26 @@
        (log/infof "Initializing tables for host\n%s" (pr-str db))
        (core/create-deploy-history db)
        (log/info "Created __deploy_history")
-       (as-> (<-transit (slurp (io/resource "dataset/aaa.edm"))) model 
+       (as-> (<-transit (slurp (io/resource "dataset/aaa.json"))) model 
          (core/mount db model)
          (core/reload db model))
        (dataset/stack-entity au/permission administration/permissions)
-       (log/info "Mounted aaa.edm dataset")
+       (log/info "Mounted aaa.json dataset")
        (binding [core/*return-type* :edn] 
          (dataset/sync-entity au/user *EYWA*)
          (dataset/bind-service-user #'neyho.eywa.data/*EYWA*))
        (log/info "*EYWA* user created")
        (binding [*user* (:_eid *EYWA*)]
-         (as-> (<-transit (slurp (io/resource "dataset/dataset.edm"))) model
+         (as-> (<-transit (slurp (io/resource "dataset/dataset.json"))) model
            (core/mount db model)
            (core/reload db model))
-         (log/info "Mounted dataset.edm dataset")
+         (log/info "Mounted dataset.json dataset")
          (dataset/stack-entity au/permission dataset/permissions)
          (dataset/load-role-schema)
          (log/info "Deploying AAA dataset")
-         (core/deploy! db (<-transit (slurp (io/resource "dataset/aaa.edm"))))
+         (core/deploy! db (<-transit (slurp (io/resource "dataset/aaa.json"))))
          (log/info "Deploying Datasets dataset")
-         (core/deploy! db (<-transit (slurp (io/resource "dataset/dataset.edm"))))
+         (core/deploy! db (<-transit (slurp (io/resource "dataset/dataset.json"))))
          (log/info "Reloading")
          (core/reload db)
          (log/info "Adding deployed model to history")

@@ -378,11 +378,16 @@
 
 (comment
   (def db *db*)
-  (def model (dataset/get-last-deployed db))
+  (def global-model (dataset/get-last-deployed db))
   (do
     (def file "./first_ai_test.edm")
     (def model (neyho.eywa.transit/<-trasit (slurp file)))
-    (deploy-dataset nil model nil)))
+    (def model (:model (neyho.eywa.transit/<-transit (slurp "/Users/robi/Downloads/Authentication_Authorization_&_Access_0_75.edm"))))
+    (type global-model) (type model)
+    (def projection (dataset/project model global-model))
+    (filter
+      dataset/entity-changed?
+      (dataset/get-entities projection))))
 
 
 (defn init

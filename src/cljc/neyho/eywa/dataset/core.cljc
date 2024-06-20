@@ -443,16 +443,13 @@
   (boolean (#{"tree"} (:cardinality relation))))
 
 
-
-
 (extend-protocol ERDModelProjectionProtocol
   ;; ENTITY ATTRIBUTE
   #?(:clj neyho.eywa.dataset.core.ERDEntityAttribute
      :cljs neyho.eywa.dataset.core/ERDEntityAttribute)
   (mark-added [this] (vary-meta (assoc this :active true) assoc-in [:dataset/projection :added?] true))
   (mark-removed [this] (vary-meta (assoc this :active false) assoc-in [:dataset/projection :removed?] true))
-  (mark-diff [this diff] 
-    (vary-meta this assoc-in [:dataset/projection :diff] diff))
+  (mark-diff [this diff] (vary-meta this assoc-in [:dataset/projection :diff] diff))
   (added? [this] (boolean (:added? (projection-data this))))
   (removed? [this] (boolean (:removed? (projection-data this))))
   (diff? [this] (boolean (not-empty (:diff (projection-data this)))))

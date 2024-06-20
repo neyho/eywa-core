@@ -42,13 +42,6 @@
                     "~u9713b57c-6a6b-40a3-a8d1-637172561f07"
                   ]
                 ]
-              },
-              "~:graphql": {
-                "~:interceptors": {
-                  "~:delete": [
-                    "~$neyho.eywa.dataset/destroy-dataset"
-                  ]
-                }
               }
             }
           }
