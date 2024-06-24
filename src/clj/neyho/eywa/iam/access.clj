@@ -3,7 +3,7 @@
     [clojure.set :as set]
     [clojure.core.async :as async]
     [clojure.tools.logging :as log]
-    [neyho.eywa.data :refer [*ROOT*]]
+    [neyho.eywa.data :refer [*ROOT* *EYWA*]]
     [neyho.eywa.dataset :as dataset]
     [neyho.eywa.dataset.core :as core]
     [neyho.eywa.iam.uuids :as iu]
@@ -76,6 +76,7 @@
   ([roles]
    (or
      (nil? *user*)
+     (= *user* (:_eid *EYWA*))
      (contains? roles (:euuid *ROOT*)))))
 
 

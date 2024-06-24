@@ -546,19 +546,14 @@
                " RETURNING _eid, euuid")
               _ (log/tracef
                  "[%s]Storing entity group %s\nData:\n%s\nQuery:\n%s"
-                 entity-table constraint (pr-str row-data) query)
+                 entity-table constraint (pprint row-data) query)
               result (postgres/execute!
                       tx (into [query] (flatten row-data))
                       *return-type*)
+              _ (log/tracef
+                  "[%s]Stored entity group result:\n%s"
+                  entity-table (pprint result))
               mapping (zipmap tmp-ids result)]
-            ;; Think about this - as place to hook dataset
-            ;; entity change events
-            ; (async/put!
-            ;   core/client
-            ;   {:type :entity/change
-            ;    :entity entity-euuid
-            ;    :delta rows})
-            ;;
           (log/tracef "[%s]Stored entity group %s" entity-table result)
           (reduce-kv
            (fn [analysis tmp-id data]
@@ -647,7 +642,7 @@
                         statement (jdbc/prepare tx [sql])]
                     (log/tracef
                      "[%s]Adding new recursions %s\n%s"
-                     sql table bindings)
+                     table (apply str bindings) sql)
                     (jdbc/execute-batch! statement bindings (get postgres/defaults *return-type*))
                     result)
                   (catch Throwable e
@@ -1585,7 +1580,7 @@
     talias :to/field
     falias :from/field
     ras :relation/as
-    table :table
+    table :entity/table
     :as schema}
    found-records
    parents]
@@ -1597,17 +1592,20 @@
         [found fd] (when-some [found-records (not-empty (keep #(when (some? %) %) found-records))]
                      (search-stack-args
                       (assoc schema :args
-                             {:_eid {:_in (int-array found-records)}})))
+                             ; {:_eid {:_in found-records}})))
+                             {:_eid {:_in (long-array found-records)}})))
         [parented pd] (if (= talias "_eid")
                         ;; If direct binding (in entity table)
                         (search-stack-args
                          (assoc schema
-                           :args {:_eid {:_in (int-array parents)}}
+                           :args {:_eid {:_in (long-array parents)}}
+                           ; :args {:_eid {:_in parents}}
                            :entity/as ras))
                         ;; Otherwise
                         (search-stack-args
                          (assoc schema
-                           :args {(keyword falias) {:_in (int-array parents)}}
+                           :args {(keyword falias) {:_in (long-array parents)}}
+                           ; :args {(keyword falias) {:_in parents}}
                            :entity/as ras)))
         [where data] [(clojure.string/join " and " (remove nil? [where found parented]))
                       (reduce into [] (remove nil? [d fd pd]))]
@@ -1707,7 +1705,7 @@
               result'
               relations))
           (do
-            (log/trace
+            (log/tracef
               "[%s] Couldn't find parents for: %s"
               etable result)
             result))))
@@ -1965,13 +1963,38 @@
        (if (nil? ids) {} nil)))))
 
 
+(comment
+  (def selection
+    {:euuid nil
+     :name nil
+     :locators nil
+     :constraints nil
+     :height nil
+     :width nil
+     :configuration nil
+     :attributes [{:selections
+                   {:euuid nil
+                    :seq nil
+                    :name nil
+                    :type nil
+                    :constraint nil
+                    :configuration nil
+                    :active nil}}]})
+  (def args nil)
+  (def entity-id #uuid "a0d304a7-afe3-4d9f-a2e1-35e174bb5d5b")
+  (def schema (selection->schema entity-id selection args))
+  (def connection (jdbc/get-connection (:datasource *db*)))
+  (def con connection)
+  (def roots (search-entity-roots connection schema))
+  )
+
+
 (defn search-entity
   ([entity-id args selection]
    (with-open [connection (jdbc/get-connection (:datasource *db*))]
      (let [schema (selection->schema entity-id selection args)
            _ (log/tracef "Searching for entity\n%s" schema)
            roots (search-entity-roots connection schema)]
-       ; (def schema schema)
        (when (some? roots)
          (log/tracef "[%s] Found roots: %s" entity-id (str/join ", " roots))
          (pull-roots connection schema roots))))))
@@ -1999,8 +2022,8 @@
              (letfn [(construct-statement
                        [table _eids]
                        (log/debugf "[%s]Constructing purge for eids #%d: %s" table (count _eids) (str/join ", " _eids))
-                       [(str "delete from \"" table "\" where _eid=any(?)") (int-array _eids)])
-                     ; [(str "delete from \"" table "\" where _eid in (select _eid from \"" table "\" where _eid=any(?))") (int-array _eids)])
+                       [(str "delete from \"" table "\" where _eid=any(?)") (long-array _eids)])
+                     ; [(str "delete from \"" table "\" where _eid in (select _eid from \"" table "\" where _eid=any(?))") (long-array _eids)])
                      (process-statement [r k v]
                        (conj r (construct-statement k (keys v))))]
                (let [db (pull-cursors connection schema roots)
@@ -2359,7 +2382,7 @@
                               :_eid
                               (postgres/execute!
                                connection
-                               [sql (int-array roots)]
+                               [sql (long-array roots)]
                                *return-type*))))]
               (aggregate-entity entity-id {:_eid {:_in rows}} selection)
               (aggregate-entity entity-id nil selection))))))))

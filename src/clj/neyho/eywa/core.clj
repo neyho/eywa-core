@@ -57,6 +57,9 @@
   (let [user (env :eywa-user)
         password (env :eywa-password)]
     (try
+      (comment
+        (def user "admin")
+        (def password "password"))
       (when (and user password)
         (println "Initializing user: " user)
         (warmup)

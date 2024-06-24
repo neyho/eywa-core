@@ -1,4 +1,4 @@
-(ns neyho.eywa.dataset.postgres.naming
+(ns neyho.eywa.dataset.sql.naming
   (:require 
     [clojure.string :as str]
     [neyho.eywa.dataset.core :as core]

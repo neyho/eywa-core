@@ -42,6 +42,7 @@
 (comment
 
 
+  (def db (connect (from-env)))
   (def db
     (connect
       (neyho.eywa/map->Postgres
