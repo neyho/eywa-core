@@ -22,13 +22,12 @@
     (reduce m maps)))
 
 (defonce ^:dynamic *return-type* :graphql)
-(defonce ^:dynamic *user* nil)
-(def client (async/chan 1000))
-(def publisher
+(def delta-client (async/chan 1000))
+(def delta-publisher
   (async/pub
-    client
-    (fn [{:keys [type entity]}]
-      [entity type])))
+    delta-client
+    (fn [{:keys [element]}]
+      element)))
 
 
 (defn generate-uuid []
@@ -249,7 +248,7 @@
   (reload
     [this]
     [this module]
-    "Reloads module. If module is not specified, than whole tenant is reloaded")
+    "Reloads module. If module is not specified, than whole dataset is reloaded")
   (unmount
     [this module]
     "Removes module from EYWA by removing all data for that module")
@@ -444,16 +443,13 @@
   (boolean (#{"tree"} (:cardinality relation))))
 
 
-
-
 (extend-protocol ERDModelProjectionProtocol
   ;; ENTITY ATTRIBUTE
   #?(:clj neyho.eywa.dataset.core.ERDEntityAttribute
      :cljs neyho.eywa.dataset.core/ERDEntityAttribute)
   (mark-added [this] (vary-meta (assoc this :active true) assoc-in [:dataset/projection :added?] true))
   (mark-removed [this] (vary-meta (assoc this :active false) assoc-in [:dataset/projection :removed?] true))
-  (mark-diff [this diff] 
-    (vary-meta this assoc-in [:dataset/projection :diff] diff))
+  (mark-diff [this diff] (vary-meta this assoc-in [:dataset/projection :diff] diff))
   (added? [this] (boolean (:added? (projection-data this))))
   (removed? [this] (boolean (:removed? (projection-data this))))
   (diff? [this] (boolean (not-empty (:diff (projection-data this)))))

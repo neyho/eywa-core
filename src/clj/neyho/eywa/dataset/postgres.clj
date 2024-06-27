@@ -15,7 +15,7 @@
     [neyho.eywa.db.postgres.next  :as n
      :refer [execute! execute-one!]]
     [neyho.eywa.db.postgres :as postgres]
-    [neyho.eywa.dataset.postgres.naming
+    [neyho.eywa.dataset.sql.naming
      :refer [normalize-name 
              column-name
              relation->table-name
@@ -28,6 +28,9 @@
              delete-entity]]
     [neyho.eywa.dataset.lacinia
      :refer [normalized-enum-value]]
+    [neyho.eywa.iam.uuids :as iu]
+    [neyho.eywa.iam.access.context :refer [*user*]]
+    [neyho.eywa.dataset.postgres.query :as query]
     [neyho.eywa.lacinia :as lacinia]
     [neyho.eywa.data :refer [*EYWA*]]
     [neyho.eywa.administration :as administration]
@@ -35,6 +38,7 @@
     [neyho.eywa.dataset.uuids :as du]))
 
 
+;; TODO - remove this... probably not necessary
 (defonce ^:dynamic *model* nil)
 
 
@@ -88,10 +92,22 @@
          (type->ddl t)]))))
 
 
+; (defn generate-enum-type-ddl [enum-name values]
+;   (format
+;     "do $$\nbegin\nif not exists ( select 1 from pg_type where typname='%s') then create type \"%s\" as enum%s;\nend if;\nend\n$$;"
+;     enum-name
+;     enum-name 
+;     (when (not-empty values)
+;       (str " (" 
+;            (clojure.string/join 
+;              ", "
+;              (map (comp #(str \' % \') normalized-enum-value :name) values))
+;            \)))))
+
+
 (defn generate-enum-type-ddl [enum-name values]
   (format
-    "do $$\nbegin\nif not exists ( select 1 from pg_type where typname='%s') then create type \"%s\" as enum%s;\nend if;\nend\n$$;"
-    enum-name
+    "create type \"%s\" as enum%s;"
     enum-name 
     (when (not-empty values)
       (str " (" 
@@ -99,6 +115,7 @@
              ", "
              (map (comp #(str \' % \') normalized-enum-value :name) values))
            \)))))
+
 
 (defn generate-entity-attribute-enum-ddl
   [table {n :name t :type {values :values} :configuration}]
@@ -208,7 +225,7 @@
   (let [as (mapv :id (filter stale-attribute? attributes))]
     (jdbc/execute-one!
       con
-      ["update modeling_eywa_datasets_entities_attributes set active = false where entity=? and id=ANY(?)" id (int-array as)])
+      ["update modeling_eywa_datasets_entities_attributes set active = false where entity=? and id=ANY(?)" id (long-array as)])
     entity))
 
 
@@ -261,6 +278,7 @@
         old-table (entity->table-name oentity)
         diff (core/diff attribute)] 
     (if (core/new-attribute? attribute)
+      ;;
       (do
         (log/debugf "Adding attribute %s to table %s" name old-table)
         (case type
@@ -273,6 +291,7 @@
           ;; Add new scalar column to table
           [(cond-> (str "alter table \"" old-table "\" add column if not exists " (column-name name) " " (type->ddl type))
              (= "mandatory" constraint) (str " not null"))]))
+      ;;
       (when (or 
               (:name (core/diff entity)) ;; If entity name has changed check if there are some enums
               (not-empty (dissoc diff :pk))) ;; If any other change happend follow steps
@@ -422,7 +441,7 @@
                           (fn [r euuid old-name]
                             (if-let [new-name (get nv euuid)]
                               (conj r (str "     when '" old-name "' then '" new-name "'"))
-                              r))
+                              (conj r (str "     when '" old-name "' then '" old-name "'"))))
                           (list (str " else " column))
                           ov))
                       "\n   end;"))
@@ -601,29 +620,34 @@
        :changed/recursive (map (juxt :from-label :to-label) crr)})
     (jdbc/with-transaction [tx ds]
       ;; Generate new entities
-      (when (not-empty ne) (log/info "Generating new entities..."))
-      (doseq [{n :name :as entity} ne
-              :let [table-sql (generate-entity-ddl entity)
-                    enum-sql (generate-entity-enums-ddl entity)
-                    table (entity->table-name entity)]]
-        (when (not-empty enum-sql)
-          (log/debugf "Adding entity %s enums\n%s" n enum-sql)
-          (execute! tx [enum-sql]))
-        (log/debugf "Adding entity %s to DB\n%s" n table-sql)
-        (execute-one! tx [table-sql])
-        (let [sql (format 
-                    "alter table \"%s\" add column \"%s\" int references \"%s\"(_eid) on delete set null"
-                    table
-                    "modified_by"
-                    amt)]
-          (log/tracef "Adding table audit reference[who] column\n%s" sql)
-          (execute-one! tx [sql]))
-        (let [sql (format 
-                    "alter table \"%s\" add column \"%s\" timestamp not null default localtimestamp"
-                    table
-                    "modified_on")] 
-          (log/tracef "Adding table audit reference[when] column\n%s" sql)
-          (execute-one! tx [sql])))
+      (let [entity-priority {iu/user -100}
+            ne (sort-by
+                 (fn [{:keys [euuid]}]
+                   (get entity-priority euuid 0))
+                 ne)]
+        (when (not-empty ne)
+          (log/infof
+            "Generating new entities... %s"
+            (clojure.string/join ", " (map :name ne))))
+        (doseq [{n :name :as entity} ne
+                :let [table-sql (generate-entity-ddl entity)
+                      enum-sql (generate-entity-enums-ddl entity)
+                      table (entity->table-name entity)]]
+          (when (not-empty enum-sql)
+            (log/debugf "Adding entity %s enums\n%s" n enum-sql)
+            (execute! tx [enum-sql]))
+          (log/debugf "Adding entity %s to DB\n%s" n table-sql)
+          (execute-one! tx [table-sql])
+          (let [sql (format 
+                      "alter table \"%s\" add column \"%s\" int references \"%s\"(_eid) on delete set null"
+                      table "modified_by" amt)]
+            (log/tracef "Adding table audit reference[who] column\n%s" sql)
+            (execute-one! tx [sql]))
+          (let [sql (format 
+                      "alter table \"%s\" add column \"%s\" timestamp not null default localtimestamp"
+                      table "modified_on")] 
+            (log/tracef "Adding table audit reference[when] column\n%s" sql)
+            (execute-one! tx [sql]))))
       ;; Change entities
       (when (not-empty ce) (log/info "Checking changed entities..."))
       (doseq [{n :name :as entity} ce
@@ -760,7 +784,8 @@
                                    :to (:name to) 
                                    :cardinality cardinality})
                                 (assoc relations (keyword (normalize-name to-label))
-                                       {:from (:euuid from)
+                                       {:relation euuid
+                                        :from (:euuid from)
                                         :from/field (entity->relation-field from)
                                         :from/table (entity->table-name from)
                                         :to (:euuid to)
@@ -805,7 +830,8 @@
 (def dataset-versions #uuid "d922edda-f8de-486a-8407-e62ad67bf44c")
 
 
-(defn db->model [eywa]
+(defn db->model
+  [this]
   (let [entities (keep
                    (fn [{:keys [attributes] :as e}]
                      (when-let [attributes (not-empty
@@ -813,9 +839,10 @@
                                                #(core/map->ERDEntityAttribute %)
                                                attributes))]
                        (core/map->ERDEntity (assoc e :attributes attributes))))
-                   (search-entity  
-                     eywa du/dataset-entity  nil
-                     {:euuid nil
+                   (search-entity
+                     this du/dataset-entity  nil
+                     {:_eid nil
+                      :euuid nil
                       :name nil
                       :locators nil
                       :constraints nil
@@ -841,7 +868,7 @@
                             {:from_label :from-label
                              :to_label :to-label}))))
                     (search-entity
-                      eywa du/dataset-relation nil
+                      this du/dataset-relation nil
                       {:euuid nil
                        :from nil
                        :to nil
@@ -852,7 +879,7 @@
         versions (mapcat 
                    :versions
                    (search-entity 
-                     eywa du/dataset nil
+                     this du/dataset nil
                      {:name nil
                       :versions [{:args {:_order_by [{:modified_on :desc}]
                                          :_where {:deployed {:_eq true}}
@@ -905,12 +932,10 @@
   (core/recall! [this version]
     (core/unmount this version)
     (let [db-model (db->model this)
-          model (core/get-model this)
-          final-model (with-meta
-                        db-model
-                        (meta model))]
+          model (core/get-model this)]
       (delete-entity this du/dataset-version {:euuid (:euuid version)})
-      (dataset/save-model final-model) 
+      (dataset/save-model db-model) 
+      (query/deploy-schema (model->schema model))
       (core/reload this)))
   ;;
   (core/destroy! [this
@@ -927,9 +952,9 @@
           (log/infof "Destroying dataset version %s@%s" module-name version-name)
           (delete-entity this du/dataset-version {:euuid euuid}))
         (let [db-model (core/get-last-deployed this) 
-              model (core/get-model this)
-              final-model (with-meta db-model (meta model))]
-          (dataset/save-model final-model)
+              model (core/get-model this)]
+          (dataset/save-model db-model)
+          (query/deploy-schema (model->schema model))
           (let [global-model (core/reload this)]
             (core/add-to-deploy-history this global-model)
             ;; Restart core
@@ -939,34 +964,36 @@
     (dataset/deployed-model))
   (core/reload
     ([this]
+     (comment
+       (def this neyho.eywa.db/*db*))
      (let [model' (db->model this)
-           schema (model->schema model')
-           model'' (->
-                     model'
-                     (with-meta {:dataset/schema schema}))]
-       (dataset/save-model model'')
+           schema (model->schema model')]
+       (dataset/save-model model')
+       (query/deploy-schema schema)
        (try
-         (comment (def this neyho.eywa.db/*db*))
+         (comment
+           (def this neyho.eywa.db/*db*)
+           (def model' (db->model this))
+           (def model model')
+           (def schema (time (model->schema model'))))
          (lacinia/add-shard ::datasets (fn [] (lacinia/generate-lacinia-schema this)))
          (catch Throwable e
            (log/error e "Couldn't add lacinia schema shard")))
-       model''))
+       model'))
     ([this {:keys [model]}]
      (let [model' (core/join-models
                     (or
                       (core/get-model this)
                       (core/map->ERDModel nil))
                     model)
-           schema (model->schema model')
-           model'' (->
-                     model'
-                     (with-meta {:dataset/schema schema}))]
-       (dataset/save-model model'')
+           schema (model->schema model')]
+       (query/deploy-schema schema)
+       (dataset/save-model model')
        (try
          (lacinia/add-shard ::datasets (fn [] (lacinia/generate-lacinia-schema this)))
          (catch Throwable e
            (log/error e "Couldn't add lacinia schema shard")))
-       model'')))
+       model')))
   (core/mount
     [this {model :model :as version}]
     (log/debugf "Mounting dataset version %s@%s" (:name version) (get-in version [:dataset :name]))
@@ -1031,34 +1058,44 @@
     (core/reload this))
   (core/setup
     ([this]
+     (comment
+       (def this (postgres/from-env))
+       (def db neyho.eywa.db/*db*)
+       (def admin (postgres/admin-from-env))
+       (def db (postgres/create-db admin (:db this)))
+       )
      (let [admin (postgres/admin-from-env)
            db (postgres/create-db admin (:db this))]
+       ; (def admin (postgres/admin-from-env))
+       ; (def db (postgres/connect (postgres/admin-from-env)))
        ;; Set this new database as default db
        (alter-var-root #'neyho.eywa.db/*db* (constantly db))
        ;;
        (log/infof "Initializing tables for host\n%s" (pr-str db))
        (core/create-deploy-history db)
        (log/info "Created __deploy_history")
-       (as-> (<-transit (slurp (io/resource "dataset/aaa.edm"))) model 
+       (as-> (<-transit (slurp (io/resource "dataset/aaa.json"))) model 
          (core/mount db model)
          (core/reload db model))
        (dataset/stack-entity au/permission administration/permissions)
-       (log/info "Mounted aaa.edm dataset")
+       (log/info "Mounted aaa.json dataset")
        (binding [core/*return-type* :edn] 
          (dataset/sync-entity au/user *EYWA*)
          (dataset/bind-service-user #'neyho.eywa.data/*EYWA*))
        (log/info "*EYWA* user created")
-       (binding [core/*user* (:_eid *EYWA*)]
-         (as-> (<-transit (slurp (io/resource "dataset/dataset.edm"))) model
+       (binding [*user* (:_eid *EYWA*)]
+         (comment
+           (alter-var-root #'*user* (fn [_] (:_eid *EYWA*))))
+         (as-> (<-transit (slurp (io/resource "dataset/dataset.json"))) model
            (core/mount db model)
            (core/reload db model))
-         (log/info "Mounted dataset.edm dataset")
+         (log/info "Mounted dataset.json dataset")
          (dataset/stack-entity au/permission dataset/permissions)
          (dataset/load-role-schema)
          (log/info "Deploying AAA dataset")
-         (core/deploy! db (<-transit (slurp (io/resource "dataset/aaa.edm"))))
+         (core/deploy! db (<-transit (slurp (io/resource "dataset/aaa.json"))))
          (log/info "Deploying Datasets dataset")
-         (core/deploy! db (<-transit (slurp (io/resource "dataset/dataset.edm"))))
+         (core/deploy! db (<-transit (slurp (io/resource "dataset/dataset.json"))))
          (log/info "Reloading")
          (core/reload db)
          (log/info "Adding deployed model to history")

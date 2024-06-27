@@ -16,7 +16,9 @@
 
 (defn connect
   "Connects neyho.eywa.Postgres to server and returns HikariDataSource instance"
-  [^neyho.eywa.Postgres {:keys [host port user db password max-connections] :as data}]
+  [^neyho.eywa.Postgres {:keys [host port user db password max-connections]
+                         :or {max-connections 2}
+                         :as data}]
   (let [url (str "jdbc:postgresql://" host \: port \/ db)
         datasource (doto
                      (HikariDataSource.)
@@ -35,6 +37,37 @@
       (throw (ex-info "Couldn't connect to Postgres" data)))
     (log/infof "[%s]Connected to %s PostgresDB" user url)
     (assoc data :datasource datasource)))
+
+
+(comment
+
+
+  (def db (connect (from-env)))
+  (def db
+    (connect
+      (neyho.eywa/map->Postgres
+        {:host "eywa-development.caffmhmswqhy.eu-west-1.rds.amazonaws.com"
+         :port "5432" 
+         :user "eywa"
+         :password "wZV2F9LZ8jeMmq7v"
+         :max-connections 2
+         :db "kb_dev"})))
+
+
+  (.close (-> db :datasource))
+
+
+  (def db
+    (connect
+      (neyho.eywa/map->Postgres
+        {:host "drka-zbrka-10115.7tc.aws-eu-central-1.cockroachlabs.cloud"
+         :port "26257"
+         :user "robert"
+         :max-connections 2
+         :password "mNg5OTMVEakGL9hpXDFslA"
+         :db "defaultdb"})))
+  
+  )
 
 
 (defn check-connection-params
@@ -174,7 +207,8 @@
 (comment
   (.getActiveConnections (.getHikariPoolMXBean (:datasource neyho.eywa.db/*db*)))
   (.getIdleConnections (.getHikariPoolMXBean (:datasource neyho.eywa.db/*db*)))
-  (postgres-connected? (:datasource neyho.eywa.db/*db*)))
+  (postgres-connected? (:datasource neyho.eywa.db/*db*))
+  )
 
 
 (defn start-connection-monitor

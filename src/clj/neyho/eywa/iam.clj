@@ -6,7 +6,7 @@
     clojure.data.json
     [vura.core :as vura]
     [buddy.sign.jwt :as jwt]
-    [buddy.core.codecs.base64]
+    [buddy.core.codecs]
     [buddy.hashers :as hashers]
     [buddy.core.keys :as keys]
     [buddy.sign.util :refer [to-timestamp]]
@@ -16,6 +16,7 @@
     [neyho.eywa.dataset
      :as dataset
      :refer [get-entity
+             search-entity
              sync-entity
              delete-entity]])
   (:import
@@ -75,8 +76,8 @@
 (defn jwt-decode
   [token]
   (let [[header payload] (str/split token #"\.")]
-    {:header (clojure.data.json/read-str (String. (buddy.core.codecs.base64/decode header)))
-     :payload (clojure.data.json/read-str (String. (buddy.core.codecs.base64/decode payload)))}))
+    {:header (clojure.data.json/read-str (String. (buddy.core.codecs/b64->str header)))
+     :payload (clojure.data.json/read-str (String. (buddy.core.codecs/b64->str payload)))}))
 
 (comment
   
@@ -159,6 +160,18 @@
 (defn delete-user
   [user]
   (delete-entity iu/user (select-keys user [:euuid])))
+
+
+(defn list-clients
+  []
+  (search-entity
+    ou/client nil
+    {:euuid nil
+     :name nil
+     :id nil
+     :password nil
+     :type nil
+     :settings nil}))
 
 
 (comment

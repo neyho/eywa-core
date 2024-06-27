@@ -28,7 +28,7 @@
   (:gen-class :main true))
 
 
-(def version "0.1.6")
+(def version "0.1.7")
 
 
 (defn setup
@@ -57,6 +57,9 @@
   (let [user (env :eywa-user)
         password (env :eywa-password)]
     (try
+      (comment
+        (def user "admin")
+        (def password "password"))
       (when (and user password)
         (println "Initializing user: " user)
         (warmup)
@@ -266,7 +269,7 @@
                   (neyho.eywa.avatars.postgres/init)
                   (neyho.eywa.administration/init)
                   (neyho.eywa.server/start
-                    {:port (when-some [port (env :eywa-server-port "8080")] (Integer/parseInt port))
+                    {:port (when-some [port (env :eywa-server-port "8080")] (if (number? port) port (Integer/parseInt port)))
                      :host (env :eywa-server-host "0.0.0.0")
                      :context-configurator neyho.eywa.server.jetty/context-configuration}))
         (do

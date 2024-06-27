@@ -2,9 +2,9 @@ let viewbox_target = document.getElementById("background-viewbox")
 
 let image_target = document.getElementById("background-image")
 let images = [
-  "images/login_small.png",
-  "images/login_normal.png",
-  "images/login_large.png"
+  "https://docs.eywaonline.com/eywa/images/login_small.png",
+  "https://docs.eywaonline.com/eywa/images/login_normal.png",
+  "https://docs.eywaonline.com/eywa/images/login_large.png"
 ]
 
 let images_dimensions = [
@@ -44,7 +44,6 @@ function fitImage() {
   }
 
 }
-
 
 window.addEventListener("resize", fitImage)
 fitImage()

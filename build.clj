@@ -113,7 +113,7 @@
                 :src-dirs ["src/clj" "src/prod"]})
   (compile-backend)
   (copy-frontend)
-  (docs)
+  ; (docs)
   (uber))
 
 

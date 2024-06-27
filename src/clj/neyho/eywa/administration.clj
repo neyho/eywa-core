@@ -9,6 +9,7 @@
     [neyho.eywa.lacinia :as lacinia]
     [neyho.eywa.authorization.components :as c]
     [neyho.eywa.administration.uuids :as au]
+    [neyho.eywa.iam.access.context :refer [*user*]]
     [neyho.eywa.dataset :as dataset]
     [neyho.eywa.dataset.core :as core])
   (:import
@@ -155,7 +156,7 @@
 (defn setup
   [{:keys [users groups roles services]}] 
   (binding [core/*return-type* :edn
-            core/*user* (:_eid *EYWA*)]
+            *user* (:_eid *EYWA*)]
     (log/info  "Creating ROOT user role")
     (dataset/sync-entity au/user-role *ROOT*)
     (log/info "ROOT user role created")
