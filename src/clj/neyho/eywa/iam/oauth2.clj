@@ -24,6 +24,8 @@
     [java.util Base64]))
 
 
+(defn pprint [data] (with-out-str (clojure.pprint/pprint data)))
+
 (defonce subscription (async/chan (async/sliding-buffer 10000)))
 (defonce publisher
   (async/pub
@@ -135,6 +137,33 @@
          {type "type"
           redirections "redirections"} :settings
          :as client} (get-client client_id)]
+    (log/debugf "[%s] Validating client: %s" session (pprint client))
+    (comment
+      (def client
+        {:euuid #uuid "e21d99c0-e840-11ee-94ca-02a535895d2d",                                                                                  
+         :id "XFYWDCONOFSZMTVAEOQHTZFHSUCTXQ",                                                                                                                                                                                                                               
+         :name "oauth_test_confidential",                                                                                                                                                                                                                                    
+         :type nil,                                                                                                                                                                                                                                                          
+         :active true,                                                                                                                                                                                                                                                       
+         :secret                                                                                                                                                                                                                                                             
+         "bcrypt+sha512$46473996946371a0606f5b9fd00b189d$12$2f0f1e198f24cb17cde7f01cbef7f8fde0489b29b3a998d0",                                                                                                                                                               
+         :settings                                                                                                                                                                                                                                                           
+         {"version" 0,                                                                                                                                                                                                                                                       
+          "login-page" "http://localhost:8080/login/kbdev/",                                                                                                                                                                                                                 
+          "redirections"                                                                                                                                                                                                                                                     
+          ["http://localhost:8080/eywa/" "http://localhost:8080/app/kbdev"],                                                                                                                                                                                                 
+          "token-expiry" {"access" 300000, "refresh" 129600000},                                                                                                                                                                                                             
+          "allowed-grants"                                                                                                                                                                                                                                                   
+          ["refresh_token" "client_credentials" "password" "code"],                                                                                                                                                                                                          
+          "refresh-tokens" true}}))
+    ; (def request request)
+    ; (def euuid euuid)
+    ; (def redirections redirections)
+    ; (def redirect_uri redirect_uri)
+    ; (def base-redirect-uri base-redirect-uri)
+    ; (def redirections redirections)
+    ; (def request-secret request-secret)
+    ; (def secret secret)
     (cond
       (nil? euuid)
       (throw
@@ -178,10 +207,12 @@
       client
       ;;
       :else
-      (throw
-        (ex-info "Unknown client error"
-                 {:session session
-                  :type "server_error"})))))
+      (do
+        (log/errorf "[%s] Couldn't validate client" session)
+        (throw
+          (ex-info "Unknown client error"
+                   {:session session
+                    :type "server_error"}))))))
 
 
 (defn validate-resource-owner [username password]
@@ -338,7 +369,7 @@
 
 (defn bind-authorization-code
   [session]
-  (let [code (gen-session-id)]
+  (let [code (gen-code)]
     (swap! *authorization-codes* assoc code {:session session
                                              :at (System/currentTimeMillis)})
     (swap! *sessions* update session
@@ -381,7 +412,7 @@
    :enter
    (fn [{{params :params :as request} :request :as context}]
      (let [{:keys [form-params]} (bp/form-parser request)
-           data (assoc (merge params form-params))]
+           data (merge params form-params)]
        (chain/terminate
          (assoc context :response (login data)))))})
 
@@ -452,6 +483,7 @@
   [data]
   (let [{:keys [code redirect_uri client_id client_secret]} data
         {:keys [session]} (get *authorization-codes* code)]
+    (log/debugf "[%s] Processing token code grant for code: %s" session code)
     (if-not session
       ;; If session isn't available, that is if somebody
       ;; is trying to hack in
@@ -585,7 +617,7 @@
           ;; or what
           refresh?
           (let [now (System/currentTimeMillis)
-                session (gen-session-id) ]
+                session (gen-session-id)]
             (set-session session
                          {:request (dissoc data :password)
                           :at now})
@@ -723,9 +755,15 @@
         (handle-request-error (ex-data ex))))))
 
 
+(comment
+  (def request {:response_type "code", :client_id "XFYWDCONOFSZMTVAEOQHTZFHSUCTXQ", :redirect_uri "http://localhost:8080/eywa/", :scope nil})
+  (authorization-request request))
+
+
 (defn authorization-request
   [{:keys [response_type username password redirect_uri]
     :as request}]
+  (log/debugf "Authorizing request:\n%s" request)
   (case response_type
     ;;
     "code"
@@ -807,6 +845,7 @@
   {:name ::authentication-basic
    :enter
    (fn [{{{authorization "authorization"} :headers} :request :as context}]
+     ; (def context context)
      (if-not authorization context
        (let [[_ credentials] (re-find #"Basic\s+(.*)" authorization)
              [id secret] (decode-base64-credentials credentials)]
@@ -826,7 +865,16 @@
   {:name ::keywordize-params
    :enter
    (fn [ctx]
-     (update-in ctx [:request :params :scope] (fn [scope] (set (str/split scope #"\s+")))))})
+     (update-in ctx [:request :params :scope] (fn [scope] (when scope (set (str/split scope #"\s+"))))))})
+
+
+(def redirect-to-login
+  {:enter (fn [ctx]
+            (chain/terminate
+              (assoc ctx :response
+                     {:status 302
+                      :headers {"Location" (str "/login/index.html")
+                                "Cache-Control" "no-cache"}})))})
 
 
 (def routes
@@ -851,6 +899,8 @@
             scope->set
             token-interceptor]
      :route-name ::handle-token]
+    ["/login" :get [redirect-to-login] :route-name ::short-login]
+    ["/login/" :get [redirect-to-login] :route-name ::root-login]
     ["/login/*" :get [spa-interceptor] :route-name ::serve-login]
     ["/login/*" :post [login-interceptor] :route-name ::handle-login]})
 
@@ -915,6 +965,7 @@
     (log/debug "OAuth2 maintenance finish")
     (Thread/sleep period)
     data))
+
 
 
 (defn start-maintenance

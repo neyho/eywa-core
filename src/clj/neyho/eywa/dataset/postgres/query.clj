@@ -713,10 +713,6 @@
    analysis))
 
 
-(comment
-  (publish-delta analysis))
-
-
 (defn publish-delta
   [{many-relations :relations/many
     one-relations :relations/one

@@ -248,7 +248,7 @@
   (reload
     [this]
     [this module]
-    "Reloads module. If module is not specified, than whole tenant is reloaded")
+    "Reloads module. If module is not specified, than whole dataset is reloaded")
   (unmount
     [this module]
     "Removes module from EYWA by removing all data for that module")

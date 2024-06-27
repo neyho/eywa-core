@@ -1,4 +1,5 @@
 (ns neyho.eywa.iam.oauth2.client
+  "This namespace is used to integrate with other OIDC providers."
   (:require
     nano-id.core
     [clojure.string :as str]
@@ -158,7 +159,7 @@
         (request
           (cond->
             {:url url
-             :headers {"Content-Type" "application/x-www--form-urlencoded"
+             :headers {"Content-Type" "application/x-www-form-urlencoded"
                        "Authorization" (str "Basic " (encode-basic-authorization client-id client-password))}
              :method :get
              :form-params (cond->
