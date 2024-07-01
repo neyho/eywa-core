@@ -10,6 +10,7 @@
     [buddy.hashers :as hashers]
     [buddy.core.keys :as keys]
     [buddy.sign.util :refer [to-timestamp]]
+    [nano-id.core :refer [nano-id] :as nano-id]
     [buddy.sign.jwk :as jwk]
     [neyho.eywa.iam.oauth2.uuids :as ou]
     [neyho.eywa.iam.uuids :as iu]
@@ -138,15 +139,28 @@
      :settings nil}))
 
 
-(defn add-client [{:keys [id name password settings]}]
-  (sync-entity
-    ou/client
-    (cond->
+(let [alphabet "ACDEFGHIJKLMNOPQRSTUVWXYZ"]
+  (def gen-client-id (nano-id/custom alphabet 48)))
+
+
+(let [alphabet "ACDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890-"]
+  (def gen-secret (nano-id/custom alphabet 48)))
+
+
+(defn add-client [{:keys [id name secret settings type]
+                   :or {id (gen-client-id)
+                        type :public}}]
+  (let [secret (or secret
+                   (when (#{:confidential "confidential"} type)
+                     (gen-secret)))]
+    (sync-entity
+      ou/client
       {:id id
        :name name
+       :type type
        :settings settings
-       :active true}
-      password (assoc :password password))))
+       :secret secret
+       :active true})))
 
 
 (defn remove-client [{:keys [euuid]}]
@@ -169,7 +183,7 @@
     {:euuid nil
      :name nil
      :id nil
-     :password nil
+     :secret nil
      :type nil
      :settings nil}))
 
@@ -180,7 +194,8 @@
   (sync-entity
     neyho.eywa.iam.uuids/user
     {:name "oauth_test"
-     :password "change-me"})
+     :password "change-me"
+     :type :confidential})
 
   (unsign-data
     (sign-data
@@ -188,6 +203,26 @@
        :password "change-me"}
       {:alg :rs256
        :exp (vura/date 2024 3 26 10 53)}))
+  (def client
+    (add-client
+      {:euuid #uuid "7f30e780-37a1-11ef-a949-02a535895d2d",
+       :id "HJIUVTENYXXOKEMGYXEUEHIKVKCKJPCNCLSXLSKNMFVEMAWJ",
+       :name "oidc-client-test",
+       :type :public,
+       :active true,
+       :secret nil
+       :settings
+       {"version" 0,
+        "login-page" "http://localhost:8080/login/eywa",
+        "redirections"
+        ["http://localhost:8080/eywa/"
+         "http://localhost:8080/app/kbdev"
+         "http://localhost:5173/authentication/callback"],
+        "token-expiry" {"access" 300000, "refresh" 129600000},
+        "allowed-grants" ["refresh_token" "code" "token" "id_token"],
+        "refresh-tokens" true}}))
+  (get-client (:id client))
+  (remove-client client)
   ;;
   (add-client
     {:id "XFYWDCONOFSZMTVAEOQHTZFHSUCTXQ",

@@ -3,6 +3,7 @@
     [clojure.string :as str]
     clojure.java.io
     clojure.pprint
+    [clojure.set :as set]
     [clojure.core.async :as async]
     [clojure.tools.logging :as log]
     [clojure.walk :refer [keywordize-keys]]
@@ -26,6 +27,7 @@
 
 (defn pprint [data] (with-out-str (clojure.pprint/pprint data)))
 
+
 (defonce subscription (async/chan (async/sliding-buffer 10000)))
 (defonce publisher
   (async/pub
@@ -37,6 +39,7 @@
 
 (defn publish [topic data]
   (async/put! subscription (assoc data :topic topic)))
+
 
 (defonce ^:dynamic *refresh-tokens* (atom nil))
 (defonce ^:dynamic *access-tokens* (atom nil))
@@ -54,10 +57,6 @@
 
 (let [alphabet "ACDEFGHJKLMNOPQRSTUVWXYZ"]
   (def gen-code (nano-id/custom alphabet 30)))
-
-(comment
-  (gen-session-id)
-  (gen-code))
 
 
 (defn access-token-expiry
@@ -131,31 +130,15 @@
 
 (defn validate-client [session]
   (let [{{:keys [client_id state redirect_uri]
-          request-secret :client_secret} :request} (get @*sessions* session)
+          request-secret :client_secret
+          :as request} :request} (get @*sessions* session)
         base-redirect-uri (get-base-uri redirect_uri)
-        {:keys [euuid secret]
-         {type "type"
-          redirections "redirections"} :settings
+        {:keys [euuid secret type]
+         {redirections "redirections"} :settings
          :as client} (get-client client_id)]
     (log/debugf "[%s] Validating client: %s" session (pprint client))
     (comment
-      (def client
-        {:euuid #uuid "e21d99c0-e840-11ee-94ca-02a535895d2d",                                                                                  
-         :id "XFYWDCONOFSZMTVAEOQHTZFHSUCTXQ",                                                                                                                                                                                                                               
-         :name "oauth_test_confidential",                                                                                                                                                                                                                                    
-         :type nil,                                                                                                                                                                                                                                                          
-         :active true,                                                                                                                                                                                                                                                       
-         :secret                                                                                                                                                                                                                                                             
-         "bcrypt+sha512$46473996946371a0606f5b9fd00b189d$12$2f0f1e198f24cb17cde7f01cbef7f8fde0489b29b3a998d0",                                                                                                                                                               
-         :settings                                                                                                                                                                                                                                                           
-         {"version" 0,                                                                                                                                                                                                                                                       
-          "login-page" "http://localhost:8080/login/kbdev/",                                                                                                                                                                                                                 
-          "redirections"                                                                                                                                                                                                                                                     
-          ["http://localhost:8080/eywa/" "http://localhost:8080/app/kbdev"],                                                                                                                                                                                                 
-          "token-expiry" {"access" 300000, "refresh" 129600000},                                                                                                                                                                                                             
-          "allowed-grants"                                                                                                                                                                                                                                                   
-          ["refresh_token" "client_credentials" "password" "code"],                                                                                                                                                                                                          
-          "refresh-tokens" true}}))
+      (def client (get-client "HJIUVTENYXXOKEMGYXEUEHIKVKCKJPCNCLSXLSKNMFVEMAWJ")))
     ; (def request request)
     ; (def euuid euuid)
     ; (def redirections redirections)
@@ -164,6 +147,8 @@
     ; (def redirections redirections)
     ; (def request-secret request-secret)
     ; (def secret secret)
+    ; (def secret secret)
+    ; (def client client)
     (cond
       (nil? euuid)
       (throw
@@ -382,18 +367,20 @@
 ;; Login
 (defn login
   [{:keys [username password session]}]
-  (let [{{request-type :response_type
+  (let [{{response_type :response_type
           redirect-uri :redirect_uri
           state :state} :request
          :as session-state} (get-session session)
         resource-owner (validate-resource-owner username password)]
+    (log/debugf "[%s] Validating resource owner: %s" session username)
     (cond
       ;;
       (nil? session-state)
       (handle-request-error {:type "corrupt_session" :session session}) 
       ;;
-      (and resource-owner (= "code" request-type))
+      (and resource-owner (set/intersection #{"code" "authorization_code"} response_type))
       (let [code (bind-authorization-code session)]
+        (log/debugf "[%s] Binding code to session" code)
         (set-session-resource-owner session resource-owner)
         {:status 302
          :headers {"Location" (str redirect-uri "?" (codec/form-encode {:state state :code code}))}})
@@ -471,6 +458,7 @@
 
 
 (defn token-error [code & description]
+  (log/debugf "Returning error: %s\n%s" code (str/join "\n" description))
   {:status 400
    :headers {"Content-Type" "application/json;charset=UTF-8"
              "Pragma" "no-cache"
@@ -481,9 +469,11 @@
 
 (defn token-code-grant
   [data]
-  (let [{:keys [code redirect_uri client_id client_secret]} data
-        {:keys [session]} (get *authorization-codes* code)]
-    (log/debugf "[%s] Processing token code grant for code: %s" session code)
+  (let [{:keys [code redirect_uri client_id client_secret grant_type]} data
+        {:keys [session]} (get @*authorization-codes* code)]
+    (log/debugf
+      "[%s] Processing token code grant for code: %s\n%s"
+      session code (pprint data))
     (if-not session
       ;; If session isn't available, that is if somebody
       ;; is trying to hack in
@@ -493,16 +483,18 @@
         "doesn't exsist or has expired. Further actions"
         "be logged and processed")
       ;; If there is some session than check other requirements
-      (let [{{session-redirect-uri :redirect_uri} :request
-             session-client :client} (get-session session)
+      (let [{{session-redirect-uri :redirect_uri} :request} (get-session session)
             {_secret :secret
-             :strs [allowed-scopes allowed-grants]
+             {:strs [allowed-scopes allowed-grants]} :settings
+             session-client :id
              :as client} (get-session-client session)
             scopes (set allowed-scopes)
             grants (set allowed-grants)]
         (cond
           ;;
-          (not (contains? grants "code"))
+          (or
+            (not (contains? grants "code"))
+            (not= grant_type "authorization_code"))
           (token-error
             "unauthorized_grant"
             "Client sent access token request"
@@ -535,6 +527,7 @@
           (let [resource-owner (get-session-resource-owner session)
                 resource-owner-details (get-user-details (:name resource-owner))
                 tokens (*token-resolver* resource-owner-details client session)]
+            (log/debugf "[%s] Authorization code flow token request is valid" session)
             (revoke-authorization-code session)
             (publish :grant/tokens tokens)
             {:status 200
@@ -656,7 +649,7 @@
 
 
 (defn token-refresh-grant
-  [{:keys [refresh_token scope client_id]}]
+  [{:keys [refresh_token client_id]}]
   (let [{:keys [session]} (get @*refresh-tokens* refresh_token)
         {:keys [name] :as client} (get-session-client session)
         {:keys [username]} (get-session-resource-owner session)
@@ -717,9 +710,10 @@
 
 (defn token-endpoint
   [{:keys [grant_type] :as data}]
+  (log/debugf "[%s] Resolving request at token endpoint" "ioqjw")
   (case grant_type
     ;; Authorization code grant
-    "code"
+    ("code" "authorization_code")
     (token-code-grant data)
     ;; Resource Owner Password Credentials Grant
     "password"
@@ -774,6 +768,7 @@
     ;;
     "password"
     (token-password-grant request)
+    ;;
     "client_credentials"
     (token-client-credentials-grant request) 
     ;;

@@ -19,7 +19,7 @@
     [io.pedestal.http.ring-middlewares :as middlewares]
     [com.walmartlabs.lacinia.pedestal2 :as lp]
     neyho.eywa.lacinia
-    [neyho.eywa.iam.oauth2 :as oauth2]
+    [neyho.eywa.iam.oidc :as oidc]
     [neyho.eywa.server.jetty :as jetty]
     [neyho.eywa.server.interceptors :refer [json-response-interceptor]]
     [neyho.eywa.server.interceptors.util :refer [coerce-body]]
@@ -398,7 +398,7 @@
                    (clojure.set/union
                      default-routes
                      graphql-routes
-                     oauth2/routes))
+                     oidc/routes))
           context-configurator jetty/context-configuration}}]
    (log/infof "Starting EYWA server %s:%s" host port)
    (stop)
