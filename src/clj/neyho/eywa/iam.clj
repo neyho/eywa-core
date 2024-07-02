@@ -110,6 +110,23 @@
        :active nil
        :avatar nil
        :settings nil
+       :person_info [{:selections
+                      {:name nil
+                       :given_name nil
+                       :middle_name nil
+                       :nickname nil
+                       :prefered_username nil
+                       :profile nil
+                       :picture nil
+                       :website nil
+                       :email nil
+                       :email_verified nil
+                       :gender nil
+                       :birth_date nil
+                       :zoneinfo nil
+                       :phone_number nil
+                       :phone_number_verified nil
+                       :address nil}}]
        :groups [{:selections {:euuid nil}}]
        :roles [{:selections {:euuid nil}}]})
     (update :roles #(set (map :euuid %)))
@@ -195,7 +212,21 @@
     neyho.eywa.iam.uuids/user
     {:name "oauth_test"
      :password "change-me"
-     :type :confidential})
+     :person_info {:name "Bosko Buha"
+                   :given_name "Bosko"
+                   :family_name "Buha"
+                   :prefered_username "bbuha"
+                   :nickname "partizaner"
+                   :profile "https://bbuha.partizani.yu"
+                   :picture "https://bbuha.partizani.yu/slika1"
+                   :website "https://bbuha.partizani.yu/omeni"
+                   :email_verified true
+                   :gender nil
+                   :birthdate "1984-01-00"
+                   :zoneinfo nil
+                   :phone_number "+38533333333"
+                   :phone_number_verified nil
+                   :address "Ulica Gora i Planina 44"}})
 
   (unsign-data
     (sign-data

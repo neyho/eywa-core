@@ -9,12 +9,8 @@
     [io.pedestal.interceptor.chain :as chain]
     [io.pedestal.http.body-params :as bp]
     [neyho.eywa.server.interceptors :refer [spa-interceptor]]
-    [neyho.eywa.iam.oauth2 :as oauth2]
-    [neyho.eywa.iam
-     :refer [sign-data
-             unsign-data
-             get-client
-             get-user-details]]))
+    [neyho.eywa.iam.oauth2 :as oauth2
+     :refer [process-scope]]))
 
 
 (s/def ::iss string?)
@@ -169,6 +165,9 @@
         (oauth2/authorization-code-flow request)))))
 
 
+(comment
+  (def request (:request (oauth2/get-session "IDldMZTkptwpePGdsqoUnuRaiQtXLL"))))
+
 (defn authorization-request
   [request]
   (letfn [(split-spaces [request k]
@@ -242,11 +241,6 @@
                    "Cache-Control" "no-cache"}}))))
 
 
-(def open-id-configuration
-  {:issuer "http://localhost:8080/"}
-  )
-
-
 (def ^:dynamic *protocol* "http")
 (def ^:dynamic *domain* "localhost:8080")
 
@@ -260,6 +254,7 @@
          :authorization_endpoint (domain+ "/oauth2/authorize")
          :token_endpoint (domain+ "/oauth2/token")
          :userinfo_endpoint (domain+ "/oidc/userinfo")
+         :end_session_endpoint (domain+ "/oidc/logout")
          :revocation_endpoint (domain+ "/oauth2/revoke")
          :response_types_supported ["code" "token" "id_token"
                                     "code id_token" "token id_token"
@@ -279,60 +274,133 @@
                  :body (json/write-str config :escape-slash false)}))})))
 
 
-(defn oidc-token-resolver
-  [resource-owner-details {{refresh? "refresh-tokens"} :settings :as client} session]
-  (let [expires-after (oauth2/access-token-expiry client)]
-    (when session (oauth2/remove-session-tokens session))
-    (if (pos? expires-after)
-      (let [user-info ()
-            id-token (sign-data
-                       (->
-                         resource-owner-details 
-                         (dissoc :password :avatar :settings :active :sessions)
-                         (assoc :session session))
-                       {:alg :rs256
-                        :exp (-> (vura/date)
-                                 vura/date->value
-                                 (+ expires-after)
-                                 vura/value->date
-                                 to-timestamp)})
-            access-token (sign-data
-                           (->
-                             resource-owner-details 
-                             (dissoc :password :avatar :settings :active :sessions)
-                             (assoc :session session))
-                           {:alg :rs256
-                            :exp (-> (vura/date)
-                                     vura/date->value
-                                     (+ expires-after)
-                                     vura/value->date
-                                     to-timestamp)})
-            refresh-token (when (and refresh? session)
-                            (sign-data
-                              {:session session}
-                              {:alg :rs256
-                               :exp (-> (vura/date)
-                                        vura/date->value
-                                        (+ (oauth2/refresh-token-expiry client))
-                                        vura/value->date
-                                        to-timestamp)}))
-            tokens (if refresh-token
-                     {:access_token access-token
-                      :refresh_token refresh-token
-                      :expires_in expires-after
-                      :type "bearer"}
-                     {:access_token access-token
-                      :expires_in expires-after
-                      :type "bearer"})]
-        (when session (oauth2/set-session-tokens session tokens))
-        tokens)
-      {:access_token (sign-data
-                       (dissoc resource-owner-details
-                               :password :avatar :settings
-                               :active :sessions)
-                       {:alg :rs256})
-       :expires_in nil
-       :type "bearer"})))
+; (defn oidc-token-resolver
+;   [resource-owner-details {{refresh? "refresh-tokens"} :settings :as client} session]
+;   (let [expires-after (oauth2/access-token-expiry client)]
+;     (when session (oauth2/remove-session-tokens session))
+;     (if (pos? expires-after)
+;       (let [user-info ()
+;             id-token (sign-data
+;                        (->
+;                          resource-owner-details 
+;                          (dissoc :password :avatar :settings :active :sessions)
+;                          (assoc :session session))
+;                        {:alg :rs256
+;                         :exp (-> (vura/date)
+;                                  vura/date->value
+;                                  (+ expires-after)
+;                                  vura/value->date
+;                                  to-timestamp)})
+;             access-token (sign-data
+;                            (->
+;                              resource-owner-details 
+;                              (dissoc :password :avatar :settings :active :sessions)
+;                              (assoc :session session))
+;                            {:alg :rs256
+;                             :exp (-> (vura/date)
+;                                      vura/date->value
+;                                      (+ expires-after)
+;                                      vura/value->date
+;                                      to-timestamp)})
+;             refresh-token (when (and refresh? session)
+;                             (sign-data
+;                               {:session session}
+;                               {:alg :rs256
+;                                :exp (-> (vura/date)
+;                                         vura/date->value
+;                                         (+ (oauth2/refresh-token-expiry client))
+;                                         vura/value->date
+;                                         to-timestamp)}))
+;             tokens (if refresh-token
+;                      {:access_token access-token
+;                       :refresh_token refresh-token
+;                       :expires_in expires-after
+;                       :type "bearer"}
+;                      {:access_token access-token
+;                       :expires_in expires-after
+;                       :type "bearer"})]
+;         (when session (oauth2/set-session-tokens session tokens))
+;         tokens)
+;       {:access_token (sign-data
+;                        (dissoc resource-owner-details
+;                                :password :avatar :settings
+;                                :active :sessions)
+;                        {:alg :rs256})
+;        :expires_in nil
+;        :type "bearer"})))
+
+
+(defn standard-claim
+  [session claim]
+  (get-in
+    (oauth2/get-session-resource-owner session)
+    [:person_info claim]))
+
+
+(defn add-standard-claim
+  [tokens session claim]
+  (assoc-in tokens [:id_token claim] (standard-claim session claim)))
+
+
+(defn id-token-expiry
+  [{{{expiry "refresh"} "token-expiry"} :settings
+    :or {expiry (vura/minutes 30)}}]
+  expiry)
+
+
+(defmethod process-scope "openid"
+  [session tokens _]
+  (let [{:keys [euuid]} (oauth2/get-session-resource-owner session)
+        {:keys [authorized-at]} (oauth2/get-session session)
+        client (oauth2/get-session-client session)]
+    (update tokens :id_token
+            merge
+            {:iss "http://www.eywaonline.com"
+             :sub euuid
+             :iat (to-timestamp (vura/date))
+             :exp (-> (vura/date)
+                      vura/date->value
+                      (+ (id-token-expiry client))
+                      vura/value->date
+                      to-timestamp)
+             :auth_time authorized-at
+             :nonce session})))
+
+
+(defmethod process-scope "family_name" [session tokens _] (add-standard-claim tokens session :family_name))
+(defmethod process-scope "middle_name" [session tokens _] (add-standard-claim tokens session :middle_name))
+(defmethod process-scope "given_name" [session tokens _] (add-standard-claim tokens session :given_name))
+(defmethod process-scope "nickname" [session tokens _] (add-standard-claim tokens session :nickname))
+(defmethod process-scope "preferred_username" [session tokens _] (add-standard-claim tokens session :preferred_username))
+(defmethod process-scope "profile" [session tokens _] (add-standard-claim tokens session :profile))
+(defmethod process-scope "picture" [session tokens _] (add-standard-claim tokens session :picture))
+(defmethod process-scope "website" [session tokens _] (add-standard-claim tokens session :website))
+(defmethod process-scope "email" [session tokens _] (add-standard-claim tokens session :email))
+(defmethod process-scope "email_verified" [session tokens _] (add-standard-claim tokens session :email_verified))
+(defmethod process-scope "gender" [session tokens _] (add-standard-claim tokens session :gender))
+(defmethod process-scope "birthdate" [session tokens _] (add-standard-claim tokens session :birthdate))
+(defmethod process-scope "zoneinfo" [session tokens _] (add-standard-claim tokens session :zoneinfo))
+(defmethod process-scope "phone_number" [session tokens _] (add-standard-claim tokens session :phone_number))
+(defmethod process-scope "phone_number_verified" [session tokens _] (add-standard-claim tokens session :phone_number_verified))
+(defmethod process-scope "address" [session tokens _] (add-standard-claim tokens session :address))
+(defmethod process-scope "updated_at" [session tokens _] (add-standard-claim tokens session :modified_on))
+(defmethod process-scope "auth_time" [session tokens _] (assoc-in tokens [:id_token :auth-at] (:authorized-at (oauth2/get-session session))))
+
+
+(def user-info-interceptor
+  {:enter
+   (fn [ctx]
+     (assoc ctx :response
+            {:status 200
+             :body "hi"}))})
+
+
+(def logout-interceptor
+  {:enter
+   (fn [ctx]
+     (assoc ctx :response
+            {:status 200
+             :body "hi"}))})
 
 
 (def routes
@@ -342,18 +410,35 @@
            oauth2/keywordize-params
            authorize-request-interceptor]
      :route-name ::authorize-request]
+    ;;
     ["/oauth2/request_error"
      :get [oauth2/basic-authorization-interceptor
            (bp/body-params)
            oauth2/keywordize-params
            oauth2/authorize-request-error-interceptor]
      :route-name ::authorize-request-error]
+    ;;
     ["/oauth2/token"
      :post [oauth2/basic-authorization-interceptor
             (bp/body-params)
             oauth2/keywordize-params
             oauth2/token-interceptor]
      :route-name ::handle-token]
+    ;; TODO
+    ["/oidc/userinfo"
+     :post [oauth2/basic-authorization-interceptor
+            (bp/body-params)
+            oauth2/keywordize-params
+            user-info-interceptor]
+     :route-name ::user-info]
+    ;; TODO
+    ["/oidc/logout"
+     :post [oauth2/basic-authorization-interceptor
+            (bp/body-params)
+            oauth2/keywordize-params
+            logout-interceptor]
+     :route-name ::revoke]
+    ;;
     ["/.well-known/openid-configuration" :get [open-id-configuration-interceptor] :route-name ::open-id-configuration]
     ["/login" :get [oauth2/redirect-to-login] :route-name ::short-login]
     ["/login/" :get [oauth2/redirect-to-login] :route-name ::root-login]
