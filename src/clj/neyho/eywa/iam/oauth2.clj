@@ -333,8 +333,7 @@
     (swap! *authorization-codes* assoc code {:session session
                                              :at (System/currentTimeMillis)})
     (swap! *sessions* update session
-           (fn [current]
-             (assoc current :code code)))
+           (fn [current] (assoc current :code code)))
     (publish :grant/code {:session session :code code})
     code))
 
@@ -402,6 +401,16 @@
 (defn get-token-session
   [token-key token]
   (get-in @*tokens* [token-key token]))
+
+
+(defn get-session-code
+  [session]
+  (get-in @*sessions* [session :code]))
+
+
+(defn disable-authorization-code
+  [code]
+  (swap! *authorization-codes* dissoc code))
 
 
 (defn revoke-authorization-code
@@ -519,10 +528,8 @@
   (def ^:dynamic *token-resolver*
     (fn gen-access-token
       ([session request]
-       (def session session)
-       (def request request)
        (try
-         (let [{:keys [client_id grant_type]
+         (let [{:keys [client_id grant_type code]
                 request-scope :scope} request
                ;; use scope from authorization request
                {{authorization-code-scope :scope} :request} (get-session session)
@@ -552,6 +559,10 @@
                  "Provided refresh token doesn't have active user"))
              :else
              (case grant-type
+               ;;
+               (:password :implicit :client_credentials) 
+               unsupported
+               ;;
                :refresh-token
                (cond
                  (not refresh?)
@@ -583,7 +594,10 @@
                                                         tokens)]
                                     (revoke-session-tokens session)
                                     (when session (set-session-tokens session signed-tokens))
-                                    (assoc signed-tokens :type "bearer"))
+                                    (assoc signed-tokens
+                                           :type "Bearer"
+                                           :expires_in (:exp access-token)
+                                           :scope scope))
                                   (let [tokens (reduce
                                                  (fn [tokens scope]
                                                    (process-scope session tokens scope))
@@ -595,15 +609,14 @@
                                                         tokens
                                                         tokens)]
                                     (assoc signed-tokens
-                                           :type "bearer")))]
+                                           :type "Bearer"
+                                           :expires_in nil
+                                           :scope scope)))]
                    {:status 200
                     :headers {"Content-Type" "application/json;charset=UTF-8"
                               "Pragma" "no-cache"
                               "Cache-Control" "no-store"}
                     :body (json/write-str response)}))
-               ;;
-               (:password :implicit :client_credentials) 
-               unsupported
                ;;
                :authorization-code 
                (let [access-token {:session session
@@ -633,7 +646,11 @@
                                                       tokens)]
                                   (when refresh-token (revoke-token session :refresh_token))
                                   (when session (set-session-tokens session signed-tokens))
-                                  (assoc signed-tokens :type "bearer"))
+                                  (disable-authorization-code code)
+                                  (assoc signed-tokens
+                                         :type "Bearer"
+                                         :scope scope
+                                         :expires_in (:exp access-token)))
                                 (let [tokens (reduce
                                                (fn [tokens scope]
                                                  (process-scope session tokens scope))
@@ -644,9 +661,11 @@
                                                         (assoc tokens token (sign-token session token data)))
                                                       tokens
                                                       tokens)]
+                                  (disable-authorization-code code)
                                   (assoc signed-tokens
                                          :expires_in nil
-                                         :type "bearer")))]
+                                         :scope scope
+                                         :type "Bearer")))]
                  {:status 200
                   :headers {"Content-Type" "application/json;charset=UTF-8"
                             "Pragma" "no-cache"
@@ -657,6 +676,9 @@
            (throw ex)))))))
 
 
+(defn get-code-session
+  [code]
+  (get-in @*authorization-codes* [code :session]))
 
 
 (defn token-code-grant
@@ -673,7 +695,7 @@
         "invalid_request"
         "Trying to abuse token endpoint for code that"
         "doesn't exsist or has expired. Further actions"
-        "be logged and processed")
+        "will be logged and processed")
       ;; If there is some session than check other requirements
       (let [{{session-redirect-uri :redirect_uri} :request} (get-session session)
             {_secret :secret
@@ -796,9 +818,6 @@
 
 (defn token-refresh-grant
   [{:keys [refresh_token] :as data}]
-  (def session "pMJfKphHoQfnaxJRhbwuzDvqVwXKZD")
-  (def data data)
-  (def refresh_token (:refresh_token data))
   (let [session (get-in @*tokens* [:refresh_token refresh_token])]
     (*token-resolver* session data)))
 

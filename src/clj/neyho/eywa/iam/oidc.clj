@@ -6,6 +6,8 @@
     [clojure.tools.logging :as log]
     [vura.core :as vura]
     [ring.util.codec :as codec]
+    [buddy.core.codecs]
+    [buddy.core.hash :as hash]
     [buddy.sign.util :refer [to-timestamp]]
     [io.pedestal.interceptor.chain :as chain]
     [io.pedestal.http.body-params :as bp]
@@ -512,13 +514,46 @@
 
 
 
+(defn generate-code-challange
+  ([code-verifier] (generate-code-challange code-verifier "S256"))
+  ([code-verifier code-challange-method]
+   (case code-challange-method
+     "plain" code-verifier
+     "S256"
+     (let [bs (.getBytes code-verifier)
+           hashed (hash/sha256 bs)]
+       (String. (buddy.core.codecs/bytes->b64 hashed))))))
+
+
+(comment
+  (generate-code-challange "fiejo1j092813"))
+
+
+(def pkce-interceptor
+  {:enter
+   (fn [ctx]
+     (let [{{{:keys [code code_verifier grant_type]} :params} :request} ctx
+           {{:keys [code_challange code_challange_method]} :request} (-> code
+                                                                       oauth2/get-code-session 
+                                                                       oauth2/get-session)
+           is-pkce? (and code_challange code_challange_method)]
+       (if (or (not is-pkce?) (not= "authorization_code" grant_type)) ctx
+         (let [current-challange (generate-code-challange code_verifier code_challange_method)]
+           (if (= current-challange code_challange) ctx
+             (chain/terminate
+               (oauth2/json-error
+                 "invalid_request"
+                 "Proof Key for Code Exchange failed")))))))})
+
+
+
 
 (let [common [oauth2/basic-authorization-interceptor
               (bp/body-params)
               oauth2/keywordize-params]
       authorize (conj common authorize-request-interceptor)
       request_error (conj common oauth2/authorize-request-error-interceptor)
-      token (conj common oauth2/token-interceptor)
+      token (conj common pkce-interceptor oauth2/token-interceptor)
       user-info (conj common user-info-interceptor)
       logout (conj common logout-interceptor)
       revoke (conj common revoke-token-interceptor)]
