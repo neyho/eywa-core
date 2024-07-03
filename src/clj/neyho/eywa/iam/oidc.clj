@@ -514,15 +514,19 @@
 
 
 
-(defn generate-code-challange
-  ([code-verifier] (generate-code-challange code-verifier "S256"))
-  ([code-verifier code-challange-method]
-   (case code-challange-method
+(defn generate-code-challenge
+  ([code-verifier] (generate-code-challenge code-verifier "S256"))
+  ([code-verifier code-challenge-method]
+   (case code-challenge-method
      "plain" code-verifier
      "S256"
      (let [bs (.getBytes code-verifier)
            hashed (hash/sha256 bs)]
-       (String. (buddy.core.codecs/bytes->b64 hashed))))))
+       (-> hashed
+           codec/base64-encode
+           (.replace "+" "-")
+           (.replace "/" "_")
+           (.replace "=" ""))))))
 
 
 (comment
@@ -533,13 +537,13 @@
   {:enter
    (fn [ctx]
      (let [{{{:keys [code code_verifier grant_type]} :params} :request} ctx
-           {{:keys [code_challange code_challange_method]} :request} (-> code
+           {{:keys [code_challenge code_challenge_method]} :request} (-> code
                                                                        oauth2/get-code-session 
                                                                        oauth2/get-session)
-           is-pkce? (and code_challange code_challange_method)]
+           is-pkce? (and code_challenge code_challenge_method)]
        (if (or (not is-pkce?) (not= "authorization_code" grant_type)) ctx
-         (let [current-challange (generate-code-challange code_verifier code_challange_method)]
-           (if (= current-challange code_challange) ctx
+         (let [current-challenge (generate-code-challenge code_verifier code_challenge_method)]
+           (if (= current-challenge code_challenge) ctx
              (chain/terminate
                (oauth2/json-error
                  "invalid_request"

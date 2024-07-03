@@ -408,9 +408,12 @@
   (get-in @*sessions* [session :code]))
 
 
-(defn disable-authorization-code
-  [code]
-  (swap! *authorization-codes* dissoc code))
+(defn session-used-authorization-code [session]
+  (swap! *sessions* assoc-in [session :authorization-code-used?] true))
+
+
+(defn code-is-used? [session]
+  (get-in @*sessions* [session :authorization-code-used?]))
 
 
 (defn revoke-authorization-code
@@ -646,7 +649,7 @@
                                                       tokens)]
                                   (when refresh-token (revoke-token session :refresh_token))
                                   (when session (set-session-tokens session signed-tokens))
-                                  (disable-authorization-code code)
+                                  (session-used-authorization-code session)
                                   (assoc signed-tokens
                                          :type "Bearer"
                                          :scope scope
@@ -661,7 +664,7 @@
                                                         (assoc tokens token (sign-token session token data)))
                                                       tokens
                                                       tokens)]
-                                  (disable-authorization-code code)
+                                  (session-used-authorization-code session)
                                   (assoc signed-tokens
                                          :expires_in nil
                                          :scope scope
@@ -703,6 +706,13 @@
              session-client :id} (get-session-client session)
             grants (set allowed-grants)]
         (cond
+          ;;
+          (code-is-used? session)
+          (token-error
+            "invalid_request"
+            "Provided authorization code has already"
+            "been used. Your request will be logged"
+            "and processed")
           ;;
           (or
             (not (contains? grants "code"))
