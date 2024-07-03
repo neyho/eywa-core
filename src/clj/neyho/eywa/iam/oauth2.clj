@@ -8,7 +8,7 @@
     [clojure.tools.logging :as log]
     [clojure.walk :refer [keywordize-keys]]
     [clojure.spec.alpha :as s]
-    [nano-id.core :refer [nano-id] :as nano-id]
+    [nano-id.core :as nano-id]
     [vura.core :as vura]
     [ring.util.codec :as codec]
     [clojure.data.json :as json]
@@ -42,11 +42,10 @@
   (async/put! subscription (assoc data :topic topic)))
 
 
-(defonce ^:dynamic *iss* "https://www.eywaonline.com")
+(defonce ^:dynamic *iss* "http://localhost:8080")
 
 
-(defonce ^:dynamic *refresh-tokens* (atom nil))
-(defonce ^:dynamic *access-tokens* (atom nil))
+(defonce ^:dynamic *tokens* (atom nil))
 (defonce ^:dynamic *authorization-codes* (atom nil))
 
 
@@ -63,16 +62,25 @@
   (def gen-code (nano-id/custom alphabet 30)))
 
 
-(defn access-token-expiry
-  [{{{expiry "access"} "token-expiry"} :settings
-    :or {expiry (vura/day 1.5)}}]
-  expiry)
+(let [default (vura/hours 2)]
+  (defn access-token-expiry
+    [{{{expiry "access"} "token-expiry"} :settings}]
+    (or expiry default)))
 
 
-(defn refresh-token-expiry
-  [{{{expiry "refresh"} "token-expiry"} :settings
-    :or {expiry (vura/day 1.5)}}]
-  expiry)
+(let [default (vura/days 1.5)]
+  (defn refresh-token-expiry
+    [{{{expiry "refresh"} "token-expiry"} :settings}]
+    (or expiry default)))
+
+
+(defmulti sign-token (fn [_ token-key _] token-key))
+
+
+(defmethod sign-token :default
+  [session token-key data]
+  (log/errorf "[%s] Couldn't signt token `%s`" session token-key)
+  data)
 
 
 (defmulti process-scope (fn [_ _ scope] scope))
@@ -80,11 +88,11 @@
 
 (defmethod process-scope :default
   [session tokens scope]
-  (log/errorf "[%s]Couldn't find scope resolver for scope `%s`" session scope)
+  (log/errorf "[%s] Couldn't find scope resolver for scope `%s`" session scope)
   tokens)
 
 
-(declare revoke-access-token revoke-refresh-token remove-session-tokens set-session-tokens)
+(declare remove-session-tokens set-session-tokens)
 
 
 (defn get-session-client [session]
@@ -121,25 +129,12 @@
 
 (defn validate-client [session]
   (let [{{:keys [client_id state redirect_uri]
-          request-secret :client_secret
-          :as request} :request} (get @*sessions* session)
+          request-secret :client_secret} :request} (get @*sessions* session)
         base-redirect-uri (get-base-uri redirect_uri)
         {:keys [euuid secret type]
          {redirections "redirections"} :settings
          :as client} (get-client client_id)]
     (log/debugf "[%s] Validating client: %s" session (pprint client))
-    (comment
-      (def client (get-client "HJIUVTENYXXOKEMGYXEUEHIKVKCKJPCNCLSXLSKNMFVEMAWJ")))
-    ; (def request request)
-    ; (def euuid euuid)
-    ; (def redirections redirections)
-    ; (def redirect_uri redirect_uri)
-    ; (def base-redirect-uri base-redirect-uri)
-    ; (def redirections redirections)
-    ; (def request-secret request-secret)
-    ; (def secret secret)
-    ; (def secret secret)
-    ; (def client client)
     (cond
       (nil? euuid)
       (throw
@@ -212,9 +207,6 @@
   nil)
 
 
-
-
-
 (defn remove-session-resource-owner [session]
   (let [euuid (get-in @*sessions* [session :resource-owner])]
     (swap! *sessions* update session dissoc :resource-owner)
@@ -234,10 +226,6 @@
              (merge client)
              (update :sessions (fnil conj #{}) session))))
   nil)
-
-
-
-
 
 
 (defn remove-session-client [session]
@@ -398,15 +386,22 @@
 
 
 (defn set-session-tokens
-  [session {:keys [access_token refresh_token]}]
-  (swap! *sessions* update session
-         (fn [current]
-           (cond-> current
-             access_token (assoc :access-token access_token)
-             refresh_token (assoc :refresh-token refresh_token))))
-  (swap! *access-tokens* assoc access_token {:session session})
-  (swap! *refresh-tokens* assoc refresh_token {:session session})
+  [session tokens]
+  (swap! *sessions* assoc-in [session :tokens] tokens)
+  (swap! *tokens*
+         (fn [current-tokens]
+           (reduce-kv
+             (fn [tokens token-key data]
+               (log/debugf "[%s] Adding token %s %s" session token-key data)
+               (assoc-in tokens [token-key data] session))
+             current-tokens
+             tokens)))
   nil)
+
+
+(defn get-token-session
+  [token-key token]
+  (get-in @*tokens* [token-key token]))
 
 
 (defn revoke-authorization-code
@@ -420,33 +415,24 @@
     (publish :revoke/code {:code code :session session})))
 
 
-(defn revoke-access-token
-  [session]
-  (let [{:keys [access-token]} (get-session session)]
-    (swap! *sessions* update session dissoc :access-token)
-    (when access-token
-      (swap! *access-tokens* dissoc access-token)
-      (publish :revoke/access-token
-               {:access-token access-token
+(defn revoke-token
+  [session token-key]
+  (let [{{token token-key} :tokens} (get-session session)]
+    (swap! *sessions* update-in [session :tokens] dissoc token-key)
+    (when token
+      (swap! *tokens* update token-key dissoc token)
+      (publish :revoke/token
+               {:token/key token-key
+                :token/data token
                 :session session})))
   nil)
 
 
-(defn revoke-refresh-token
+(defn revoke-session-tokens
   [session]
-  (let [{:keys [refresh-token]} (get-session session)]
-    (swap! *sessions* update session dissoc :refresh-token)
-    (when refresh-token
-      (swap! *refresh-tokens* dissoc refresh-token)
-      (publish :revoke/refresh-token
-               {:refresh-token refresh-token
-                :session session}))))
-
-
-(defn remove-session-tokens
-  [session]
-  (revoke-access-token session)
-  (revoke-refresh-token session)
+  (let [{:keys [tokens]} (get-session session)]
+    (doseq [[token-key] tokens]
+      (revoke-token session token-key)))
   nil)
 
 
@@ -485,118 +471,190 @@
 
 
 (comment
-  (def request (get-in @*sessions* ["quiJPzHNdUjvryaWWuOCyKERtmMkIf" :request])))
+  (reset))
 
 
-(def ^:dynamic *token-resolver*
-  (fn gen-access-token
-    ([session]
-     (let [{{:keys [client_id scope]
-             :as request} :request} (get-session session)
-           {{refresh? "refresh-tokens"} :settings :as client
-           id :id} (get-session-client session)
-           {:keys [euuid active] :as resource-owner} (get-session-resource-owner session)
-           expires-after (access-token-expiry client)
-           grant-type (s/conform request ::grant_type)]
-       (when session (remove-session-tokens session))
-       (cond
-         ;;
-         (not= id client_id)
-         (token-error
-           "unauthorized_client"
-           "Refresh token that you have provided"
-           "doesn't belong to given client")
-         ;;
-         (not active)
-         (do
-           (kill-session session)
-           (token-error
-             "resource_owner_unauthorized"
-             "Provided refresh token doesn't have active user"))
-         ;;
-         ; (= grant-type :refresh-token)
-         ; (let []
-         ;   )
-         ; ;;
-         ; (= grant-type :password)
-         ; ()
-         ; ;;
-         ; (= grant-type :implicit)
-         ; ()
-         ; (= grant-type :client_credentials)
-         ; ()
-         ; ;;
-         ; (= grant-type :authorization-code)
-         :else
-         (let [response (if (pos? expires-after)
-                          (let [access-token (sign-data
-                                               (->
-                                                 resource-owner
-                                                 (dissoc :password :avatar :settings :active :sessions)
-                                                 (assoc :session session))
-                                               {:alg :rs256
-                                                :iss *iss*
-                                                :exp (-> (vura/date)
-                                                         vura/date->value
-                                                         (+ expires-after)
-                                                         vura/value->date
-                                                         to-timestamp)})
-                                refresh-token (when (and refresh? session)
-                                                (sign-data
-                                                  {
-                                                   :session session}
-                                                  {:alg :rs256
-                                                   :iss *iss*
-                                                   :exp (-> (vura/date)
-                                                            vura/date->value
-                                                            (+ (refresh-token-expiry client))
-                                                            vura/value->date
-                                                            to-timestamp)}))
-                                tokens (reduce
-                                         (fn [tokens scope]
-                                           (process-scope session tokens scope))
-                                         (if refresh-token
-                                           {:access_token access-token
-                                            :refresh_token refresh-token}
-                                           {:access_token access-token})
-                                         scope)
-                                _ (println "TOKENS: " tokens)
-                                signed-tokens (reduce
-                                                (fn [tokens token]
-                                                  (update tokens token
-                                                          (fn [payload]
-                                                            (sign-data
-                                                              payload
-                                                              {:alg :rs256}))))
-                                                tokens
-                                                (keys tokens))]
-                            (when session (set-session-tokens session tokens))
-                            (assoc signed-tokens
-                                   :expires_in nil
-                                   :type "bearer"))
-                          (let [tokens (reduce
-                                         (fn [tokens scope]
-                                           (process-scope session tokens scope))
-                                         {:access_token {:iss *iss*
-                                                         :client_id id}}
-                                         scope)
-                                signed-tokens (reduce
-                                                (fn [tokens token]
-                                                  (update tokens token
-                                                          (fn [payload]
-                                                            (sign-data
-                                                              payload
-                                                              {:alg :rs256}))))
-                                                tokens
-                                                (keys tokens))]
-                            (assoc signed-tokens
-                                   :expires_in nil
-                                   :type "bearer")))]
-           {:status 200
-            :headers {"Content-Type" "application/json;charset=UTF-8"
-                      "Pragma" "no-cache"
-                      "Cache-Control" "no-store"}
-            :body (json/write-str response)}))))))
+(defmethod sign-token :refresh_token
+  [session _ data]
+  (let [client (get-session-client session)]
+    (sign-data
+      (assoc data
+             :exp (-> (vura/date)
+                      vura/date->value
+                      (+ (refresh-token-expiry client))
+                      vura/value->date
+                      to-timestamp))
+      {:alg :rs256})))
+
+
+(defmethod sign-token :access_token
+  [session _ data]
+  (let [client (get-session-client session)]
+    (sign-data
+      (assoc data
+             :exp (-> (vura/date)
+                      vura/date->value
+                      (+ (access-token-expiry client))
+                      vura/value->date
+                      to-timestamp))
+      {:alg :rs256})))
+
+
+(defn json-error
+  [status & description]
+  (let [_status (if (number? status) status 400)
+        [code & description] (if (number? status)
+                               description
+                               (concat [status] description))]
+    {:status _status
+     :headers {"Content-Type" "application/json;charset=UTF-8"
+               "Pragma" "no-cache"
+               "Cache-Control" "no-store"}
+     :body (json/write-str
+             {:error code
+              :error_description (str/join "\n" description)})}))
+
+
+(let [unsupported (json-error 500 "unsupported" "This feature isn't supported at the moment")]
+  (def ^:dynamic *token-resolver*
+    (fn gen-access-token
+      ([session request]
+       (def session session)
+       (def request request)
+       (try
+         (let [{:keys [client_id grant_type]
+                request-scope :scope} request
+               ;; use scope from authorization request
+               {{authorization-code-scope :scope} :request} (get-session session)
+               ;;
+               scope (or authorization-code-scope request-scope)
+               {{refresh? "refresh-tokens"} :settings :as client
+                id :id} (get-session-client session)
+               {:keys [euuid active]} (get-session-resource-owner session)
+               expires-after (access-token-expiry client)
+               grant-type (let [spec (s/conform ::grant_type grant_type)]
+                            (if (s/invalid? spec) ::error
+                              (first spec)))]
+           (when session (remove-session-tokens session))
+           (cond
+             ;;
+             (not= id client_id)
+             (token-error
+               "unauthorized_client"
+               "Refresh token that you have provided"
+               "doesn't belong to given client")
+             ;;
+             (not active)
+             (do
+               (kill-session session)
+               (token-error
+                 "resource_owner_unauthorized"
+                 "Provided refresh token doesn't have active user"))
+             :else
+             (case grant-type
+               :refresh-token
+               (cond
+                 (not refresh?)
+                 (token-error
+                   "invalid_request"
+                   "The client configuration does not support"
+                   "token refresh requests.")
+                 :else
+                 (let [access-token {:session session
+                                     :iss *iss*
+                                     :sub euuid
+                                     :iat (-> (vura/date) to-timestamp)
+                                     :client_id client_id
+                                     :sid session
+                                     :scope scope}
+                       response (if (pos? expires-after)
+                                  (let [refresh-token {:iss *iss*
+                                                       :sid session}
+                                        tokens (reduce
+                                                 (fn [tokens scope]
+                                                   (process-scope session tokens scope))
+                                                 {:access_token access-token
+                                                  :refresh_token refresh-token}
+                                                 scope)
+                                        signed-tokens (reduce-kv
+                                                        (fn [tokens token data]
+                                                          (assoc tokens token (sign-token session token data)))
+                                                        tokens
+                                                        tokens)]
+                                    (revoke-session-tokens session)
+                                    (when session (set-session-tokens session signed-tokens))
+                                    (assoc signed-tokens :type "bearer"))
+                                  (let [tokens (reduce
+                                                 (fn [tokens scope]
+                                                   (process-scope session tokens scope))
+                                                 {:access_token access-token}
+                                                 scope)
+                                        signed-tokens (reduce-kv
+                                                        (fn [tokens token data]
+                                                          (assoc tokens token (sign-token session token data)))
+                                                        tokens
+                                                        tokens)]
+                                    (assoc signed-tokens
+                                           :type "bearer")))]
+                   {:status 200
+                    :headers {"Content-Type" "application/json;charset=UTF-8"
+                              "Pragma" "no-cache"
+                              "Cache-Control" "no-store"}
+                    :body (json/write-str response)}))
+               ;;
+               (:password :implicit :client_credentials) 
+               unsupported
+               ;;
+               :authorization-code 
+               (let [access-token {:session session
+                                   :iss *iss*
+                                   :sub euuid
+                                   :iat (-> (vura/date) to-timestamp)
+                                   :client_id client_id
+                                   :sid session
+                                   :scope scope}
+                     response (if (pos? expires-after)
+                                (let [refresh-token (when (and refresh? session)
+                                                      (log/debugf "Creating refresh token: %s" session)
+                                                      {:iss *iss*
+                                                       :sid session})
+                                      tokens (reduce
+                                               (fn [tokens scope]
+                                                 (process-scope session tokens scope))
+                                               (if refresh-token
+                                                 {:access_token access-token
+                                                  :refresh_token refresh-token}
+                                                 {:access_token access-token})
+                                               scope)
+                                      signed-tokens (reduce-kv
+                                                      (fn [tokens token data]
+                                                        (assoc tokens token (sign-token session token data)))
+                                                      tokens
+                                                      tokens)]
+                                  (when refresh-token (revoke-token session :refresh_token))
+                                  (when session (set-session-tokens session signed-tokens))
+                                  (assoc signed-tokens :type "bearer"))
+                                (let [tokens (reduce
+                                               (fn [tokens scope]
+                                                 (process-scope session tokens scope))
+                                               {:access_token access-token}
+                                               scope)
+                                      signed-tokens (reduce-kv
+                                                      (fn [tokens token data]
+                                                        (assoc tokens token (sign-token session token data)))
+                                                      tokens
+                                                      tokens)]
+                                  (assoc signed-tokens
+                                         :expires_in nil
+                                         :type "bearer")))]
+                 {:status 200
+                  :headers {"Content-Type" "application/json;charset=UTF-8"
+                            "Pragma" "no-cache"
+                            "Cache-Control" "no-store"}
+                  :body (json/write-str response)}))))
+         (catch Throwable ex
+           (log/errorf ex "[%s] Couldn't resolve tokens" session)
+           (throw ex)))))))
 
 
 
@@ -619,10 +677,8 @@
       ;; If there is some session than check other requirements
       (let [{{session-redirect-uri :redirect_uri} :request} (get-session session)
             {_secret :secret
-             {:strs [allowed-scopes allowed-grants]} :settings
-             session-client :id
-             :as client} (get-session-client session)
-            scopes (set allowed-scopes)
+             {:strs [allowed-grants]} :settings
+             session-client :id} (get-session-client session)
             grants (set allowed-grants)]
         (cond
           ;;
@@ -658,19 +714,16 @@
             "Provided client secret is wrong")
           ;; Issue that token
           :else
-          (*token-resolver* session))))))
+          (*token-resolver* session data))))))
 
 
 (defn token-password-grant
   [data]
-  (let [{:keys [password username scope client_id client_secret]} data
+  (let [{:keys [password username client_id client_secret]} data
         {_client-secret :secret
          {client-type "type"
-          refresh? "refresh-tokens"
-          grants "allowed-grants"
-          scopes "allowed-scopes"} :settings
+          grants "allowed-grants"} :settings
          :as client} (get-client client_id)
-        scopes (set scopes)
         grants (set grants)]
     (cond
       (empty? client_id)
@@ -738,49 +791,20 @@
                           :at now})
             (set-session-client session client)
             (set-session-resource-owner session resource-owner-details)
-            (*token-resolver* session)))))))
-
-
-
-
-
-; (defn token-refresh-grant
-;   [{:keys [refresh_token client_id]}]
-;   (let [{:keys [session]} (get @*refresh-tokens* refresh_token)
-;         {:keys [name] :as client} (get-session-client session)
-;         {:keys [username]} (get-session-resource-owner session)
-;         {:keys [active] :as resource-owner-details} (get-user-details username)]
-;     (cond
-;       (not= name client_id)
-;       (token-error
-;         "unauthorized_client"
-;         "Refresh token that you have provided"
-;         "doesn't belong to given client")
-;       (not active)
-;       (do
-;         (kill-session session)
-;         (token-error
-;           "resource_owner_unauthorized"
-;           "Provided refresh token doesn't have active user"))
-;       :else
-;       (let [tokens (*token-resolver* resource-owner-details client session)]
-;         (publish :grant/tokens tokens)
-;         {:status 200
-;          :headers {"Content-Type" "application/json;charset=UTF-8"
-;                    "Pragma" "no-cache"
-;                    "Cache-Control" "no-store"}
-;          :body (json/write-str tokens)}))))
-
+            (*token-resolver* session data)))))))
 
 
 (defn token-refresh-grant
-  [{:keys [refresh_token]}]
-  (let [{:keys [session]} (get @*refresh-tokens* refresh_token)]
-    (*token-resolver* session)))
+  [{:keys [refresh_token] :as data}]
+  (def session "pMJfKphHoQfnaxJRhbwuzDvqVwXKZD")
+  (def data data)
+  (def refresh_token (:refresh_token data))
+  (let [session (get-in @*tokens* [:refresh_token refresh_token])]
+    (*token-resolver* session data)))
 
 
 (defn token-client-credentials-grant
-  [{:keys [client_id client_secret]}]
+  [{:keys [client_id client_secret] :as data}]
   (if (empty? client_secret)
     (token-error
       "unauthorized_client"
@@ -802,11 +826,12 @@
           "invalid_client"
           "Client credentials are wrong")
         :else
-        (*token-resolver* nil)))))
+        (*token-resolver* nil data)))))
 
 
 (defn token-endpoint
   [{:keys [grant_type] :as data}]
+  (log/debugf "Received token endpoint request\n%s" (pprint data))
   (case grant_type
     ;; Authorization code grant
     "authorization_code"
@@ -845,13 +870,8 @@
         (handle-request-error (ex-data ex))))))
 
 
-(comment
-  (def request {:response_type "code", :client_id "XFYWDCONOFSZMTVAEOQHTZFHSUCTXQ", :redirect_uri "http://localhost:8080/eywa/", :scope nil})
-  (authorization-request request))
-
-
 (defn authorization-request
-  [{:keys [response_type username password redirect_uri]
+  [{:keys [response_type redirect_uri]
     :as request}]
   (log/debugf "Authorizing request:\n%s" request)
   (case response_type
@@ -920,11 +940,6 @@
   {:name ::token
    :enter
    (fn [{request :request :as context}]
-     (log/debugf "Received token request: %s" request)
-     (comment
-       (def session "KVCqVqmfCjQlEYZetvaNlOTAWWFpaG")
-       (def request request)
-       @*sessions*)
      (chain/terminate
        (assoc context :response (token-endpoint (:params request)))))})
 
@@ -1015,9 +1030,8 @@
   (reset! *sessions* nil)
   (reset! *resource-owners* nil)
   (reset! *clients* nil)
-  (reset! *authorization-codes* nil)
-  (reset! *refresh-tokens* nil)
-  (reset! *access-tokens* nil))
+  (reset! *tokens* nil)
+  (reset! *authorization-codes* nil))
 
 
 ;; Maintenance
@@ -1027,7 +1041,7 @@
    (let [now (System/currentTimeMillis)]
      (letfn [(scan? [at]
                (pos? (- now (+ at timeout))))]
-       (doseq [[session {:keys [request code at access-token refresh-token]}] @*sessions*
+       (doseq [[session {:keys [code at access-token refresh-token]}] @*sessions*
                :when (scan? at)]
          (cond
            ;; Not assigned
@@ -1061,7 +1075,6 @@
     (log/debug "OAuth2 maintenance finish")
     (Thread/sleep period)
     data))
-
 
 
 (defn start-maintenance

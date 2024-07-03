@@ -3,14 +3,17 @@
     [clojure.string :as str]
     [clojure.spec.alpha :as s]
     [clojure.data.json :as json]
+    [clojure.tools.logging :as log]
     [vura.core :as vura]
     [ring.util.codec :as codec]
     [buddy.sign.util :refer [to-timestamp]]
     [io.pedestal.interceptor.chain :as chain]
     [io.pedestal.http.body-params :as bp]
     [neyho.eywa.server.interceptors :refer [spa-interceptor]]
+    [neyho.eywa.iam :as iam]
     [neyho.eywa.iam.oauth2 :as oauth2
-     :refer [process-scope]]))
+     :refer [process-scope
+             sign-token]]))
 
 
 (s/def ::iss string?)
@@ -274,62 +277,6 @@
                  :body (json/write-str config :escape-slash false)}))})))
 
 
-; (defn oidc-token-resolver
-;   [resource-owner-details {{refresh? "refresh-tokens"} :settings :as client} session]
-;   (let [expires-after (oauth2/access-token-expiry client)]
-;     (when session (oauth2/remove-session-tokens session))
-;     (if (pos? expires-after)
-;       (let [user-info ()
-;             id-token (sign-data
-;                        (->
-;                          resource-owner-details 
-;                          (dissoc :password :avatar :settings :active :sessions)
-;                          (assoc :session session))
-;                        {:alg :rs256
-;                         :exp (-> (vura/date)
-;                                  vura/date->value
-;                                  (+ expires-after)
-;                                  vura/value->date
-;                                  to-timestamp)})
-;             access-token (sign-data
-;                            (->
-;                              resource-owner-details 
-;                              (dissoc :password :avatar :settings :active :sessions)
-;                              (assoc :session session))
-;                            {:alg :rs256
-;                             :exp (-> (vura/date)
-;                                      vura/date->value
-;                                      (+ expires-after)
-;                                      vura/value->date
-;                                      to-timestamp)})
-;             refresh-token (when (and refresh? session)
-;                             (sign-data
-;                               {:session session}
-;                               {:alg :rs256
-;                                :exp (-> (vura/date)
-;                                         vura/date->value
-;                                         (+ (oauth2/refresh-token-expiry client))
-;                                         vura/value->date
-;                                         to-timestamp)}))
-;             tokens (if refresh-token
-;                      {:access_token access-token
-;                       :refresh_token refresh-token
-;                       :expires_in expires-after
-;                       :type "bearer"}
-;                      {:access_token access-token
-;                       :expires_in expires-after
-;                       :type "bearer"})]
-;         (when session (oauth2/set-session-tokens session tokens))
-;         tokens)
-;       {:access_token (sign-data
-;                        (dissoc resource-owner-details
-;                                :password :avatar :settings
-;                                :active :sessions)
-;                        {:alg :rs256})
-;        :expires_in nil
-;        :type "bearer"})))
-
-
 (defn standard-claim
   [session claim]
   (get-in
@@ -342,20 +289,21 @@
   (assoc-in tokens [:id_token claim] (standard-claim session claim)))
 
 
-(defn id-token-expiry
-  [{{{expiry "refresh"} "token-expiry"} :settings
-    :or {expiry (vura/minutes 30)}}]
-  expiry)
+(let [default (vura/minutes 30)]
+  (defn id-token-expiry
+    [{{{expiry "id"} "token-expiry"} :settings}]
+    (or expiry default)))
 
 
 (defmethod process-scope "openid"
   [session tokens _]
   (let [{:keys [euuid]} (oauth2/get-session-resource-owner session)
-        {:keys [authorized-at]} (oauth2/get-session session)
+        {:keys [authorized-at]
+         {:keys [nonce]} :request} (oauth2/get-session session)
         client (oauth2/get-session-client session)]
     (update tokens :id_token
             merge
-            {:iss "http://www.eywaonline.com"
+            {:iss oauth2/*iss*
              :sub euuid
              :iat (to-timestamp (vura/date))
              :exp (-> (vura/date)
@@ -363,8 +311,22 @@
                       (+ (id-token-expiry client))
                       vura/value->date
                       to-timestamp)
+             :sid session
              :auth_time authorized-at
-             :nonce session})))
+             :nonce nonce})))
+
+
+(defmethod sign-token :id_token
+  [session _ data]
+  (let [client (oauth2/get-session-client session)]
+    (iam/sign-data
+      (assoc data
+             :exp (-> (vura/date)
+                      vura/date->value
+                      (+ (id-token-expiry client))
+                      vura/value->date
+                      to-timestamp))
+      {:alg :rs256})))
 
 
 (defmethod process-scope "family_name" [session tokens _] (add-standard-claim tokens session :family_name))
@@ -387,63 +349,195 @@
 (defmethod process-scope "auth_time" [session tokens _] (assoc-in tokens [:id_token :auth-at] (:authorized-at (oauth2/get-session session))))
 
 
+(defn get-access-token
+  [{{{authorization "authorization"
+      :as headers} :headers} :request}]
+  (let [access-token (if (.startsWith authorization "Bearer")
+                       (subs authorization 7)
+                       (throw
+                         (ex-info
+                           "Authorization header doesn't contain access token"
+                           headers)))]
+    access-token))
+
+
 (def user-info-interceptor
   {:enter
    (fn [ctx]
      (assoc ctx :response
-            {:status 200
-             :body "hi"}))})
+            (try
+              (let [access-token (get-access-token ctx)
+                    session (oauth2/get-token-session :access_token access-token)
+                    {info :person_info} (oauth2/get-session-resource-owner session)]
+                {:status 200
+                 :header {"Content-Type" "application/json"}
+                 :body (json/write-str info)})
+              (catch Throwable _
+                {:status 403
+                 :body "Not authorized"}))))})
+
+;; http://localhost:8080/oidc/logout?id_token_hint=eyJhbGciOiJSUzI1NiJ9.eyJwcm9maWxlIjoiaHR0cHM6Ly9iYnVoYS5wYXJ0aXphbmkueXUiLCJlbWFpbCI6bnVsbCwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiYmIzZTRkMWItZDNhMC00MzRhLWE2MGItYmViMGQxYmY1MmFmIiwiaWF0IjoxNzE5OTM5MTc4LCJleHAiOjE3MTk5NDA5NzgsImF1dGhfdGltZSI6MTcxOTkzOTE3OCwibm9uY2UiOiJlWHVHekxBREhHS28ifQ.fKrotSbaPHGns22RaV8A62k73P-hQrcCoaXamvjIW4v8SInPZIY2ER3fyTQoTBec8XofqkNMZvBLHEmIVAFOhc-52rmW4zR6GFn3FNiTrfYbvwTBgXhh8FkXVnBkesUGWBSAlKGXUe31Qf8MFW3n25QbcNgs64VITEctwny8A0mYyaWtlmDWV9GVpG0yavp_zvsCj73EDmlwowN81jc7IzGFeltukiSV-VVovJkwTE82pOdVsqriSh2fjXfkExtcHcimLzRSKUP2XpDlGn9lJzOOengwk-Lf66LRZ7WV2x6AteH5ulJsB8GGZdI8fo-YC_F6JGNAoo-hfTyd-WIicQ&post_logout_redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fprofile
+(comment
+  (def id_token_hint "eyJhbGciOiJSUzI1NiJ9.eyJwcm9maWxlIjoiaHR0cHM6Ly9iYnVoYS5wYXJ0aXphbmkueXUiLCJlbWFpbCI6bnVsbCwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiYmIzZTRkMWItZDNhMC00MzRhLWE2MGItYmViMGQxYmY1MmFmIiwiaWF0IjoxNzE5OTM5MTc4LCJleHAiOjE3MTk5NDA5NzgsImF1dGhfdGltZSI6MTcxOTkzOTE3OCwibm9uY2UiOiJlWHVHekxBREhHS28ifQ.fKrotSbaPHGns22RaV8A62k73P-hQrcCoaXamvjIW4v8SInPZIY2ER3fyTQoTBec8XofqkNMZvBLHEmIVAFOhc-52rmW4zR6GFn3FNiTrfYbvwTBgXhh8FkXVnBkesUGWBSAlKGXUe31Qf8MFW3n25QbcNgs64VITEctwny8A0mYyaWtlmDWV9GVpG0yavp_zvsCj73EDmlwowN81jc7IzGFeltukiSV-VVovJkwTE82pOdVsqriSh2fjXfkExtcHcimLzRSKUP2XpDlGn9lJzOOengwk-Lf66LRZ7WV2x6AteH5ulJsB8GGZdI8fo-YC_F6JGNAoo-hfTyd-WIicQ")
+  (def post_logout_redirect_uri "post_logout_redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fprofile")
+  (oauth2/get-token-session :id_token token))
 
 
-(def logout-interceptor
-  {:enter
-   (fn [ctx]
-     (assoc ctx :response
-            {:status 200
-             :body "hi"}))})
+(defn request-error [code & description]
+  {:status 400
+   :headers {"Content-Type" "text/html"}
+   :body (json/write-str (str/join "\n" description))})
 
 
-(def routes
-  #{["/oauth2/authorize"
-     :get [oauth2/basic-authorization-interceptor
-           (bp/body-params)
-           oauth2/keywordize-params
-           authorize-request-interceptor]
-     :route-name ::authorize-request]
-    ;;
-    ["/oauth2/request_error"
-     :get [oauth2/basic-authorization-interceptor
-           (bp/body-params)
-           oauth2/keywordize-params
-           oauth2/authorize-request-error-interceptor]
-     :route-name ::authorize-request-error]
-    ;;
-    ["/oauth2/token"
-     :post [oauth2/basic-authorization-interceptor
-            (bp/body-params)
-            oauth2/keywordize-params
-            oauth2/token-interceptor]
-     :route-name ::handle-token]
-    ;; TODO
-    ["/oidc/userinfo"
-     :post [oauth2/basic-authorization-interceptor
-            (bp/body-params)
-            oauth2/keywordize-params
-            user-info-interceptor]
-     :route-name ::user-info]
-    ;; TODO
-    ["/oidc/logout"
-     :post [oauth2/basic-authorization-interceptor
-            (bp/body-params)
-            oauth2/keywordize-params
-            logout-interceptor]
-     :route-name ::revoke]
-    ;;
-    ["/.well-known/openid-configuration" :get [open-id-configuration-interceptor] :route-name ::open-id-configuration]
-    ["/login" :get [oauth2/redirect-to-login] :route-name ::short-login]
-    ["/login/" :get [oauth2/redirect-to-login] :route-name ::root-login]
-    ["/login/*" :get [spa-interceptor] :route-name ::serve-login]
-    ["/login/*" :post [oauth2/login-interceptor] :route-name ::handle-login]})
+(let [invalid-token (request-error "Token is not valid")
+      session-not-found (request-error "Session is not active")
+      invalid-session (request-error "Session is not valid")
+      invalid-issuer (request-error "Issuer is not valid")
+      invalid-redirect (request-error "Provided 'post_logout_redirect_uri' is not valid")]
+  (def logout-interceptor
+    {:enter
+     (fn [{{{:keys [post_logout_redirect_uri id_token_hint state ui_locales client_id]} :params} :request :as ctx}]
+       (let [session (oauth2/get-token-session :id_token id_token_hint)
+             {{valid-redirections "logout-redirections"} :settings :as client} (oauth2/get-session-client session)
+             {:keys [iss sid] :as token} (try
+                                           (iam/unsign-data id_token_hint)
+                                           (catch Throwable _ nil))
+             redirect-uri (and post_logout_redirect_uri (some #(when (= % post_logout_redirect_uri) %) valid-redirections))]
+         (cond
+           (nil? session)
+           session-not-found
+           ;; Token couldn't be unsigned
+           (nil? token)
+           invalid-token
+           ;; Session doesn't match
+           (not= sid session)
+           invalid-session
+           ;; Issuer is not the same
+           (not= iss oauth2/*iss*)
+           invalid-issuer
+           ;; Redirect uri isn't valid
+           (and (some? post_logout_redirect_uri) (nil? redirect-uri))
+           invalid-redirect
+           ;;
+           (some? redirect-uri)
+           (do
+             (oauth2/kill-session session)
+             (assoc ctx :response
+                    {:status 302
+                     :headers {"Location" (str redirect-uri (when (not-empty state) (str "?" (codec/form-encode {:state state}))))
+                               "Cache-Control" "no-cache"}}))
+           :else
+           (do
+             (oauth2/kill-session session)
+             (assoc ctx :response
+                    {:status 200
+                     :headers {"Content-Type" "text/html"}
+                     :body "User logged out!"})))))}))
+
+
+(defn clients-match? [session {:keys [client_id client_secret]}]
+  (let [{known-id :id
+         known-secret :secret} (oauth2/get-session-client session)]
+    (cond
+      (not= client_id known-id) false
+      (and client_secret (not= client_secret known-secret)) false
+      (and known-secret (not= client_secret known-secret)) false
+      :else true)))
+
+
+(def clients-doesnt-match? (complement clients-match?))
+
+
+(let [invalid-client (oauth2/json-error "invalid_client" "Client ID is not valid")
+      invalid-token (oauth2/json-error "invalid_token" "Token is not valid")]
+  (def revoke-token-interceptor
+    {:enter
+     (fn [{{{:keys [token_type_hint token] :as params} :params} :request :as ctx}]
+       (let [token-key (when token_type_hint (keyword token_type_hint))
+             tokens @oauth2/*tokens*
+             [token-key session] (some
+                                   (fn [token-key]
+                                     (when-some [session (get-in tokens [token-key token])]
+                                       [token-key session]))
+                                   [token-key :access_token :refresh_token])]
+
+         (letfn [(error [response]
+                   (log/errorf "[%s] Couldn't revoke token. Returning\n%s" session response)
+                   (chain/terminate (assoc ctx :response response)))]
+           (cond
+             (nil? session) (error invalid-token)
+             (clients-doesnt-match? session params) (error invalid-client)
+             :else (do
+                     (log/debugf "[%s] Revoking token %s %s" session token-key token)
+                     (oauth2/revoke-token token-key token)
+                     (assoc ctx :response
+                            {:status 200
+                             :headers {"Content-Type" "application/json"
+                                       "Cache-Control" "no-store"
+                                       "Pragma" "no-cache"}}))))))}))
+
+
+;; This is not used, because clients not all clients are available from start
+;; this will be changed in the future and should be used when iam.oauth2 will
+;; track delta events from dataset.core
+(let [invalid-client (oauth2/json-error
+                       "invalid_client"
+                       "Provided client_id wasn't found"
+                       "Your attempt will be logged and"
+                       "processed")
+      invalid-secret (oauth2/json-error
+                       "invalid_secret"
+                       "You are using client secret that is invalid."
+                       "This request will be logged and processed!")]
+  (def authorize-client-interceptor
+    {:name ::authentication-basic
+     :enter
+     (fn [{{{id :client_id
+             secret :client_secret} :params} :request
+           :as context}]
+       (letfn [(error [response]
+                 (chain/terminate (assoc context :response response)))]
+         (let [{known-id :id
+                known-secret :secret} (get @oauth2/*clients* id)]
+           (cond
+             (not= id known-id)
+             (error invalid-client)
+             ;;
+             (or
+               (and known-secret (not= known-secret secret))
+               (and secret (not= known-secret secret)))
+             (error invalid-secret)
+             ;; Pass
+             :else context))))}))
+
+
+
+
+(let [common [oauth2/basic-authorization-interceptor
+              (bp/body-params)
+              oauth2/keywordize-params]
+      authorize (conj common authorize-request-interceptor)
+      request_error (conj common oauth2/authorize-request-error-interceptor)
+      token (conj common oauth2/token-interceptor)
+      user-info (conj common user-info-interceptor)
+      logout (conj common logout-interceptor)
+      revoke (conj common revoke-token-interceptor)]
+  (def routes
+    #{["/oauth2/authorize" :get authorize :route-name ::authorize-request]
+      ["/oauth2/request_error" :get request_error :route-name ::authorize-request-error]
+      ["/oauth2/token" :post token :route-name ::handle-token]
+      ["/oauth2/revoke" :post revoke :route-name ::post-revoke]
+      ["/oauth2/revoke" :get revoke :route-name ::get-revoke]
+      ["/oidc/userinfo" :get user-info :route-name ::user-info]
+      ["/oidc/logout" :post logout :route-name ::get-logout]
+      ["/oidc/logout" :get  logout :route-name ::post-logout]
+      ;;
+      ["/.well-known/openid-configuration" :get [open-id-configuration-interceptor] :route-name ::open-id-configuration]
+      ;;
+      ["/login" :get [oauth2/redirect-to-login] :route-name ::short-login]
+      ["/login/" :get [oauth2/redirect-to-login] :route-name ::root-login]
+      ["/login/*" :get [spa-interceptor] :route-name ::serve-login]
+      ["/login/*" :post [oauth2/login-interceptor] :route-name ::handle-login]}))
 
 
 (comment

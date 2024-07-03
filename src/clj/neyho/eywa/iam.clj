@@ -38,15 +38,19 @@
     (alter-var-root #'*public-key* (constantly public))))
 
 
-(defn init-default-encryption
+(defn generate-key-pair
   []
   (let [generator (KeyPairGenerator/getInstance "RSA")
         key-pair (.generateKeyPair generator)
         public (.getPublic key-pair)
         private (.getPrivate key-pair)]
-    (init-encryption
-      {:private private
-       :public public})))
+    {:private private
+     :public public}))
+
+
+(defn init-default-encryption
+  []
+  (init-encryption (generate-key-pair)))
 
 
 (defn sign-data
@@ -54,18 +58,32 @@
   string."
   ([data] (sign-data
             data
-            {:alg :rs256
-             :exp (->
-                    (vura/date)
-                    vura/date->value
-                    (+ vura/day)
-                    vura/value->date
-                    to-timestamp)}))
+            {:alg :rs256}))
   ([data settings]
    (jwt/sign
      data
      *private-key*
      settings)))
+
+
+(comment
+  (let [{public1 :public
+         private1 :private} (generate-key-pair) 
+        {public2 :public
+         private2 :private} (generate-key-pair)]
+    (def public1 public1) (def public2 public2)
+    (def private1 private1) (def private2 private2)
+    )
+  (def data {:iss "majka du"
+             :sub "robi"
+             :exp "nikad"})
+  (=
+   (jwt/sign data private1 {:alg :rs256})
+   (jwt/sign data private2 {:alg :rs256}))
+  (=
+   (jwt/sign (assoc data :sub "kittt") private1 {:alg :rs256})
+   (jwt/sign data private1 {:alg :rs256}))
+  )
 
 
 (defn unsign-data
@@ -251,6 +269,7 @@
          "http://localhost:5173/authentication/callback"],
         "token-expiry" {"access" 300000, "refresh" 129600000},
         "allowed-grants" ["refresh_token" "code" "token" "id_token"],
+        "logout-redirections" ["http://localhost:5173/"]
         "refresh-tokens" true}}))
   (get-client (:id client))
   (remove-client client)
