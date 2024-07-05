@@ -270,7 +270,8 @@
         "token-expiry" {"access" 300000, "refresh" 129600000},
         "allowed-grants" ["refresh_token" "code" "token" "id_token"],
         "logout-redirections" ["http://localhost:5173/"]
-        "refresh-tokens" true}}))
+        "refresh-tokens" true
+        }}))
   (get-client (:id client))
   (remove-client client)
   ;;

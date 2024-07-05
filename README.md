@@ -77,10 +77,10 @@ as local environment configured in configuration file and set as default environ
 
 Now we need to install EYWA Core jar file. Run
 ```
-eywa core version -l
+eywa core -l
 
 And output should look something like this
-❯ eywa core version -l          
+❯ eywa core -l          
 List of available versions. '*' installed, '-' not installed
 
 [-] 0.1.4
@@ -89,7 +89,7 @@ List of available versions. '*' installed, '-' not installed
 ```
 To install some version run
 ```
-eywa core version -s 0.1.4
+eywa core -s 0.1.4
 ```
 Ok EYWA Core server is installed, now we need to initialize EYWA IAM and Datacraft. So we should run:
 ```

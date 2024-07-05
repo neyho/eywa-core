@@ -971,11 +971,6 @@
        (dataset/save-model model')
        (query/deploy-schema schema)
        (try
-         (comment
-           (def this neyho.eywa.db/*db*)
-           (def model' (db->model this))
-           (def model model')
-           (def schema (time (model->schema model'))))
          (lacinia/add-shard ::datasets (fn [] (lacinia/generate-lacinia-schema this)))
          (catch Throwable e
            (log/error e "Couldn't add lacinia schema shard")))

@@ -28,7 +28,7 @@
   (:gen-class :main true))
 
 
-(def version "0.1.7")
+(def version "0.2.1")
 
 
 (defn setup

@@ -227,6 +227,24 @@
       (async/close! sub))))
 
 
+(defn get-version
+  [euuid]
+  (get-entity
+    du/dataset-version
+    {:euuid euuid}
+    {:euuid nil
+     :dataset [{:selections
+                {:euuid nil
+                 :name nil}}]
+     :model nil
+     :name nil}))
+
+
+(defn get-version-model
+  [euuid]
+  (:model (get-version euuid)))
+
+
 (comment
   (def entity-uuid #uuid "5338693b-9dbc-4434-b598-b15175da04c3")
   (def entity (dataset/get-entity (deployed-model) entity-uuid))
@@ -245,15 +263,7 @@
        :model nil
        :name nil}))
   (def version
-    (get-entity
-      du/dataset-version
-      {:euuid #uuid "d8b61ef4-7815-4463-999c-8567f2d3eef5"}
-      {:euuid nil
-       :dataset [{:selections
-                  {:euuid nil
-                   :name nil}}]
-       :model nil
-       :name nil}))
+    )
   (def username "rgersak")
   (def user nil))
 

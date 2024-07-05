@@ -1070,21 +1070,21 @@
    (let [now (System/currentTimeMillis)]
      (letfn [(scan? [at]
                (pos? (- now (+ at timeout))))]
-       (doseq [[session {:keys [code at access-token refresh-token]}] @*sessions*
+       (doseq [[session {:keys [code at access_token refresh_token]}] @*sessions*
                :when (scan? at)]
          (cond
            ;; Not assigned
-           (and (nil? code) (nil? access-token))
+           (and (nil? code) (nil? access_token))
            (do
              (log/debugf "[%s] Session timed out. No code or access token was assigned to this session" session)
              (kill-session session))
            ;; access token expired
-           (and (some? access-token) (nil? refresh-token) (expired? access-token))
+           (and (some? access_token) (nil? refresh_token) (expired? access_token))
            (do
              (log/debugf "[%s] Access token expired and no refresh token is available. Killing session" session)
              (kill-session session))
            ;; refresh token expired
-           (and (some? refresh-token) (expired? access-token))
+           (and (some? refresh_token) (expired? access_token))
            (do
              (log/debugf "[%s] Refresh token expired. Killing session" session)
              (kill-session session))
@@ -1104,6 +1104,13 @@
     (log/debug "OAuth2 maintenance finish")
     (Thread/sleep period)
     data))
+
+
+(comment
+  (restart-agent maintenance-agent @maintenance-agent)
+  (agent-error maintenance-agent)
+  (swap! *sessions* dissoc :refresh_token :access_token)
+  )
 
 
 (defn start-maintenance

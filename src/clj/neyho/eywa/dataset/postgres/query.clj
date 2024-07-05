@@ -770,6 +770,14 @@
 
 
 (comment
+  (set-entity
+    #uuid "ccdab22c-0fd5-49da-b447-72ab55e596a4" 
+    {:euuid #uuid "2f1338c2-4659-4c96-8b80-15c01a5362f3"
+     :name "dijete"
+     :mother {:euuid #uuid "e5a6746c-dabe-4810-9fcf-e08dfb381ecd"
+              :name "mama"}
+     :father {:euuid #uuid "34d00251-cd25-40be-b68f-6755f6ca1bd1"
+              :name "tata"}})
   (binding [*roles* #{
                       ; (:euuid neyho.eywa.data/*ROOT*)
                       #uuid "97b95ab8-4ca3-498d-b578-b12e6d1a2df8"
