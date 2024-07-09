@@ -15,7 +15,12 @@
     [neyho.eywa.iam :as iam]
     [neyho.eywa.iam.oauth2 :as oauth2
      :refer [process-scope
-             sign-token]]))
+             sign-token]])
+  (:import
+    [java.security KeyFactory]
+    [java.security.interfaces RSAPublicKey]
+    [java.security.spec X509EncodedKeySpec]
+    [org.bouncycastle.util.encoders Base64]))
 
 
 (s/def ::iss string?)
@@ -170,8 +175,9 @@
         (oauth2/authorization-code-flow request)))))
 
 
-(comment
-  (def request (:request (oauth2/get-session "IDldMZTkptwpePGdsqoUnuRaiQtXLL"))))
+; (comment
+;   (def request (:request (oauth2/get-session "IDldMZTkptwpePGdsqoUnuRaiQtXLL"))))
+
 
 (defn authorization-request
   [request]
@@ -203,7 +209,7 @@
         :else
         (case flow
           ;;
-          :code (authorization-code-flow request) 
+          :code (oauth2/authorization-code-flow request) 
           ;;
           :implicit (implicit-flow request)
           ;;
@@ -259,6 +265,7 @@
          :authorization_endpoint (domain+ "/oauth2/authorize")
          :token_endpoint (domain+ "/oauth2/token")
          :userinfo_endpoint (domain+ "/oidc/userinfo")
+         :jwks_uri (domain+ "/oauth2/jwks")
          :end_session_endpoint (domain+ "/oidc/logout")
          :revocation_endpoint (domain+ "/oauth2/revoke")
          :response_types_supported ["code" "token" "id_token"
@@ -378,12 +385,6 @@
                 {:status 403
                  :body "Not authorized"}))))})
 
-;; http://localhost:8080/oidc/logout?id_token_hint=eyJhbGciOiJSUzI1NiJ9.eyJwcm9maWxlIjoiaHR0cHM6Ly9iYnVoYS5wYXJ0aXphbmkueXUiLCJlbWFpbCI6bnVsbCwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiYmIzZTRkMWItZDNhMC00MzRhLWE2MGItYmViMGQxYmY1MmFmIiwiaWF0IjoxNzE5OTM5MTc4LCJleHAiOjE3MTk5NDA5NzgsImF1dGhfdGltZSI6MTcxOTkzOTE3OCwibm9uY2UiOiJlWHVHekxBREhHS28ifQ.fKrotSbaPHGns22RaV8A62k73P-hQrcCoaXamvjIW4v8SInPZIY2ER3fyTQoTBec8XofqkNMZvBLHEmIVAFOhc-52rmW4zR6GFn3FNiTrfYbvwTBgXhh8FkXVnBkesUGWBSAlKGXUe31Qf8MFW3n25QbcNgs64VITEctwny8A0mYyaWtlmDWV9GVpG0yavp_zvsCj73EDmlwowN81jc7IzGFeltukiSV-VVovJkwTE82pOdVsqriSh2fjXfkExtcHcimLzRSKUP2XpDlGn9lJzOOengwk-Lf66LRZ7WV2x6AteH5ulJsB8GGZdI8fo-YC_F6JGNAoo-hfTyd-WIicQ&post_logout_redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fprofile
-(comment
-  (def id_token_hint "eyJhbGciOiJSUzI1NiJ9.eyJwcm9maWxlIjoiaHR0cHM6Ly9iYnVoYS5wYXJ0aXphbmkueXUiLCJlbWFpbCI6bnVsbCwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiYmIzZTRkMWItZDNhMC00MzRhLWE2MGItYmViMGQxYmY1MmFmIiwiaWF0IjoxNzE5OTM5MTc4LCJleHAiOjE3MTk5NDA5NzgsImF1dGhfdGltZSI6MTcxOTkzOTE3OCwibm9uY2UiOiJlWHVHekxBREhHS28ifQ.fKrotSbaPHGns22RaV8A62k73P-hQrcCoaXamvjIW4v8SInPZIY2ER3fyTQoTBec8XofqkNMZvBLHEmIVAFOhc-52rmW4zR6GFn3FNiTrfYbvwTBgXhh8FkXVnBkesUGWBSAlKGXUe31Qf8MFW3n25QbcNgs64VITEctwny8A0mYyaWtlmDWV9GVpG0yavp_zvsCj73EDmlwowN81jc7IzGFeltukiSV-VVovJkwTE82pOdVsqriSh2fjXfkExtcHcimLzRSKUP2XpDlGn9lJzOOengwk-Lf66LRZ7WV2x6AteH5ulJsB8GGZdI8fo-YC_F6JGNAoo-hfTyd-WIicQ")
-  (def post_logout_redirect_uri "post_logout_redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fprofile")
-  (oauth2/get-token-session :id_token token))
-
 
 (defn request-error [code & description]
   {:status 400
@@ -400,7 +401,7 @@
     {:enter
      (fn [{{{:keys [post_logout_redirect_uri id_token_hint state ui_locales client_id]} :params} :request :as ctx}]
        (let [session (oauth2/get-token-session :id_token id_token_hint)
-             {{valid-redirections "logout-redirections"} :settings :as client} (oauth2/get-session-client session)
+             {{valid-redirections "logout-redirections"} :settings} (oauth2/get-session-client session)
              {:keys [iss sid] :as token} (try
                                            (iam/unsign-data id_token_hint)
                                            (catch Throwable _ nil))
@@ -513,7 +514,6 @@
              :else context))))}))
 
 
-
 (defn generate-code-challenge
   ([code-verifier] (generate-code-challenge code-verifier "S256"))
   ([code-verifier code-challenge-method]
@@ -527,10 +527,6 @@
            (.replace "+" "-")
            (.replace "/" "_")
            (.replace "=" ""))))))
-
-
-(comment
-  (generate-code-challange "fiejo1j092813"))
 
 
 (def pkce-interceptor
@@ -550,11 +546,25 @@
                  "Proof Key for Code Exchange failed")))))))})
 
 
+(def jwks-interceptor
+  {:enter (fn [ctx]
+            (assoc ctx :response
+                   {:status 200
+                    :headers {"Content-Type" "application/json"}
+                    :body (json/write-str
+                            {:keys
+                             (map
+                               (fn [{:keys [public]}] (iam/encode-rsa-key public))
+                               @iam/encryption-keys)})}))})
 
 
-(let [common [oauth2/basic-authorization-interceptor
+(let [;; save-context (fn [context]
+      ;;                (def context context)
+      ;;                context) 
+      common [oauth2/basic-authorization-interceptor
               (bp/body-params)
               oauth2/keywordize-params]
+      ; authorize (conj common save-context)
       authorize (conj common authorize-request-interceptor)
       request_error (conj common oauth2/authorize-request-error-interceptor)
       token (conj common pkce-interceptor oauth2/token-interceptor)
@@ -567,6 +577,7 @@
       ["/oauth2/token" :post token :route-name ::handle-token]
       ["/oauth2/revoke" :post revoke :route-name ::post-revoke]
       ["/oauth2/revoke" :get revoke :route-name ::get-revoke]
+      ["/oauth2/jwks" :get [jwks-interceptor] :route-name ::get-jwks]
       ["/oidc/userinfo" :get user-info :route-name ::user-info]
       ["/oidc/logout" :post logout :route-name ::get-logout]
       ["/oidc/logout" :get  logout :route-name ::post-logout]

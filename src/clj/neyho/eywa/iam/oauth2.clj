@@ -92,7 +92,7 @@
   tokens)
 
 
-(declare remove-session-tokens set-session-tokens)
+(declare revoke-session-tokens set-session-tokens)
 
 
 (defn get-session-client [session]
@@ -453,7 +453,7 @@
   (let [session-data (get-session session)]
     (remove-session-resource-owner session)
     (remove-session-client session)
-    (remove-session-tokens session)
+    (revoke-session-tokens session)
     (swap! *sessions* dissoc session)
     (publish :session/kill
              {:session session
@@ -482,10 +482,6 @@
     :implicit ::implict-grant))
 
 
-(comment
-  (reset))
-
-
 (defmethod sign-token :refresh_token
   [session _ data]
   (let [client (get-session-client session)]
@@ -509,7 +505,8 @@
                       (+ (access-token-expiry client))
                       vura/value->date
                       to-timestamp))
-      {:alg :rs256})))
+      {:alg :rs256
+       :kid "evo neki kid"})))
 
 
 (defn json-error
@@ -545,7 +542,7 @@
                grant-type (let [spec (s/conform ::grant_type grant_type)]
                             (if (s/invalid? spec) ::error
                               (first spec)))]
-           (when session (remove-session-tokens session))
+           (when session (revoke-session-tokens session))
            (cond
              ;;
              (not= id client_id)
@@ -985,7 +982,6 @@
   {:name ::authentication-basic
    :enter
    (fn [{{{authorization "authorization"} :headers} :request :as context}]
-     ; (def context context)
      (if-not authorization context
        (let [[_ credentials] (re-find #"Basic\s+(.*)" authorization)
              [id secret] (decode-base64-credentials credentials)]
@@ -1109,3 +1105,11 @@
 (defn start-maintenance
   []
   (send-off maintenance-agent maintenance))
+
+
+
+(comment
+  (def token (-> *tokens* deref :access_token ffirst))
+  (require '[buddy.sign.jwt :as jwt])
+  (jwt/decode-header token)
+  ())
