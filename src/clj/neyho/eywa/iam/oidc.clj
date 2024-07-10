@@ -593,32 +593,30 @@
 (def serve-login-page
   {:enter (fn [{{:keys [uri]
                  {:keys [session]} :params} :request :as ctx}]
-            (let [path (subs uri 6)
+            (let [ext (re-find #"(?<=\.).*?$" uri)
+                  path (subs uri 6)
                   {:keys [code authorization-code-used?]
                    {redirect-uri :redirect_uri
                     state :state} :request} (oauth2/get-session session)
-                  session-active? (and (not-empty code) authorization-code-used?)]
-              (comment
-                (def session "jLfSZKVOlVqJzsaLpPdTColugEoDxl")
-                (oauth2/get-session "jLfSZKVOlVqJzsaLpPdTColugEoDxl")
-                (oauth2/get-session-client session)
-                (def code (:code (oauth2/get-session session))))
-              (assoc ctx :response
-                     (cond
-                       ;;
-                       (nil? (oauth2/get-session session))
-                       (request-error 400 "Target session doesn't exist")
-                       ;;
-                       (and session session-active?)
-                       (let [code (oauth2/bind-authorization-code session)]
-                         {:status 302
-                          :headers {"Location" (str redirect-uri "?" (codec/form-encode {:state state :code code}))}})
-                       ;;
-                       (io/resource path)
-                       (response/resource-response path)
-                       ;;
-                       :else
-                       (response/resource-response "login/index.html")))))})
+                  session-active? (and (not-empty code) authorization-code-used?)
+                  response (cond
+                             ;; First check if there is active session
+                             (and session session-active?)
+                             (let [code (oauth2/bind-authorization-code session)]
+                               {:status 302
+                                :headers {"Location" (str redirect-uri "?" (codec/form-encode {:state state :code code}))}})
+                             ;; If there is session but it wasn't created by EYWA
+                             ;; return error
+                             (nil? (oauth2/get-session session))
+                             (request-error 400 "Target session doesn't exist")
+                             ;; Then check if some file was requested
+                             (and ext (io/resource path))
+                             (response/resource-response path)
+                             ;; Finally return index.html if you don't know what
+                             ;; to do
+                             :else
+                             (response/resource-response "login/index.html"))]
+              (assoc ctx :response response)))})
 
 
 
@@ -646,7 +644,7 @@
       ["/oauth2/revoke" :get revoke :route-name ::get-revoke]
       ["/oauth2/jwks" :get [jwks-interceptor] :route-name ::get-jwks]
       ["/oidc/login/*" :get [middleware/cookies serve-login-page] :route-name ::short-login-redirect]
-      ["/oidc/login/*" :post [oauth2/login-interceptor] :route-name ::handle-login]
+      ["/oidc/login/*" :post [middleware/cookies oauth2/login-interceptor] :route-name ::handle-login]
       ["/oidc/login" :get [oauth2/redirect-to-login] :route-name ::short-login]
       ["/oidc/userinfo" :get user-info :route-name ::user-info]
       ["/oidc/logout" :post logout :route-name ::get-logout]

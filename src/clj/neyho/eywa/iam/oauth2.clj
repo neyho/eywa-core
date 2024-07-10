@@ -590,6 +590,11 @@
                                      :iat (-> (vura/date) to-timestamp)
                                      :client_id client_id
                                      :sid session
+                                     :exp (-> (vura/date)
+                                              vura/date->value
+                                              (+ (access-token-expiry client))
+                                              vura/value->date
+                                              to-timestamp)
                                      :scope (str/join " " scope)}
                        response (if (pos? expires-after)
                                   (let [refresh-token {:iss *iss*
@@ -625,7 +630,7 @@
                                                         tokens)]
                                     (assoc signed-tokens
                                            :type "Bearer"
-                                           :expires_in nil
+                                           :expires_in (:exp access-token)
                                            :scope (str/join " " scope))))]
                    {:status 200
                     :headers {"Content-Type" "application/json;charset=UTF-8"
@@ -640,6 +645,11 @@
                                    :iat (-> (vura/date) to-timestamp)
                                    :client_id client_id
                                    :sid session
+                                   :exp (-> (vura/date)
+                                            vura/date->value
+                                            (+ (access-token-expiry client))
+                                            vura/value->date
+                                            to-timestamp)
                                    :scope (str/join " " scope)}
                      response (if (pos? expires-after)
                                 (let [refresh-token (when (and refresh? session)
@@ -678,7 +688,7 @@
                                                       tokens)]
                                   (session-used-authorization-code session)
                                   (assoc signed-tokens
-                                         :expires_in nil
+                                         :expires_in  (:exp access-token)
                                          :scope (str/join " " scope)
                                          :type "Bearer")))]
                  {:status 200
