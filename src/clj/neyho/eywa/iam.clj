@@ -63,7 +63,6 @@
      @encryption-keys)))
 
 
-
 (defn generate-key-pair
   []
   (let [generator (KeyPairGenerator/getInstance "RSA")
@@ -84,21 +83,18 @@
   (add-key-pair (generate-key-pair)))
 
 
-
-
-
 (defn sign-data
   "Function encrypts data that should be in map form and returns encrypted
   string."
   ([data] (sign-data data {:alg :rs256}))
   ([data settings]
    (let [[{private-key :private kid :kid}] @encryption-keys]
-     (jwt/sign data private-key (assoc settings :header {:kid kid})))))
+     (jwt/sign data private-key (assoc settings :header {:kid kid
+                                                         :type "JWT"})))))
 
 
 (comment
   (def t (sign-data {:a 100}))
-  (jwt/unsign t (get-private-key "nZxJ6Cmb1vlpOMWkLiXiJ04qXz8MhEgF5NGykl1xjh4") {:alg :rs256})
   (unsign-data t)
   (rotate-keypair)
   (jwt/decode-header t)
@@ -117,8 +113,7 @@
    (jwt/sign data private2 {:alg :rs256}))
   (=
    (jwt/sign (assoc data :sub "kittt") private1 {:alg :rs256})
-   (jwt/sign data private1 {:alg :rs256}))
-  )
+   (jwt/sign data private1 {:alg :rs256})))
 
 
 (defn unsign-data
@@ -298,14 +293,25 @@
        :secret nil
        :settings
        {"version" 0,
-        "login-page" "http://localhost:8080/login/eywa",
+        "login-page" "http://localhost:8080/oidc/login/index.html",
         "redirections"
         ["http://localhost:8080/eywa/"
          "http://localhost:8080/app/kbdev"
-         "http://localhost:5173/authentication/callback"],
+         "http://localhost:5173/authentication/callback"
+         "http://localhost:1234/sample.html"
+         "http://localhost:1234/code-flow-duendesoftware/sample.html"
+         "http://localhost:1234/code-flow-duendesoftware/sample-silent.html"
+         "http://localhost:1234/code-flow-duendesoftware/sample-popup-signin.html"
+         "http://localhost:1234/code-flow-duendesoftware/sample-popup-signout.html"
+         "http://localhost:1234/oidc-client/sample.html"
+         "http://localhost:1234/user-manager/sample.html"
+         "http://localhost:1234/user-manager/sample.html"
+         "http://localhost:1234/auth/callback"
+         ],
         "token-expiry" {"access" 300000, "refresh" 129600000},
         "allowed-grants" ["refresh_token" "code" "token" "id_token"],
-        "logout-redirections" ["http://localhost:5173/"]
+        "logout-redirections" ["http://localhost:5173/"
+                               "http://localhost:1234/code-flow-duendesoftware/sample.html"]
         "refresh-tokens" true}}))
 
 

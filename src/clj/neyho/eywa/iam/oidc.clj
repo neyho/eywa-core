@@ -4,8 +4,10 @@
     [clojure.spec.alpha :as s]
     [clojure.data.json :as json]
     [clojure.tools.logging :as log]
+    [clojure.java.io :as io]
     [vura.core :as vura]
     [ring.util.codec :as codec]
+    [ring.util.response :as response]
     [buddy.core.codecs]
     [buddy.core.hash :as hash]
     [buddy.sign.util :refer [to-timestamp]]
@@ -15,7 +17,8 @@
     [neyho.eywa.iam :as iam]
     [neyho.eywa.iam.oauth2 :as oauth2
      :refer [process-scope
-             sign-token]])
+             sign-token]]
+    [io.pedestal.http.ring-middlewares :as middleware])
   (:import
     [java.security KeyFactory]
     [java.security.interfaces RSAPublicKey]
@@ -220,9 +223,8 @@
   {:name ::authorize-request
    :enter
    (fn [{{:keys [params]} :request :as context}]
-     (chain/terminate
-       (assoc context :response
-              (authorization-request params))))})
+     (let [response (authorization-request params)]
+       (chain/terminate (assoc context :response response))))})
 
 
 (defn login
@@ -377,26 +379,30 @@
             (try
               (let [access-token (get-access-token ctx)
                     session (oauth2/get-token-session :access_token access-token)
-                    {info :person_info} (oauth2/get-session-resource-owner session)]
+                    {info :person_info
+                     :keys [euuid]} (oauth2/get-session-resource-owner session)]
                 {:status 200
-                 :header {"Content-Type" "application/json"}
-                 :body (json/write-str info)})
+                 :headers {"Content-Type" "application/json"}
+                 :body (json/write-str (assoc info :sub euuid))})
               (catch Throwable _
                 {:status 403
                  :body "Not authorized"}))))})
 
 
-(defn request-error [code & description]
-  {:status 400
+(defn request-error
+  [code & description]
+  {:status code
    :headers {"Content-Type" "text/html"}
    :body (json/write-str (str/join "\n" description))})
 
 
-(let [invalid-token (request-error "Token is not valid")
-      session-not-found (request-error "Session is not active")
-      invalid-session (request-error "Session is not valid")
-      invalid-issuer (request-error "Issuer is not valid")
-      invalid-redirect (request-error "Provided 'post_logout_redirect_uri' is not valid")]
+(let [invalid-token (request-error 400 "Token is not valid")
+      session-not-found (request-error 400 "Session is not active")
+      invalid-session (request-error 400 "Session is not valid")
+      invalid-issuer (request-error 400 "Issuer is not valid")
+      invalid-redirect (request-error 400 "Provided 'post_logout_redirect_uri' is not valid")]
+  (comment
+    ((:enter logout-interceptor) ctx))
   (def logout-interceptor
     {:enter
      (fn [{{{:keys [post_logout_redirect_uri id_token_hint state ui_locales client_id]} :params} :request :as ctx}]
@@ -558,19 +564,80 @@
                                @iam/encryption-keys)})}))})
 
 
+(defn get-cookies [{{:keys [headers]} :request}]
+  (let [{cookies "cookie"} headers]
+    (when cookies
+      (reduce
+        (fn [r c]
+          (let [[k v] (clojure.string/split c #"=")]
+            (assoc r k v)))
+        nil
+        (clojure.string/split cookies #"[;\s]+")))))
+
+
+(def idsrv-session-read
+  {:enter (fn [ctx]
+            (let [{{{{idsrv-session :value} "idsrv.session"} :cookies} :request} ctx]
+              (if (empty? idsrv-session) ctx
+                (assoc-in ctx [:request :params :idsrv/session] idsrv-session))))})
+
+
+(def idsrv-session-remove
+  {:enter (fn [ctx]
+            (assoc-in ctx [:response :cookies "idsrv.session"]
+                      {:value ""
+                       :path ""
+                       :max-age "0"}))})
+
+
+(def serve-login-page
+  {:enter (fn [{{:keys [uri]
+                 {:keys [session]} :params} :request :as ctx}]
+            (let [path (subs uri 6)
+                  {:keys [code authorization-code-used?]
+                   {redirect-uri :redirect_uri
+                    state :state} :request} (oauth2/get-session session)
+                  session-active? (and (not-empty code) authorization-code-used?)]
+              (comment
+                (def session "jLfSZKVOlVqJzsaLpPdTColugEoDxl")
+                (oauth2/get-session "jLfSZKVOlVqJzsaLpPdTColugEoDxl")
+                (oauth2/get-session-client session)
+                (def code (:code (oauth2/get-session session))))
+              (assoc ctx :response
+                     (cond
+                       ;;
+                       (nil? (oauth2/get-session session))
+                       (request-error 400 "Target session doesn't exist")
+                       ;;
+                       (and session session-active?)
+                       (let [code (oauth2/bind-authorization-code session)]
+                         {:status 302
+                          :headers {"Location" (str redirect-uri "?" (codec/form-encode {:state state :code code}))}})
+                       ;;
+                       (io/resource path)
+                       (response/resource-response path)
+                       ;;
+                       :else
+                       (response/resource-response "login/index.html")))))})
+
+
+
 (let [;; save-context (fn [context]
       ;;                (def context context)
       ;;                context) 
       common [oauth2/basic-authorization-interceptor
+              middleware/cookies
               (bp/body-params)
               oauth2/keywordize-params]
       ; authorize (conj common save-context)
-      authorize (conj common authorize-request-interceptor)
+      authorize (conj common
+                      idsrv-session-read
+                      authorize-request-interceptor)
       request_error (conj common oauth2/authorize-request-error-interceptor)
       token (conj common pkce-interceptor oauth2/token-interceptor)
       user-info (conj common user-info-interceptor)
-      logout (conj common logout-interceptor)
-      revoke (conj common revoke-token-interceptor)]
+      logout (conj common idsrv-session-read logout-interceptor)
+      revoke (conj common idsrv-session-read revoke-token-interceptor)]
   (def routes
     #{["/oauth2/authorize" :get authorize :route-name ::authorize-request]
       ["/oauth2/request_error" :get request_error :route-name ::authorize-request-error]
@@ -578,16 +645,13 @@
       ["/oauth2/revoke" :post revoke :route-name ::post-revoke]
       ["/oauth2/revoke" :get revoke :route-name ::get-revoke]
       ["/oauth2/jwks" :get [jwks-interceptor] :route-name ::get-jwks]
+      ["/oidc/login/*" :get [middleware/cookies serve-login-page] :route-name ::short-login-redirect]
+      ["/oidc/login/*" :post [oauth2/login-interceptor] :route-name ::handle-login]
+      ["/oidc/login" :get [oauth2/redirect-to-login] :route-name ::short-login]
       ["/oidc/userinfo" :get user-info :route-name ::user-info]
       ["/oidc/logout" :post logout :route-name ::get-logout]
       ["/oidc/logout" :get  logout :route-name ::post-logout]
-      ;;
-      ["/.well-known/openid-configuration" :get [open-id-configuration-interceptor] :route-name ::open-id-configuration]
-      ;;
-      ["/login" :get [oauth2/redirect-to-login] :route-name ::short-login]
-      ["/login/" :get [oauth2/redirect-to-login] :route-name ::root-login]
-      ["/login/*" :get [spa-interceptor] :route-name ::serve-login]
-      ["/login/*" :post [oauth2/login-interceptor] :route-name ::handle-login]}))
+      ["/.well-known/openid-configuration" :get [open-id-configuration-interceptor] :route-name ::open-id-configuration]}))
 
 
 (comment

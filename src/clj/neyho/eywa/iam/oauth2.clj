@@ -15,6 +15,7 @@
     [buddy.sign.util :refer [to-timestamp]]
     [io.pedestal.interceptor.chain :as chain]
     [io.pedestal.http.body-params :as bp]
+    [io.pedestal.http.ring-middlewares :as middleware]
     [neyho.eywa.iam
      :refer [sign-data
              unsign-data
@@ -333,7 +334,11 @@
     (swap! *authorization-codes* assoc code {:session session
                                              :at (System/currentTimeMillis)})
     (swap! *sessions* update session
-           (fn [current] (assoc current :code code)))
+           (fn [current]
+             (->
+               current 
+               (assoc :code code)
+               (dissoc :authorization-code-used?))))
     (publish :grant/code {:session session :code code})
     code))
 
@@ -353,25 +358,33 @@
         resource-owner (validate-resource-owner username password)]
     (set-session-authorized-at session (vura/date))
     (log/debugf "[%s] Validating resource owner: %s" session username)
-    (cond
-      ;;
-      (nil? session-state)
-      (handle-request-error {:type "corrupt_session" :session session}) 
-      ;;
-      (and resource-owner (set/intersection #{"code" "authorization_code"} response_type))
-      (let [code (bind-authorization-code session)]
-        (log/debugf "[%s] Binding code to session" code)
-        (set-session-resource-owner session resource-owner)
-        {:status 302
-         :headers {"Location" (str redirect-uri "?" (codec/form-encode {:state state :code code}))}})
-      ;;
-      :else
-      (let [{{url "login-page"} :settings} (get-session-client session)]
-        {:status 302
-         :headers {"Location" (str url "?" (codec/form-encode
-                                             {:session session
-                                              :error ["credentials"]}))
-                   "Cache-Control" "no-cache"}}))))
+    (letfn [(attach-session-cookie [ctx]
+              (assoc-in ctx [:cookies "idsrv.session"]
+                        {:value session
+                         :path "/"
+                         :http-only true
+                         :secure true
+                         :expires "Session"}))]
+      (cond
+        ;;
+        (nil? session-state)
+        (handle-request-error {:type "corrupt_session" :session session}) 
+        ;;
+        (and resource-owner (set/intersection #{"code" "authorization_code"} response_type))
+        (let [code (bind-authorization-code session)]
+          (log/debugf "[%s] Binding code to session" code)
+          (set-session-resource-owner session resource-owner)
+          (attach-session-cookie
+            {:status 302
+             :headers {"Location" (str redirect-uri "?" (codec/form-encode {:state state :code code}))}}))
+        ;;
+        :else
+        (let [{{url "login-page"} :settings} (get-session-client session)]
+          {:status 302
+           :headers {"Location" (str url "?" (codec/form-encode
+                                               {:session session
+                                                :error ["credentials"]}))
+                     "Cache-Control" "no-cache"}})))))
 
 
 (def login-interceptor
@@ -526,7 +539,7 @@
 
 (let [unsupported (json-error 500 "unsupported" "This feature isn't supported at the moment")]
   (def ^:dynamic *token-resolver*
-    (fn gen-access-token
+    (fn gen-token
       ([session request]
        (try
          (let [{:keys [client_id grant_type code]
@@ -577,7 +590,7 @@
                                      :iat (-> (vura/date) to-timestamp)
                                      :client_id client_id
                                      :sid session
-                                     :scope scope}
+                                     :scope (str/join " " scope)}
                        response (if (pos? expires-after)
                                   (let [refresh-token {:iss *iss*
                                                        :sid session}
@@ -589,7 +602,9 @@
                                                  scope)
                                         signed-tokens (reduce-kv
                                                         (fn [tokens token data]
-                                                          (assoc tokens token (sign-token session token data)))
+                                                          (if-let [payload (sign-token session token data)]
+                                                            (assoc tokens token payload)
+                                                            tokens))
                                                         tokens
                                                         tokens)]
                                     (revoke-session-tokens session)
@@ -597,7 +612,7 @@
                                     (assoc signed-tokens
                                            :type "Bearer"
                                            :expires_in (:exp access-token)
-                                           :scope scope))
+                                           :scope (str/join " " scope)))
                                   (let [tokens (reduce
                                                  (fn [tokens scope]
                                                    (process-scope session tokens scope))
@@ -611,7 +626,7 @@
                                     (assoc signed-tokens
                                            :type "Bearer"
                                            :expires_in nil
-                                           :scope scope)))]
+                                           :scope (str/join " " scope))))]
                    {:status 200
                     :headers {"Content-Type" "application/json;charset=UTF-8"
                               "Pragma" "no-cache"
@@ -625,7 +640,7 @@
                                    :iat (-> (vura/date) to-timestamp)
                                    :client_id client_id
                                    :sid session
-                                   :scope scope}
+                                   :scope (str/join " " scope)}
                      response (if (pos? expires-after)
                                 (let [refresh-token (when (and refresh? session)
                                                       (log/debugf "Creating refresh token: %s" session)
@@ -649,7 +664,7 @@
                                   (session-used-authorization-code session)
                                   (assoc signed-tokens
                                          :type "Bearer"
-                                         :scope scope
+                                         :scope (str/join " " scope)
                                          :expires_in (:exp access-token)))
                                 (let [tokens (reduce
                                                (fn [tokens scope]
@@ -664,7 +679,7 @@
                                   (session-used-authorization-code session)
                                   (assoc signed-tokens
                                          :expires_in nil
-                                         :scope scope
+                                         :scope (str/join " " scope)
                                          :type "Bearer")))]
                  {:status 200
                   :headers {"Content-Type" "application/json;charset=UTF-8"
@@ -878,13 +893,24 @@
 
 
 (defn authorization-code-flow
-  [request]
-  (let [session (gen-session-id)
+  [{cookie-session :idsrv/session :as request}]
+  (let [session (or cookie-session (gen-session-id))
         now (System/currentTimeMillis)]
+    (comment
+      (def session (:idsrv/session request)))
     (try
-      (set-session session
-                   {:request request
-                    :at now})
+      ;; If session exists, trust that session
+      (if cookie-session
+        (do
+          ;; and revoke current tokens, since new code will
+          ;; be published that will create new tokens
+          (revoke-session-tokens session)
+          ;; and merge current request into session as active request
+          (swap! *sessions* update session merge {:request request :at now}))
+        ;; when there is no cookie session, set session request for
+        ;; further processing
+        (set-session session {:request request :at now}))
+      ;; Check that client is valid
       (let [client (validate-client session)]
         ;; Proper implementation
         (set-session-client session client)
@@ -1009,7 +1035,7 @@
             (chain/terminate
               (assoc ctx :response
                      {:status 302
-                      :headers {"Location" (str "/login/index.html")
+                      :headers {"Location" (str "/oidc/login/index.html")
                                 "Cache-Control" "no-cache"}})))})
 
 
@@ -1035,10 +1061,10 @@
             scope->set
             token-interceptor]
      :route-name ::handle-token]
-    ["/login" :get [redirect-to-login] :route-name ::short-login]
-    ["/login/" :get [redirect-to-login] :route-name ::root-login]
-    ["/login/*" :get [spa-interceptor] :route-name ::serve-login]
-    ["/login/*" :post [login-interceptor] :route-name ::handle-login]})
+    ["/oidc/login" :get [redirect-to-login] :route-name ::short-login]
+    ["/oidc/login/" :get [redirect-to-login] :route-name ::root-login]
+    ["/oidc/login/*" :get [spa-interceptor] :route-name ::serve-login]
+    ["/oidc/login/*" :post [login-interceptor] :route-name ::handle-login]})
 
 
 (defn expired? [token]
@@ -1112,4 +1138,4 @@
   (def token (-> *tokens* deref :access_token ffirst))
   (require '[buddy.sign.jwt :as jwt])
   (jwt/decode-header token)
-  ())
+  (reset))
