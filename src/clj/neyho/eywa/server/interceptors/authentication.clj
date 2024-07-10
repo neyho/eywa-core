@@ -74,9 +74,6 @@
       {:password nil})))
 
 
-(comment
-  (def username "rgersak"))
-
 (defn get-user-details [username]
   (->
     (get-entity
@@ -85,6 +82,7 @@
       {:_eid nil
        :euuid nil
        :name nil
+       :type nil
        :password nil
        :active nil
        :avatar nil
@@ -161,6 +159,7 @@
           (log/errorf "Invalid password for user: %s\n%s   %s" username password password')
           nil)))))
 
+
 ; (defn active?
 ;   "Returns true if user id in account id is marked as active."
 ;   [{:keys [eywa/username]}]
@@ -175,11 +174,11 @@
   (let [{cookies "cookie"} headers]
     (when cookies
       (reduce
-       (fn [r c]
-         (let [[k v] (clojure.string/split c #"=")]
-           (assoc r k v)))
-       nil
-       (clojure.string/split cookies #"[;\s]+")))))
+        (fn [r c]
+          (let [[k v] (clojure.string/split c #"=")]
+            (assoc r k v)))
+        nil
+        (clojure.string/split cookies #"[;\s]+")))))
 
 
 (defn get-token [{{:keys [headers]} :request :as context}]

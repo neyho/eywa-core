@@ -4,8 +4,10 @@
     [clojure.spec.alpha :as s]
     [clojure.data.json :as json]
     [clojure.tools.logging :as log]
+    [clojure.java.io :as io]
     [vura.core :as vura]
     [ring.util.codec :as codec]
+    [ring.util.response :as response]
     [buddy.core.codecs]
     [buddy.core.hash :as hash]
     [buddy.sign.util :refer [to-timestamp]]
@@ -15,7 +17,13 @@
     [neyho.eywa.iam :as iam]
     [neyho.eywa.iam.oauth2 :as oauth2
      :refer [process-scope
-             sign-token]]))
+             sign-token]]
+    [io.pedestal.http.ring-middlewares :as middleware])
+  (:import
+    [java.security KeyFactory]
+    [java.security.interfaces RSAPublicKey]
+    [java.security.spec X509EncodedKeySpec]
+    [org.bouncycastle.util.encoders Base64]))
 
 
 (s/def ::iss string?)
@@ -170,8 +178,9 @@
         (oauth2/authorization-code-flow request)))))
 
 
-(comment
-  (def request (:request (oauth2/get-session "IDldMZTkptwpePGdsqoUnuRaiQtXLL"))))
+; (comment
+;   (def request (:request (oauth2/get-session "IDldMZTkptwpePGdsqoUnuRaiQtXLL"))))
+
 
 (defn authorization-request
   [request]
@@ -203,7 +212,7 @@
         :else
         (case flow
           ;;
-          :code (authorization-code-flow request) 
+          :code (oauth2/authorization-code-flow request) 
           ;;
           :implicit (implicit-flow request)
           ;;
@@ -214,9 +223,8 @@
   {:name ::authorize-request
    :enter
    (fn [{{:keys [params]} :request :as context}]
-     (chain/terminate
-       (assoc context :response
-              (authorization-request params))))})
+     (let [response (authorization-request params)]
+       (chain/terminate (assoc context :response response))))})
 
 
 (defn login
@@ -259,6 +267,7 @@
          :authorization_endpoint (domain+ "/oauth2/authorize")
          :token_endpoint (domain+ "/oauth2/token")
          :userinfo_endpoint (domain+ "/oidc/userinfo")
+         :jwks_uri (domain+ "/oauth2/jwks")
          :end_session_endpoint (domain+ "/oidc/logout")
          :revocation_endpoint (domain+ "/oauth2/revoke")
          :response_types_supported ["code" "token" "id_token"
@@ -370,38 +379,35 @@
             (try
               (let [access-token (get-access-token ctx)
                     session (oauth2/get-token-session :access_token access-token)
-                    {info :person_info} (oauth2/get-session-resource-owner session)]
+                    {info :person_info
+                     :keys [euuid]} (oauth2/get-session-resource-owner session)]
                 {:status 200
-                 :header {"Content-Type" "application/json"}
-                 :body (json/write-str info)})
+                 :headers {"Content-Type" "application/json"}
+                 :body (json/write-str (assoc info :sub euuid))})
               (catch Throwable _
                 {:status 403
                  :body "Not authorized"}))))})
 
 
-;; http://localhost:8080/oidc/logout?id_token_hint=eyJhbGciOiJSUzI1NiJ9.eyJwcm9maWxlIjoiaHR0cHM6Ly9iYnVoYS5wYXJ0aXphbmkueXUiLCJlbWFpbCI6bnVsbCwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiYmIzZTRkMWItZDNhMC00MzRhLWE2MGItYmViMGQxYmY1MmFmIiwiaWF0IjoxNzE5OTM5MTc4LCJleHAiOjE3MTk5NDA5NzgsImF1dGhfdGltZSI6MTcxOTkzOTE3OCwibm9uY2UiOiJlWHVHekxBREhHS28ifQ.fKrotSbaPHGns22RaV8A62k73P-hQrcCoaXamvjIW4v8SInPZIY2ER3fyTQoTBec8XofqkNMZvBLHEmIVAFOhc-52rmW4zR6GFn3FNiTrfYbvwTBgXhh8FkXVnBkesUGWBSAlKGXUe31Qf8MFW3n25QbcNgs64VITEctwny8A0mYyaWtlmDWV9GVpG0yavp_zvsCj73EDmlwowN81jc7IzGFeltukiSV-VVovJkwTE82pOdVsqriSh2fjXfkExtcHcimLzRSKUP2XpDlGn9lJzOOengwk-Lf66LRZ7WV2x6AteH5ulJsB8GGZdI8fo-YC_F6JGNAoo-hfTyd-WIicQ&post_logout_redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fprofile
-(comment
-  (def id_token_hint "eyJhbGciOiJSUzI1NiJ9.eyJwcm9maWxlIjoiaHR0cHM6Ly9iYnVoYS5wYXJ0aXphbmkueXUiLCJlbWFpbCI6bnVsbCwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiYmIzZTRkMWItZDNhMC00MzRhLWE2MGItYmViMGQxYmY1MmFmIiwiaWF0IjoxNzE5OTM5MTc4LCJleHAiOjE3MTk5NDA5NzgsImF1dGhfdGltZSI6MTcxOTkzOTE3OCwibm9uY2UiOiJlWHVHekxBREhHS28ifQ.fKrotSbaPHGns22RaV8A62k73P-hQrcCoaXamvjIW4v8SInPZIY2ER3fyTQoTBec8XofqkNMZvBLHEmIVAFOhc-52rmW4zR6GFn3FNiTrfYbvwTBgXhh8FkXVnBkesUGWBSAlKGXUe31Qf8MFW3n25QbcNgs64VITEctwny8A0mYyaWtlmDWV9GVpG0yavp_zvsCj73EDmlwowN81jc7IzGFeltukiSV-VVovJkwTE82pOdVsqriSh2fjXfkExtcHcimLzRSKUP2XpDlGn9lJzOOengwk-Lf66LRZ7WV2x6AteH5ulJsB8GGZdI8fo-YC_F6JGNAoo-hfTyd-WIicQ")
-  (def post_logout_redirect_uri "post_logout_redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fprofile")
-  (oauth2/get-token-session :id_token token))
-
-
-(defn request-error [code & description]
-  {:status 400
+(defn request-error
+  [code & description]
+  {:status code
    :headers {"Content-Type" "text/html"}
    :body (json/write-str (str/join "\n" description))})
 
 
-(let [invalid-token (request-error "Token is not valid")
-      session-not-found (request-error "Session is not active")
-      invalid-session (request-error "Session is not valid")
-      invalid-issuer (request-error "Issuer is not valid")
-      invalid-redirect (request-error "Provided 'post_logout_redirect_uri' is not valid")]
+(let [invalid-token (request-error 400 "Token is not valid")
+      session-not-found (request-error 400 "Session is not active")
+      invalid-session (request-error 400 "Session is not valid")
+      invalid-issuer (request-error 400 "Issuer is not valid")
+      invalid-redirect (request-error 400 "Provided 'post_logout_redirect_uri' is not valid")]
+  (comment
+    ((:enter logout-interceptor) ctx))
   (def logout-interceptor
     {:enter
      (fn [{{{:keys [post_logout_redirect_uri id_token_hint state ui_locales client_id]} :params} :request :as ctx}]
        (let [session (oauth2/get-token-session :id_token id_token_hint)
-             {{valid-redirections "logout-redirections"} :settings :as client} (oauth2/get-session-client session)
+             {{valid-redirections "logout-redirections"} :settings} (oauth2/get-session-client session)
              {:keys [iss sid] :as token} (try
                                            (iam/unsign-data id_token_hint)
                                            (catch Throwable _ nil))
@@ -514,7 +520,6 @@
              :else context))))}))
 
 
-
 (defn generate-code-challenge
   ([code-verifier] (generate-code-challenge code-verifier "S256"))
   ([code-verifier code-challenge-method]
@@ -528,10 +533,6 @@
            (.replace "+" "-")
            (.replace "/" "_")
            (.replace "=" ""))))))
-
-
-(comment
-  (generate-code-challange "fiejo1j092813"))
 
 
 (def pkce-interceptor
@@ -551,33 +552,104 @@
                  "Proof Key for Code Exchange failed")))))))})
 
 
+(def jwks-interceptor
+  {:enter (fn [ctx]
+            (assoc ctx :response
+                   {:status 200
+                    :headers {"Content-Type" "application/json"}
+                    :body (json/write-str
+                            {:keys
+                             (map
+                               (fn [{:keys [public]}] (iam/encode-rsa-key public))
+                               @iam/encryption-keys)})}))})
 
 
-(let [common [oauth2/basic-authorization-interceptor
+(defn get-cookies [{{:keys [headers]} :request}]
+  (let [{cookies "cookie"} headers]
+    (when cookies
+      (reduce
+        (fn [r c]
+          (let [[k v] (clojure.string/split c #"=")]
+            (assoc r k v)))
+        nil
+        (clojure.string/split cookies #"[;\s]+")))))
+
+
+(def idsrv-session-read
+  {:enter (fn [ctx]
+            (let [{{{{idsrv-session :value} "idsrv.session"} :cookies} :request} ctx]
+              (if (empty? idsrv-session) ctx
+                (assoc-in ctx [:request :params :idsrv/session] idsrv-session))))})
+
+
+(def idsrv-session-remove
+  {:enter (fn [ctx]
+            (assoc-in ctx [:response :cookies "idsrv.session"]
+                      {:value ""
+                       :path ""
+                       :max-age "0"}))})
+
+
+(def serve-login-page
+  {:enter (fn [{{:keys [uri]
+                 {:keys [session]} :params} :request :as ctx}]
+            (let [ext (re-find #"(?<=\.).*?$" uri)
+                  path (subs uri 6)
+                  {:keys [code authorization-code-used?]
+                   {redirect-uri :redirect_uri
+                    state :state} :request} (oauth2/get-session session)
+                  session-active? (and (not-empty code) authorization-code-used?)
+                  response (cond
+                             ;; First check if there is active session
+                             (and session session-active?)
+                             (let [code (oauth2/bind-authorization-code session)]
+                               {:status 302
+                                :headers {"Location" (str redirect-uri "?" (codec/form-encode {:state state :code code}))}})
+                             ;; If there is session but it wasn't created by EYWA
+                             ;; return error
+                             (nil? (oauth2/get-session session))
+                             (request-error 400 "Target session doesn't exist")
+                             ;; Then check if some file was requested
+                             (and ext (io/resource path))
+                             (response/resource-response path)
+                             ;; Finally return index.html if you don't know what
+                             ;; to do
+                             :else
+                             (response/resource-response "login/index.html"))]
+              (assoc ctx :response response)))})
+
+
+
+(let [;; save-context (fn [context]
+      ;;                (def context context)
+      ;;                context) 
+      common [oauth2/basic-authorization-interceptor
+              middleware/cookies
               (bp/body-params)
               oauth2/keywordize-params]
-      authorize (conj common authorize-request-interceptor)
+      ; authorize (conj common save-context)
+      authorize (conj common
+                      idsrv-session-read
+                      authorize-request-interceptor)
       request_error (conj common oauth2/authorize-request-error-interceptor)
       token (conj common pkce-interceptor oauth2/token-interceptor)
       user-info (conj common user-info-interceptor)
-      logout (conj common logout-interceptor)
-      revoke (conj common revoke-token-interceptor)]
+      logout (conj common idsrv-session-read logout-interceptor)
+      revoke (conj common idsrv-session-read revoke-token-interceptor)]
   (def routes
     #{["/oauth2/authorize" :get authorize :route-name ::authorize-request]
       ["/oauth2/request_error" :get request_error :route-name ::authorize-request-error]
       ["/oauth2/token" :post token :route-name ::handle-token]
       ["/oauth2/revoke" :post revoke :route-name ::post-revoke]
       ["/oauth2/revoke" :get revoke :route-name ::get-revoke]
+      ["/oauth2/jwks" :get [jwks-interceptor] :route-name ::get-jwks]
+      ["/oidc/login/*" :get [middleware/cookies serve-login-page] :route-name ::short-login-redirect]
+      ["/oidc/login/*" :post [middleware/cookies oauth2/login-interceptor] :route-name ::handle-login]
+      ["/oidc/login" :get [oauth2/redirect-to-login] :route-name ::short-login]
       ["/oidc/userinfo" :get user-info :route-name ::user-info]
       ["/oidc/logout" :post logout :route-name ::get-logout]
       ["/oidc/logout" :get  logout :route-name ::post-logout]
-      ;;
-      ["/.well-known/openid-configuration" :get [open-id-configuration-interceptor] :route-name ::open-id-configuration]
-      ;;
-      ["/login" :get [oauth2/redirect-to-login] :route-name ::short-login]
-      ["/login/" :get [oauth2/redirect-to-login] :route-name ::root-login]
-      ["/login/*" :get [spa-interceptor] :route-name ::serve-login]
-      ["/login/*" :post [oauth2/login-interceptor] :route-name ::handle-login]}))
+      ["/.well-known/openid-configuration" :get [open-id-configuration-interceptor] :route-name ::open-id-configuration]}))
 
 
 (comment
