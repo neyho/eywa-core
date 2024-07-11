@@ -401,44 +401,43 @@
       invalid-session (request-error 400 "Session is not valid")
       invalid-issuer (request-error 400 "Issuer is not valid")
       invalid-redirect (request-error 400 "Provided 'post_logout_redirect_uri' is not valid")]
-  (comment
-    ((:enter logout-interceptor) ctx))
   (def logout-interceptor
     {:enter
-     (fn [{{{:keys [post_logout_redirect_uri id_token_hint state ui_locales client_id]} :params} :request :as ctx}]
-       (let [session (oauth2/get-token-session :id_token id_token_hint)
-             {{valid-redirections "logout-redirections"} :settings} (oauth2/get-session-client session)
+     (fn [ctx]
+       (let [{{{:keys [post_logout_redirect_uri id_token_hint state]} :params} :request} ctx
+             session (oauth2/get-token-session :id_token id_token_hint)
+             {client_id :id} (oauth2/get-session-client session)
+             {{valid-redirections "logout-redirections"} :settings} (iam/get-client client_id)
              {:keys [iss sid] :as token} (try
                                            (iam/unsign-data id_token_hint)
                                            (catch Throwable _ nil))
-             redirect-uri (and post_logout_redirect_uri (some #(when (= % post_logout_redirect_uri) %) valid-redirections))]
-         (cond
-           (nil? session)
-           session-not-found
-           ;; Token couldn't be unsigned
-           (nil? token)
-           invalid-token
-           ;; Session doesn't match
-           (not= sid session)
-           invalid-session
-           ;; Issuer is not the same
-           (not= iss oauth2/*iss*)
-           invalid-issuer
-           ;; Redirect uri isn't valid
-           (and (some? post_logout_redirect_uri) (nil? redirect-uri))
-           invalid-redirect
-           ;;
-           (some? redirect-uri)
-           (do
-             (oauth2/kill-session session)
-             (assoc ctx :response
+             post-redirect-ok? (some #(when (= % post_logout_redirect_uri) true) valid-redirections)]
+         (assoc ctx :response
+                (cond
+                  (nil? session)
+                  session-not-found
+                  ;; Token couldn't be unsigned
+                  (nil? token)
+                  invalid-token
+                  ;; Session doesn't match
+                  (not= sid session)
+                  invalid-session
+                  ;; Issuer is not the same
+                  (not= iss oauth2/*iss*)
+                  invalid-issuer
+                  ;; Redirect uri isn't valid
+                  (not post-redirect-ok?)
+                  invalid-redirect
+                  ;;
+                  (some? post_logout_redirect_uri)
+                  (do
+                    (oauth2/kill-session session)
                     {:status 302
-                     :headers {"Location" (str redirect-uri (when (not-empty state) (str "?" (codec/form-encode {:state state}))))
-                               "Cache-Control" "no-cache"}}))
-           :else
-           (do
-             (oauth2/kill-session session)
-             (assoc ctx :response
+                     :headers {"Location" (str post_logout_redirect_uri (when (not-empty state) (str "?" (codec/form-encode {:state state}))))
+                               "Cache-Control" "no-cache"}})
+                  :else
+                  (do
+                    (oauth2/kill-session session)
                     {:status 200
                      :headers {"Content-Type" "text/html"}
                      :body "User logged out!"})))))}))
@@ -583,39 +582,48 @@
 
 
 (def idsrv-session-remove
-  {:enter (fn [ctx]
+  {:leave (fn [ctx]
             (assoc-in ctx [:response :cookies "idsrv.session"]
                       {:value ""
                        :path ""
-                       :max-age "0"}))})
+                       :max-age 0}))})
 
 
 (def serve-login-page
   {:enter (fn [{{:keys [uri]
                  {:keys [session]} :params} :request :as ctx}]
+            (comment
+              (def uri "/oidc/login/css/login.css")
+              (def session "tcNzEQkjcCDdizIonZGpkFeNpQYAFC")
+              (def ctx nil))
             (let [ext (re-find #"(?<=\.).*?$" uri)
                   path (subs uri 6)
                   {:keys [code authorization-code-used?]
                    {redirect-uri :redirect_uri
                     state :state} :request} (oauth2/get-session session)
                   session-active? (and (not-empty code) authorization-code-used?)
-                  response (cond
-                             ;; First check if there is active session
-                             (and session session-active?)
-                             (let [code (oauth2/bind-authorization-code session)]
-                               {:status 302
-                                :headers {"Location" (str redirect-uri "?" (codec/form-encode {:state state :code code}))}})
-                             ;; If there is session but it wasn't created by EYWA
-                             ;; return error
-                             (nil? (oauth2/get-session session))
-                             (request-error 400 "Target session doesn't exist")
-                             ;; Then check if some file was requested
-                             (and ext (io/resource path))
-                             (response/resource-response path)
-                             ;; Finally return index.html if you don't know what
-                             ;; to do
-                             :else
-                             (response/resource-response "login/index.html"))]
+                  response (letfn [(revoke-idsrv [response]
+                                     (assoc-in response [:cookies "idsrv.session"]
+                                               {:value ""
+                                                :path ""
+                                                :max-age 0}))]
+                             (cond
+                               ;; First check if there is active session
+                               (and session session-active?)
+                               (let [code (oauth2/bind-authorization-code session)]
+                                 {:status 302
+                                  :headers {"Location" (str redirect-uri "?" (codec/form-encode {:state state :code code}))}})
+                               ;; If there is session but it wasn't created by EYWA
+                               ;; return error
+                               ;; (nil? (oauth2/get-session session))
+                               ;; (request-error 400 "Target session doesn't exist")
+                               ;; Then check if some file was requested
+                               (and ext (io/resource path))
+                               (revoke-idsrv (response/resource-response path))
+                               ;; Finally return index.html if you don't know what
+                               ;; to do
+                               :else
+                               (revoke-idsrv (response/resource-response "login/index.html"))))]
               (assoc ctx :response response)))})
 
 
@@ -634,7 +642,7 @@
       request_error (conj common oauth2/authorize-request-error-interceptor)
       token (conj common pkce-interceptor oauth2/token-interceptor)
       user-info (conj common user-info-interceptor)
-      logout (conj common idsrv-session-read logout-interceptor)
+      logout (conj common idsrv-session-remove idsrv-session-read logout-interceptor)
       revoke (conj common idsrv-session-read revoke-token-interceptor)]
   (def routes
     #{["/oauth2/authorize" :get authorize :route-name ::authorize-request]
@@ -643,7 +651,7 @@
       ["/oauth2/revoke" :post revoke :route-name ::post-revoke]
       ["/oauth2/revoke" :get revoke :route-name ::get-revoke]
       ["/oauth2/jwks" :get [jwks-interceptor] :route-name ::get-jwks]
-      ["/oidc/login/*" :get [middleware/cookies serve-login-page] :route-name ::short-login-redirect]
+      ["/oidc/login/*" :get (conj common serve-login-page) :route-name ::short-login-redirect]
       ["/oidc/login/*" :post [middleware/cookies oauth2/login-interceptor] :route-name ::handle-login]
       ["/oidc/login" :get [oauth2/redirect-to-login] :route-name ::short-login]
       ["/oidc/userinfo" :get user-info :route-name ::user-info]

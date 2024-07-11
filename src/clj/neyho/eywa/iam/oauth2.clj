@@ -58,6 +58,8 @@
 (let [alphabet "ACDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]
   (def gen-session-id (nano-id/custom alphabet 30)))
 
+(let [alphabet "ACDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]
+  (def gen-token (nano-id/custom alphabet 50)))
 
 (let [alphabet "ACDEFGHJKLMNOPQRSTUVWXYZ"]
   (def gen-code (nano-id/custom alphabet 30)))
@@ -115,9 +117,6 @@
    :body (json/write-str
            {:error code
             :error_description (str/join "\n" description)})})
-
-
-
 
 
 (defn get-base-uri
@@ -421,6 +420,16 @@
   (get-in @*sessions* [session :code]))
 
 
+(defn get-session-access-token
+  [session]
+  (get-in @*sessions* [session :tokens :access_token]))
+
+
+(defn get-session-refresh-token
+  [session]
+  (get-in @*sessions* [session :tokens :refresh_token]))
+
+
 (defn session-used-authorization-code [session]
   (swap! *sessions* assoc-in [session :authorization-code-used?] true))
 
@@ -496,8 +505,9 @@
 
 
 (defmethod sign-token :refresh_token
-  [session _ data]
-  (let [client (get-session-client session)]
+  [_ _ data]
+  data
+  #_(let [client (get-session-client session)]
     (sign-data
       (assoc data
              :exp (-> (vura/date)
@@ -539,7 +549,7 @@
 
 (let [unsupported (json-error 500 "unsupported" "This feature isn't supported at the moment")]
   (def ^:dynamic *token-resolver*
-    (fn gen-token
+    (fn gen-tokens
       ([session request]
        (try
          (let [{:keys [client_id grant_type code]
@@ -583,6 +593,8 @@
                    "invalid_request"
                    "The client configuration does not support"
                    "token refresh requests.")
+                 ;; TODO - add some extra protection like session matching idsrv.session
+                 ;; and checking if sessions match
                  :else
                  (let [access-token {:session session
                                      :iss *iss*
@@ -592,13 +604,19 @@
                                      :sid session
                                      :exp (-> (vura/date)
                                               vura/date->value
-                                              (+ (access-token-expiry client))
+                                              ; (+ (access-token-expiry client))
+                                              (+ 20000)
                                               vura/value->date
                                               to-timestamp)
                                      :scope (str/join " " scope)}
+                       _ (comment
+                           (def access-token (get-session-access-token "KoPjwmHJXlHPIVoCWhyhJTXHTMhjuZ"))
+                           (unsign-data access-token)
+                           (def client (get-session-client "HlXpckSlQKDCpVpnduVETxSZFTjUMR")))
                        response (if (pos? expires-after)
-                                  (let [refresh-token {:iss *iss*
-                                                       :sid session}
+                                  (let [refresh-token (gen-token)
+                                        ; refresh-token {:iss *iss*
+                                        ;                :sid session}
                                         tokens (reduce
                                                  (fn [tokens scope]
                                                    (process-scope session tokens scope))
@@ -652,9 +670,11 @@
                                             to-timestamp)
                                    :scope (str/join " " scope)}
                      response (if (pos? expires-after)
-                                (let [refresh-token (when (and refresh? session)
+                                (let [refresh-token (when (and refresh? session
+                                                               (contains? scope "offline_access"))
                                                       (log/debugf "Creating refresh token: %s" session)
-                                                      {:iss *iss*
+                                                      (gen-token)
+                                                      #_{:iss *iss*
                                                        :sid session})
                                       tokens (reduce
                                                (fn [tokens scope]
@@ -904,23 +924,19 @@
 
 (defn authorization-code-flow
   [{cookie-session :idsrv/session :as request}]
-  (let [session (or cookie-session (gen-session-id))
-        now (System/currentTimeMillis)]
-    (comment
-      (def session (:idsrv/session request)))
+  (let [now (System/currentTimeMillis)
+        session (if-let [session (get-session cookie-session)]
+                  (do
+                    ;; and revoke current tokens, since new code will
+                    ;; be published that will create new tokens
+                    (revoke-session-tokens session)
+                    ;; and merge current request into session as active request
+                    (swap! *sessions* update cookie-session merge {:request request :at now})
+                    cookie-session)
+                  (let [session (gen-session-id)]
+                    (set-session session {:request request :at now})
+                    session))]
     (try
-      ;; If session exists, trust that session
-      (if cookie-session
-        (do
-          ;; and revoke current tokens, since new code will
-          ;; be published that will create new tokens
-          (revoke-session-tokens session)
-          ;; and merge current request into session as active request
-          (swap! *sessions* update session merge {:request request :at now}))
-        ;; when there is no cookie session, set session request for
-        ;; further processing
-        (set-session session {:request request :at now}))
-      ;; Check that client is valid
       (let [client (validate-client session)]
         ;; Proper implementation
         (set-session-client session client)
@@ -1138,13 +1154,6 @@
     data))
 
 
-(comment
-  (restart-agent maintenance-agent @maintenance-agent)
-  (agent-error maintenance-agent)
-  (swap! *sessions* dissoc :refresh_token :access_token)
-  )
-
-
 (defn start-maintenance
   []
   (send-off maintenance-agent maintenance))
@@ -1152,7 +1161,9 @@
 
 
 (comment
+  (java.util.Date. 1720693899)
   (def token (-> *tokens* deref :access_token ffirst))
+  (reset)
   (require '[buddy.sign.jwt :as jwt])
   (jwt/decode-header token)
   (reset))
