@@ -396,6 +396,7 @@
          (assoc context :response (login data)))))})
 
 
+;; TODO - think about multiple audiences and so on
 (defn set-session-tokens
   [session tokens]
   (swap! *sessions* assoc-in [session :tokens] tokens)
@@ -547,12 +548,28 @@
               :error_description (str/join "\n" description)})}))
 
 
-(let [unsupported (json-error 500 "unsupported" "This feature isn't supported at the moment")]
+(let [unsupported (json-error 500 "unsupported" "This feature isn't supported at the moment")
+      client-id-missmatch (token-error
+                            "unauthorized_client"
+                            "Refresh token that you have provided"
+                            "doesn't belong to given client")
+      owner-not-authorized (token-error
+                             "resource_owner_unauthorized"
+                             "Provided refresh token doesn't have active user")
+      refresh-not-supported (token-error
+                              "invalid_request"
+                              "The client configuration does not support"
+                              "token refresh requests.")
+      cookie-session-missmatch (token-error
+                                 "invalid_request"
+                                 "You session is not provided by this server."
+                                 "This action will be logged and processed!")]
   (def ^:dynamic *token-resolver*
     (fn gen-tokens
       ([session request]
        (try
-         (let [{:keys [client_id grant_type code]
+         (let [{:keys [client_id grant_type]
+                cookie-session :idsrv/session
                 request-scope :scope} request
                ;; use scope from authorization request
                {{authorization-code-scope :scope} :request} (get-session session)
@@ -569,17 +586,12 @@
            (cond
              ;;
              (not= id client_id)
-             (token-error
-               "unauthorized_client"
-               "Refresh token that you have provided"
-               "doesn't belong to given client")
+             client-id-missmatch
              ;;
              (not active)
              (do
                (kill-session session)
-               (token-error
-                 "resource_owner_unauthorized"
-                 "Provided refresh token doesn't have active user"))
+               owner-not-authorized)
              :else
              (case grant-type
                ;;
@@ -588,13 +600,13 @@
                ;;
                :refresh-token
                (cond
+                 ;;
                  (not refresh?)
-                 (token-error
-                   "invalid_request"
-                   "The client configuration does not support"
-                   "token refresh requests.")
-                 ;; TODO - add some extra protection like session matching idsrv.session
-                 ;; and checking if sessions match
+                 refresh-not-supported
+                 ;;
+                 (and cookie-session (not= cookie-session session))
+                 cookie-session-missmatch
+                 ;;
                  :else
                  (let [access-token {:session session
                                      :iss *iss*

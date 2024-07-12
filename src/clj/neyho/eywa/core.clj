@@ -215,7 +215,6 @@
           (conj lines (str "  DATASETS " (str "ERROR: Postgres not available"))))))))
 
 
-
 (defn doctor []
   (->
     []

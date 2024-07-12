@@ -72,7 +72,11 @@
    {:euuid c/dataset-version-delete
     :name "Delete"
     :roles [*ROOT*]
-    :parent {:euuid c/dataset-version}}])
+    :parent {:euuid c/dataset-version}}
+   {:euuid c/graphql-ui
+    :name "GraphQL UI"
+    :roles [*ROOT*]
+    :parent {:euuid c/eywa}}])
 
 
 (defonce ^:dynamic *model* (ref nil))

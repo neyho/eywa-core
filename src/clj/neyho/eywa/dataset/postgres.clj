@@ -34,7 +34,7 @@
     [neyho.eywa.lacinia :as lacinia]
     [neyho.eywa.data :refer [*EYWA*]]
     [neyho.eywa.administration :as administration]
-    [neyho.eywa.administration.uuids :as au]
+    ; [neyho.eywa.administration.uuids :as au]
     [neyho.eywa.dataset.uuids :as du]))
 
 
@@ -43,19 +43,19 @@
 
 
 (defn user-table []
-  (if-some [e (core/get-entity *model* au/user)]
+  (if-some [e (core/get-entity *model* iu/user)]
     (entity->table-name e)
     (throw (Exception. "Coulnd't find user entity"))))
 
 
 (defn group-table []
-  (if-some [e (core/get-entity *model* au/user-group)]
+  (if-some [e (core/get-entity *model* iu/user-group)]
     (entity->table-name e)
     (throw (Exception. "Coulnd't find group entity"))))
 
 
 (defn role-table []
-  (if-some [e (core/get-entity *model* au/user-role)]
+  (if-some [e (core/get-entity *model* iu/user-role)]
     (entity->table-name e)
     (throw (Exception. "Coulnd't find role entity"))))
 
@@ -747,18 +747,18 @@
                                     (assoc f :postgres/type (normalize-name (str table \space aname)))
                                     ;;
                                     "user"
-                                    (assoc f :postgres/reference au/user)
+                                    (assoc f :postgres/reference iu/user)
                                     ;;
                                     "group"
-                                    (assoc f :postgres/reference au/user-group)
+                                    (assoc f :postgres/reference iu/user-group)
                                     ;;
                                     "role"
-                                    (assoc f :postgres/reference au/user-role)
+                                    (assoc f :postgres/reference iu/user-role)
                                     ;;
                                     f))))
                        {:audit/who {:key :modified_by
                                     :type "user"
-                                    :postgres/reference au/user}}
+                                    :postgres/reference iu/user}}
                        (:attributes entity))
               {relations :relations
                recursions :recursions}
@@ -1006,7 +1006,7 @@
                 :who/table
                 (entity->table-name
                   (some 
-                    #(core/get-entity % au/user)
+                    #(core/get-entity % iu/user)
                     [current-model projection])))
               (:configuration model))))
         (assoc version :model (core/join-models current-model model)))))
@@ -1072,10 +1072,10 @@
        (as-> (<-transit (slurp (io/resource "dataset/aaa.json"))) model 
          (core/mount db model)
          (core/reload db model))
-       (dataset/stack-entity au/permission administration/permissions)
+       (dataset/stack-entity iu/permission administration/permissions)
        (log/info "Mounted aaa.json dataset")
        (binding [core/*return-type* :edn] 
-         (dataset/sync-entity au/user *EYWA*)
+         (dataset/sync-entity iu/user *EYWA*)
          (dataset/bind-service-user #'neyho.eywa.data/*EYWA*))
        (log/info "*EYWA* user created")
        (binding [*user* (:_eid *EYWA*)]
@@ -1085,7 +1085,7 @@
            (core/mount db model)
            (core/reload db model))
          (log/info "Mounted dataset.json dataset")
-         (dataset/stack-entity au/permission dataset/permissions)
+         (dataset/stack-entity iu/permission dataset/permissions)
          (dataset/load-role-schema)
          (log/info "Deploying AAA dataset")
          (core/deploy! db (<-transit (slurp (io/resource "dataset/aaa.json"))))

@@ -6,6 +6,7 @@
 
 ;; Administration
 (def eywa #uuid "28d8b0bf-7647-4ff4-b799-fc72b22c06f0")
+(def graphql-ui #uuid "d9ae32dc-9a39-4353-b0d4-bfe9031b127a")
 (def administration #uuid "52e64d64-867c-4827-a2d8-c96a9ae173d8")
 (def users #uuid "8500caf8-edde-411e-9079-cd06de4f870e") 
 (def user-add #uuid "e93b302b-4f37-43a1-9d4b-f41435907ce7") 

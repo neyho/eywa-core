@@ -435,6 +435,7 @@
                     {:status 302
                      :headers {"Location" (str post_logout_redirect_uri (when (not-empty state) (str "?" (codec/form-encode {:state state}))))
                                "Cache-Control" "no-cache"}})
+                  ;;
                   :else
                   (do
                     (oauth2/kill-session session)
