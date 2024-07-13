@@ -344,6 +344,7 @@
                                                     :body "Not found!"})))))]
                     (case path
                       "/" (chain/terminate  (assoc context :response eywa-spa))
+                      "/.favicon" (chain/terminate (response/resource-response ))
                       "/index.html" (chain/terminate  (assoc context :response eywa-spa))
                       ; "/index.html" (chain/terminate  (assoc context :response old-redirect))
                       ; "/" (chain/terminate  (assoc context :response old-redirect)) 

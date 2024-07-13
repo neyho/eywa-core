@@ -1079,6 +1079,9 @@
 
 ;; Maintenance
 (defn clean-sessions
+  "Function will clean all sessions that were issued
+  authorization code, but code wasn't used for more
+  than timeout value. Default timeout is 1 minute"
   ([] (clean-sessions (vura/minutes 1)))
   ([timeout]
    (let [now (System/currentTimeMillis)]
@@ -1097,6 +1100,8 @@
 
 
 (defn clean-codes
+  "Function will remove all codes that are older than 'timeout'
+  value. Default timeout = 5 minutes"
   ([] (clean-codes (vura/minute 5)))
   ([timeout]
    (let [now (System/currentTimeMillis)]
@@ -1120,6 +1125,7 @@
     (log/debug "OAuth2 maintenance start")
     (send-off *agent* maintenance)
     (clean-sessions (vura/minutes 1))
+    (clean-codes (vura/minutes 1))
     (log/debug "OAuth2 maintenance finish")
     (Thread/sleep period)
     data))
@@ -1132,6 +1138,7 @@
 
 
 (comment
+  (clean-codes)
   (java.util.Date. 1720693899)
   (def token (-> *tokens* deref :access_token ffirst))
   (reset)
