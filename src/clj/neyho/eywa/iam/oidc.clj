@@ -15,7 +15,7 @@
     [io.pedestal.http.body-params :as bp]
     [neyho.eywa.server.interceptors :refer [spa-interceptor]]
     [neyho.eywa.iam :as iam]
-    [neyho.eywa.iam.oauth2 :as oauth2
+    [neyho.eywa.iam.oauth2-1 :as oauth
      :refer [process-scope
              sign-token]]
     [io.pedestal.http.ring-middlewares :as middleware])
@@ -143,115 +143,14 @@
      :redirect_uri "http://localhost:8080/eywa"}))
 
 
-(defn implicit-flow
-  [request]
-  (oauth2/token-password-grant request))
-
-
-(defn hybrid-flow
-  [request]
-  )
-
-
-(defn authorization-code-flow
-  [{:keys [scope prompt] :as request}]
-  (if (or
-        (empty? scope)
-        (not (contains? scope "openid")))
-    (oauth2/authorization-code-flow request) 
-    (let []
-      (cond
-        ;; interaction_required
-        ; (and prompt (= prompt "none"))
-        ; (oauth2/handle-request-error
-        ;   {:type "interaction_required"
-        ;    :request request})
-        ;; login_required
-        ;; account_selection_required
-        ;; consent_required
-        ;; invalid_request_ur
-        ;; invalid_request_object
-        ;; request_not_supported
-        ;; request_uri_not_supported 
-        ;; registration_not_supported
-        :else
-        (oauth2/authorization-code-flow request)))))
-
-
-; (comment
-;   (def request (:request (oauth2/get-session "IDldMZTkptwpePGdsqoUnuRaiQtXLL"))))
-
-
-(defn authorization-request
-  [request]
-  (letfn [(split-spaces [request k]
-            (if-some [val (get request k)]
-              (assoc request k (set (str/split val #"\s+")))
-              request))]
-    (let [{:keys [response_type redirect_uri]
-           :as request}
-          (-> request
-              (split-spaces :scope)
-              (split-spaces :response_type))
-          [flow] (s/conform ::flow response_type)]
-      ; (def request request)
-      ; (def response_type response_type)
-      ; (def redirect_uri (:redirect_uri request))
-      (cond
-        ;;
-        (not (s/valid? ::redirect_uri redirect_uri))
-        (oauth2/handle-request-error
-          {:type "missing_redirect"
-           :request request})
-        ;;
-        (s/invalid? flow)
-        (oauth2/handle-request-error
-          {:type "missing_response_type"
-           :request request})
-        ;;
-        :else
-        (case flow
-          ;;
-          :code (oauth2/authorization-code-flow request) 
-          ;;
-          :implicit (implicit-flow request)
-          ;;
-          :hybrid (hybrid-flow request))))))
 
 
 (def authorize-request-interceptor
   {:name ::authorize-request
    :enter
    (fn [{{:keys [params]} :request :as context}]
-     (let [response (authorization-request params)]
+     (let [response (oauth/authorization-request params)]
        (chain/terminate (assoc context :response response))))})
-
-
-(defn login
-  [{:keys [username password session]}]
-  (let [{{request-type :response_type
-          redirect-uri :redirect_uri
-          state :state} :request
-         :as session-state} (oauth2/get-session session)
-        resource-owner (oauth2/validate-resource-owner username password)]
-    (cond
-      ;;
-      (nil? session-state)
-      (oauth2/handle-request-error {:type "corrupt_session" :session session}) 
-      ;;
-      (and resource-owner (= "code" request-type))
-      (let [code (oauth2/bind-authorization-code session)]
-        (oauth2/set-session-resource-owner session resource-owner)
-        {:status 302
-         :headers {"Location" (str redirect-uri "?" (codec/form-encode {:state state :code code}))}})
-      ;;
-      :else
-      (let [{{url "login-page"} :settings} (oauth2/get-session-client session)]
-        {:status 302
-         :headers {"Location" (str url "?" (codec/form-encode
-                                             {:session session
-                                              :error ["credentials"]}))
-                   "Cache-Control" "no-cache"}}))))
 
 
 (def ^:dynamic *protocol* "http")
@@ -264,12 +163,12 @@
            (str *protocol* "://" *domain* path)))]
   (let [config
         {:issuer (domain+)
-         :authorization_endpoint (domain+ "/oauth2/authorize")
-         :token_endpoint (domain+ "/oauth2/token")
+         :authorization_endpoint (domain+ "/oauth2.1/authorize")
+         :token_endpoint (domain+ "/oauth2.1/token")
          :userinfo_endpoint (domain+ "/oidc/userinfo")
-         :jwks_uri (domain+ "/oauth2/jwks")
+         :jwks_uri (domain+ "/oauth2.1/jwks")
          :end_session_endpoint (domain+ "/oidc/logout")
-         :revocation_endpoint (domain+ "/oauth2/revoke")
+         :revocation_endpoint (domain+ "/oauth2.1/revoke")
          :response_types_supported ["code" "token" "id_token"
                                     "code id_token" "token id_token"
                                     "code token id_token"]
@@ -291,7 +190,7 @@
 (defn standard-claim
   [session claim]
   (get-in
-    (oauth2/get-session-resource-owner session)
+    (oauth/get-session-resource-owner session)
     [:person_info claim]))
 
 
@@ -308,13 +207,13 @@
 
 (defmethod process-scope "openid"
   [session tokens _]
-  (let [{:keys [euuid]} (oauth2/get-session-resource-owner session)
-        {:keys [authorized-at]
-         {:keys [nonce]} :request} (oauth2/get-session session)
-        client (oauth2/get-session-client session)]
+  (let [{:keys [euuid]} (oauth/get-session-resource-owner session)
+        {:keys [authorized-at code]} (oauth/get-session session)
+        {:keys [nonce]} (oauth/get-code-request code)
+        client (oauth/get-session-client session)]
     (update tokens :id_token
             merge
-            {:iss oauth2/*iss*
+            {:iss oauth/*iss*
              :sub euuid
              :iat (to-timestamp (vura/date))
              :exp (-> (vura/date)
@@ -329,7 +228,7 @@
 
 (defmethod sign-token :id_token
   [session _ data]
-  (let [client (oauth2/get-session-client session)]
+  (let [client (oauth/get-session-client session)]
     (iam/sign-data
       (assoc data
              :exp (-> (vura/date)
@@ -357,7 +256,7 @@
 (defmethod process-scope "phone_number_verified" [session tokens _] (add-standard-claim tokens session :phone_number_verified))
 (defmethod process-scope "address" [session tokens _] (add-standard-claim tokens session :address))
 (defmethod process-scope "updated_at" [session tokens _] (add-standard-claim tokens session :modified_on))
-(defmethod process-scope "auth_time" [session tokens _] (assoc-in tokens [:id_token :auth-at] (:authorized-at (oauth2/get-session session))))
+(defmethod process-scope "auth_time" [session tokens _] (assoc-in tokens [:id_token :auth-at] (:authorized-at (oauth/get-session session))))
 
 
 (defn get-access-token
@@ -378,9 +277,9 @@
      (assoc ctx :response
             (try
               (let [access-token (get-access-token ctx)
-                    session (oauth2/get-token-session :access_token access-token)
+                    session (oauth/get-token-session :access_token access-token)
                     {info :person_info
-                     :keys [euuid]} (oauth2/get-session-resource-owner session)]
+                     :keys [euuid]} (oauth/get-session-resource-owner session)]
                 {:status 200
                  :headers {"Content-Type" "application/json"}
                  :body (json/write-str (assoc info :sub euuid))})
@@ -396,6 +295,71 @@
    :body (json/write-str (str/join "\n" description))})
 
 
+(def idsrv-session-read
+  {:enter (fn [ctx]
+            (let [{{{{idsrv-session :value} "idsrv.session"} :cookies} :request} ctx]
+              (if (empty? idsrv-session) ctx
+                (assoc-in ctx [:request :params :idsrv/session] idsrv-session))))})
+
+
+(def idsrv-session-remove
+  {:leave (fn [ctx]
+            (assoc-in ctx [:response :cookies "idsrv.session"]
+                      {:value ""
+                       :path "/"
+                       :http-only true
+                       :secure true
+                       :max-age 0}))})
+
+
+
+; (let [invalid-token (request-error 400 "Token is not valid")
+;       session-not-found (request-error 400 "Session is not active")
+;       invalid-session (request-error 400 "Session is not valid")
+;       invalid-issuer (request-error 400 "Issuer is not valid")
+;       invalid-redirect (request-error 400 "Provided 'post_logout_redirect_uri' is not valid")]
+;   (let [{{{:keys [post_logout_redirect_uri id_token_hint]} :params} :request} ctx
+;         session (or (oauth/get-token-session :id_token id_token_hint))
+;         {client_id :id} (oauth/get-session-client session)
+;         {{valid-redirections "logout-redirections"} :settings} (iam/get-client client_id)
+;         {:keys [iss sid] :as token} (try
+;                                       (iam/unsign-data id_token_hint)
+;                                       (catch Throwable _ nil))
+;         post-redirect-ok? (some #(when (= % post_logout_redirect_uri) true) valid-redirections)]
+;     [session token sid iss post-redirect-ok? post_logout_redirect_uri]
+;     #_(cond
+;       (nil? session)
+;       (idsrv-session-remove session-not-found)
+;       ;; Token couldn't be unsigned
+;       (nil? token)
+;       invalid-token
+;       ;; Session doesn't match
+;       (not= sid session)
+;       invalid-session
+;       ;; Issuer is not the same
+;       (not= iss oauth/*iss*)
+;       invalid-issuer
+;       ;; Redirect uri isn't valid
+;       (not post-redirect-ok?)
+;       invalid-redirect
+;       ;;
+;       (some? post_logout_redirect_uri)
+;       (do
+;         (oauth/kill-session session)
+;         {:status 302
+;          :headers {"Location" (str post_logout_redirect_uri (when (not-empty state) (str "?" (codec/form-encode {:state state}))))
+;                    "Cache-Control" "no-cache"}})
+;       ;;
+;       :else
+;       (do
+;         (oauth/kill-session session)
+;         {:status 200
+;          :headers {"Content-Type" "text/html"}
+;          :body "User logged out!"}))))
+
+
+
+
 (let [invalid-token (request-error 400 "Token is not valid")
       session-not-found (request-error 400 "Session is not active")
       invalid-session (request-error 400 "Session is not valid")
@@ -404,9 +368,12 @@
   (def logout-interceptor
     {:enter
      (fn [ctx]
-       (let [{{{:keys [post_logout_redirect_uri id_token_hint state]} :params} :request} ctx
-             session (oauth2/get-token-session :id_token id_token_hint)
-             {client_id :id} (oauth2/get-session-client session)
+       (def ctx ctx)
+       (let [{{{:keys [post_logout_redirect_uri id_token_hint state]
+                idsrv-session :idsrv/session} :params} :request} ctx
+             session (or (oauth/get-token-session :id_token id_token_hint)
+                         idsrv-session)
+             {client_id :id} (oauth/get-session-client session)
              {{valid-redirections "logout-redirections"} :settings} (iam/get-client client_id)
              {:keys [iss sid] :as token} (try
                                            (iam/unsign-data id_token_hint)
@@ -415,15 +382,15 @@
          (assoc ctx :response
                 (cond
                   (nil? session)
-                  session-not-found
+                  (idsrv-session-remove session-not-found)
                   ;; Token couldn't be unsigned
-                  (nil? token)
+                  (and id_token_hint (nil? token))
                   invalid-token
                   ;; Session doesn't match
-                  (not= sid session)
+                  (and id_token_hint (not= sid session))
                   invalid-session
                   ;; Issuer is not the same
-                  (not= iss oauth2/*iss*)
+                  (and id_token_hint (not= iss oauth/*iss*))
                   invalid-issuer
                   ;; Redirect uri isn't valid
                   (not post-redirect-ok?)
@@ -431,14 +398,14 @@
                   ;;
                   (some? post_logout_redirect_uri)
                   (do
-                    (oauth2/kill-session session)
+                    (oauth/kill-session session)
                     {:status 302
                      :headers {"Location" (str post_logout_redirect_uri (when (not-empty state) (str "?" (codec/form-encode {:state state}))))
                                "Cache-Control" "no-cache"}})
                   ;;
                   :else
                   (do
-                    (oauth2/kill-session session)
+                    (oauth/kill-session session)
                     {:status 200
                      :headers {"Content-Type" "text/html"}
                      :body "User logged out!"})))))}))
@@ -446,7 +413,7 @@
 
 (defn clients-match? [session {:keys [client_id client_secret]}]
   (let [{known-id :id
-         known-secret :secret} (oauth2/get-session-client session)]
+         known-secret :secret} (oauth/get-session-client session)]
     (cond
       (not= client_id known-id) false
       (and client_secret (not= client_secret known-secret)) false
@@ -457,13 +424,13 @@
 (def clients-doesnt-match? (complement clients-match?))
 
 
-(let [invalid-client (oauth2/json-error "invalid_client" "Client ID is not valid")
-      invalid-token (oauth2/json-error "invalid_token" "Token is not valid")]
+(let [invalid-client (oauth/json-error "invalid_client" "Client ID is not valid")
+      invalid-token (oauth/json-error "invalid_token" "Token is not valid")]
   (def revoke-token-interceptor
     {:enter
      (fn [{{{:keys [token_type_hint token] :as params} :params} :request :as ctx}]
        (let [token-key (when token_type_hint (keyword token_type_hint))
-             tokens @oauth2/*tokens*
+             tokens @oauth/*tokens*
              [token-key session] (some
                                    (fn [token-key]
                                      (when-some [session (get-in tokens [token-key token])]
@@ -478,7 +445,7 @@
              (clients-doesnt-match? session params) (error invalid-client)
              :else (do
                      (log/debugf "[%s] Revoking token %s %s" session token-key token)
-                     (oauth2/revoke-token token-key token)
+                     (oauth/revoke-token token-key token)
                      (assoc ctx :response
                             {:status 200
                              :headers {"Content-Type" "application/json"
@@ -489,12 +456,12 @@
 ;; This is not used, because clients not all clients are available from start
 ;; this will be changed in the future and should be used when iam.oauth2 will
 ;; track delta events from dataset.core
-(let [invalid-client (oauth2/json-error
+(let [invalid-client (oauth/json-error
                        "invalid_client"
                        "Provided client_id wasn't found"
                        "Your attempt will be logged and"
                        "processed")
-      invalid-secret (oauth2/json-error
+      invalid-secret (oauth/json-error
                        "invalid_secret"
                        "You are using client secret that is invalid."
                        "This request will be logged and processed!")]
@@ -507,7 +474,7 @@
        (letfn [(error [response]
                  (chain/terminate (assoc context :response response)))]
          (let [{known-id :id
-                known-secret :secret} (get @oauth2/*clients* id)]
+                known-secret :secret} (get @oauth/*clients* id)]
            (cond
              (not= id known-id)
              (error invalid-client)
@@ -540,14 +507,14 @@
    (fn [ctx]
      (let [{{{:keys [code code_verifier grant_type]} :params} :request} ctx
            {{:keys [code_challenge code_challenge_method]} :request} (-> code
-                                                                       oauth2/get-code-session 
-                                                                       oauth2/get-session)
+                                                                       oauth/get-code-session 
+                                                                       oauth/get-session)
            is-pkce? (and code_challenge code_challenge_method)]
        (if (or (not is-pkce?) (not= "authorization_code" grant_type)) ctx
          (let [current-challenge (generate-code-challenge code_verifier code_challenge_method)]
            (if (= current-challenge code_challenge) ctx
              (chain/terminate
-               (oauth2/json-error
+               (oauth/json-error
                  "invalid_request"
                  "Proof Key for Code Exchange failed")))))))})
 
@@ -575,48 +542,29 @@
         (clojure.string/split cookies #"[;\s]+")))))
 
 
-(def idsrv-session-read
-  {:enter (fn [ctx]
-            (let [{{{{idsrv-session :value} "idsrv.session"} :cookies} :request} ctx]
-              (if (empty? idsrv-session) ctx
-                (assoc-in ctx [:request :params :idsrv/session] idsrv-session))))})
-
-
-(def idsrv-session-remove
-  {:leave (fn [ctx]
-            (assoc-in ctx [:response :cookies "idsrv.session"]
-                      {:value ""
-                       :path ""
-                       :max-age 0}))})
-
-
 (def serve-login-page
   {:enter (fn [{{:keys [uri]
-                 {:keys [session]} :params} :request :as ctx}]
-            (comment
-              (def uri "/oidc/login/css/login.css")
-              (def session "tcNzEQkjcCDdizIonZGpkFeNpQYAFC")
-              (def ctx nil))
+                 {:keys [session]
+                  idsrv-session :idsrv/session} :params} :request :as ctx}]
             (let [ext (re-find #"(?<=\.).*?$" uri)
                   path (subs uri 6)
-                  {:keys [code authorization-code-used?]
-                   {redirect-uri :redirect_uri
-                    state :state} :request} (oauth2/get-session session)
-                  session-active? (and (not-empty code) authorization-code-used?)
+                  {:keys [code]} (oauth/get-session session)
+                  {{redirect-uri :redirect_uri
+                    :keys [state prompt]} :request} (oauth/get-code-request code)
                   response (letfn [(revoke-idsrv [response]
                                      (assoc-in response [:cookies "idsrv.session"]
                                                {:value ""
-                                                :path ""
+                                                :path "/"
                                                 :max-age 0}))]
                              (cond
                                ;; First check if there is active session
-                               (and session session-active?)
-                               (let [code (oauth2/bind-authorization-code session)]
+                               (and (= session idsrv-session) (= prompt "none"))
+                               (let [code (oauth/bind-authorization-code session)]
                                  {:status 302
                                   :headers {"Location" (str redirect-uri "?" (codec/form-encode {:state state :code code}))}})
                                ;; If there is session but it wasn't created by EYWA
                                ;; return error
-                               ;; (nil? (oauth2/get-session session))
+                               ;; (nil? (oauth/get-session session))
                                ;; (request-error 400 "Target session doesn't exist")
                                ;; Then check if some file was requested
                                (and ext (io/resource path))
@@ -632,29 +580,29 @@
 (let [;; save-context (fn [context]
       ;;                (def context context)
       ;;                context) 
-      common [oauth2/basic-authorization-interceptor
+      common [oauth/basic-authorization-interceptor
               middleware/cookies
               (bp/body-params)
-              oauth2/keywordize-params]
+              oauth/keywordize-params]
       ; authorize (conj common save-context)
       authorize (conj common
                       idsrv-session-read
                       authorize-request-interceptor)
-      request_error (conj common oauth2/authorize-request-error-interceptor)
-      token (conj common pkce-interceptor oauth2/token-interceptor)
+      request_error (conj common oauth/authorize-request-error-interceptor)
+      token (conj common oauth/scope->set pkce-interceptor oauth/token-interceptor)
       user-info (conj common user-info-interceptor)
       logout (conj common idsrv-session-remove idsrv-session-read logout-interceptor)
       revoke (conj common idsrv-session-read revoke-token-interceptor)]
   (def routes
-    #{["/oauth2/authorize" :get authorize :route-name ::authorize-request]
-      ["/oauth2/request_error" :get request_error :route-name ::authorize-request-error]
-      ["/oauth2/token" :post token :route-name ::handle-token]
-      ["/oauth2/revoke" :post revoke :route-name ::post-revoke]
-      ["/oauth2/revoke" :get revoke :route-name ::get-revoke]
-      ["/oauth2/jwks" :get [jwks-interceptor] :route-name ::get-jwks]
-      ["/oidc/login/*" :get (conj common serve-login-page) :route-name ::short-login-redirect]
-      ["/oidc/login/*" :post [middleware/cookies oauth2/login-interceptor] :route-name ::handle-login]
-      ["/oidc/login" :get [oauth2/redirect-to-login] :route-name ::short-login]
+    #{["/oauth2.1/authorize" :get authorize :route-name ::authorize-request]
+      ["/oauth2.1/request_error" :get request_error :route-name ::authorize-request-error]
+      ["/oauth2.1/token" :post token :route-name ::handle-token]
+      ["/oauth2.1/revoke" :post revoke :route-name ::post-revoke]
+      ["/oauth2.1/revoke" :get revoke :route-name ::get-revoke]
+      ["/oauth2.1/jwks" :get [jwks-interceptor] :route-name ::get-jwks]
+      ["/oidc/login/*" :get (conj common idsrv-session-read serve-login-page) :route-name ::short-login-redirect]
+      ["/oidc/login/*" :post [middleware/cookies oauth/login-interceptor] :route-name ::handle-login]
+      ["/oidc/login" :get [oauth/redirect-to-login] :route-name ::short-login]
       ["/oidc/userinfo" :get user-info :route-name ::user-info]
       ["/oidc/logout" :post logout :route-name ::get-logout]
       ["/oidc/logout" :get  logout :route-name ::post-logout]

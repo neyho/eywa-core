@@ -307,9 +307,10 @@
          "http://localhost:1234/user-manager/sample.html"
          "http://localhost:1234/user-manager/sample.html"
          "http://localhost:1234/auth/callback"
+         "http://localhost:1234/auth/silent-callback"
          "http://localhost:1234/"
          ],
-        "token-expiry" {"access" 60000, "refresh" 129600000},
+        "token-expiry" {"access" 120, "refresh" 129600},
         "allowed-grants" ["refresh_token" "code" "token" "id_token"],
         "logout-redirections" ["http://localhost:5173/"
                                "http://localhost:1234/"
