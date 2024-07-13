@@ -310,7 +310,7 @@
          "http://localhost:1234/auth/silent-callback"
          "http://localhost:1234/"
          ],
-        "token-expiry" {"access" 120, "refresh" 129600},
+        "token-expiry" {"access" 600, "refresh" 129600},
         "allowed-grants" ["refresh_token" "code" "token" "id_token"],
         "logout-redirections" ["http://localhost:5173/"
                                "http://localhost:1234/"

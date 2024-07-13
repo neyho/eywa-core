@@ -13,17 +13,16 @@
     [buddy.sign.util :refer [to-timestamp]]
     [io.pedestal.interceptor.chain :as chain]
     [io.pedestal.http.body-params :as bp]
-    [neyho.eywa.server.interceptors :refer [spa-interceptor]]
     [neyho.eywa.iam :as iam]
     [neyho.eywa.iam.oauth2-1 :as oauth
      :refer [process-scope
              sign-token]]
     [io.pedestal.http.ring-middlewares :as middleware])
-  (:import
-    [java.security KeyFactory]
-    [java.security.interfaces RSAPublicKey]
-    [java.security.spec X509EncodedKeySpec]
-    [org.bouncycastle.util.encoders Base64]))
+  #_(:import
+      [java.security KeyFactory]
+      [java.security.interfaces RSAPublicKey]
+      [java.security.spec X509EncodedKeySpec]
+      [org.bouncycastle.util.encoders Base64]))
 
 
 (s/def ::iss string?)
@@ -368,7 +367,6 @@
   (def logout-interceptor
     {:enter
      (fn [ctx]
-       (def ctx ctx)
        (let [{{{:keys [post_logout_redirect_uri id_token_hint state]
                 idsrv-session :idsrv/session} :params} :request} ctx
              session (or (oauth/get-token-session :id_token id_token_hint)

@@ -15,7 +15,6 @@
     [buddy.sign.util :refer [to-timestamp]]
     [io.pedestal.interceptor.chain :as chain]
     [io.pedestal.http.body-params :as bp]
-    [io.pedestal.http.ring-middlewares :as middleware]
     [neyho.eywa.iam
      :refer [sign-data
              unsign-data
@@ -497,7 +496,7 @@
 
   (defmethod grant-token "authorization_code"
     [request]
-    (let [{:keys [code redirect_uri client_id client_secret grant_type]} request
+    (let [{:keys [code redirect_uri client_id client_secret grant_type audience]} request
           {request-redirect-uri :redirect_uri
            scope :scope} (get-code-request code)
           session (get-code-session code)
@@ -568,8 +567,7 @@
               owner-not-authorized)
             ;; Issue that token
             :else
-            (let [{{:keys [audience]} :request} (get-code-request code)
-                  access-exp (-> 
+            (let [access-exp (-> 
                                (System/currentTimeMillis)
                                (quot 1000)
                                (+ (access-token-expiry client)))
@@ -635,12 +633,15 @@
     [{:keys [refresh_token client_id scope audience]
       cookie-session :idsrv/session}]
     (let [session (get-token-session :refresh_token refresh_token)
-          {{refresh? "refresh-tokens"} :settings :as client
-           id :id} (get-session-client session)
-          {:keys [euuid active]} (get-session-resource-owner session)
-          expires-after (access-token-expiry client)]
+          {{refresh? "refresh-tokens"} :settings :as client} (get-session-client session)
+          {:keys [euuid active]} (get-session-resource-owner session)]
       (when session (revoke-session-tokens session audience))
       (cond
+        ;;
+        (not active)
+            (do
+              (kill-session session)
+              owner-not-authorized)
         ;;
         (not refresh?)
         refresh-not-supported
@@ -649,7 +650,7 @@
         cookie-session-missmatch
         ;;
         :else
-        (let [access-exp (-> 
+        (let [access-exp (->
                            (System/currentTimeMillis)
                            (quot 1000)
                            (+ (access-token-expiry client)))
@@ -1085,15 +1086,14 @@
                (pos? (- now (+ at timeout))))]
        (doseq [[session {:keys [code at tokens]}] @*sessions*
                :when (scan? at)]
-         (let []
-           (cond
-             ;; Authorization code wasn't used
-             (and (some? code) (empty? tokens))
-             (do
-               (log/debugf "[%s] Session timed out. No code or access token was assigned to this session" session)
-               (kill-session session))
-             :else
-             nil)))))))
+         (cond
+           ;; Authorization code wasn't used
+           (and (some? code) (empty? tokens))
+           (do
+             (log/debugf "[%s] Session timed out. No code or access token was assigned to this session" session)
+             (kill-session session))
+           :else
+           nil))))))
 
 
 (defn clean-codes
