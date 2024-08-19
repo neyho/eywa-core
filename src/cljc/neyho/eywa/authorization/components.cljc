@@ -4,10 +4,10 @@
 
 
 
-;; Administration
+;; IAM
 (def eywa #uuid "28d8b0bf-7647-4ff4-b799-fc72b22c06f0")
 (def graphql-ui #uuid "d9ae32dc-9a39-4353-b0d4-bfe9031b127a")
-(def administration #uuid "52e64d64-867c-4827-a2d8-c96a9ae173d8")
+(def iam #uuid "52e64d64-867c-4827-a2d8-c96a9ae173d8")
 (def users #uuid "8500caf8-edde-411e-9079-cd06de4f870e") 
 (def user-add #uuid "e93b302b-4f37-43a1-9d4b-f41435907ce7") 
 (def user-modify #uuid "8a046ab5-3f18-4bb2-bacf-a0b3ef6616cc") 
@@ -27,6 +27,10 @@
 (def role-delete #uuid "67f5108f-ee9b-4564-8cad-bba6bfc9643d") 
 (def role-members #uuid "01340f6e-c948-4455-9490-58d6ff5e43d4") 
 (def role-permissions #uuid "6d321670-6324-4a75-a35a-5477f64e18e9") 
+(def apps #uuid "8d6e541b-2a11-459b-8ab0-0bc865e6ced7")
+(def app-add #uuid "2c12154b-5b8b-4622-84eb-19c669d6ebaa")
+(def app-edit #uuid "f8c18fcb-8f1f-4672-8275-1b36f1d67859")
+(def app-delete #uuid "5f9d5fc4-18e0-4fa1-9e76-acd0ba03ec73")
 
 
 
@@ -120,7 +124,7 @@
 
 (defn components->tree 
   ([components {:keys [euuid]}]
-   (when-let [[node] (filter (comp #{euuid} :euuid) components)]
+   (when-let [node (some #(when (= euuid (:euuid %)) %) components)]
      (let [children (filter (comp #{euuid} :parent) components)
            components' (remove (comp #{euuid} :euuid) components)] 
        (if (seq children)

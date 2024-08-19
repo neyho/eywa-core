@@ -2,9 +2,9 @@ let viewbox_target = document.getElementById("background-viewbox")
 
 let image_target = document.getElementById("background-image")
 let images = [
-  "https://docs.eywaonline.com/eywa/images/login_small.png",
-  "https://docs.eywaonline.com/eywa/images/login_normal.png",
-  "https://docs.eywaonline.com/eywa/images/login_large.png"
+  "https://www.eywaonline.com/eywa/images/login_small.png",
+  "https://www.eywaonline.com/eywa/images/login_normal.png",
+  "https://www.eywaonline.com/eywa/images/login_large.png"
 ]
 
 let images_dimensions = [

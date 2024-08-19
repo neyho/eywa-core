@@ -1,4 +1,4 @@
-(ns neyho.eywa.iam.oauth2.client
+(ns neyho.eywa.iam.oauth.client
   "This namespace is used to integrate with other OIDC providers."
   (:require
     nano-id.core

@@ -121,7 +121,7 @@
 (defn numerics? [{as :attributes}]
   (filter 
     (fn [{t :type}]
-      (boolean (#{"integer" "float"} t)))
+      (boolean (#{"int" "float"} t)))
     as))
 
 (defn entity->numeric-enum [{n :name}]

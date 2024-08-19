@@ -87,14 +87,14 @@
 (def permissions
   [{:euuid c/eywa
     :name "EYWA"}
-   {:euuid c/administration
-    :name "Administration"
+   {:euuid c/iam
+    :name "IAM"
     :roles [*ROOT*]
     :parent {:euuid c/eywa}}
    {:euuid c/users
     :name "Users"
     :roles [*ROOT*]
-    :parent {:euuid c/administration}}
+    :parent {:euuid c/iam}}
    {:euuid c/user-add
     :name "User Add"
     :roles [*ROOT*]
@@ -110,7 +110,7 @@
    {:euuid c/groups
     :name "Groups"
     :roles [*ROOT*]
-    :parent {:euuid c/administration}}
+    :parent {:euuid c/iam}}
    {:euuid c/group-add
     :name "Group Add"
     :roles [*ROOT*]
@@ -130,7 +130,7 @@
    {:euuid c/roles
     :name "Roles"
     :roles [*ROOT*]
-    :parent {:euuid c/administration}}
+    :parent {:euuid c/iam}}
    {:euuid c/role-add
     :name "Role Add"
     :roles [*ROOT*]
@@ -150,7 +150,24 @@
    {:euuid c/role-permissions
     :name "Role Members"
     :roles [*ROOT*]
-    :parent {:euuid c/roles}}])
+    :parent {:euuid c/roles}}
+   ;;
+   {:euuid c/apps
+    :name "Apps"
+    :roles [*ROOT*]
+    :parent {:euuid c/iam}}
+   {:euuid c/app-add
+    :name "App Add"
+    :roles [*ROOT*]
+    :parent {:euuid c/apps}}
+   {:euuid c/app-edit
+    :name "App Edit"
+    :roles [*ROOT*]
+    :parent {:euuid c/apps}}
+   {:euuid c/app-delete
+    :name "App Delete"
+    :roles [*ROOT*]
+    :parent {:euuid c/apps}}])
 
 
 (defn setup

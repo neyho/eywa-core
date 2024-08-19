@@ -195,10 +195,6 @@
                  resolver-fn)))})))))
 
 
-(comment
-  (dosync (ref-set compiled (recompile))))
-
-
 (defn remove-directive [key]
   (dosync
     (alter state update :directives dissoc key)

@@ -23,7 +23,7 @@
     neyho.eywa.dataset.postgres.query
     neyho.eywa.iam
     neyho.eywa.iam.uuids
-    [neyho.eywa.iam.oauth2 :as oauth2]
+    [neyho.eywa.iam.oauth :as oauth]
     [neyho.eywa.server.interceptors.authentication :refer [init-default-encryption]])
   (:gen-class :main true))
 
@@ -261,7 +261,7 @@
         "start" (do
                   (neyho.eywa.transit/init)
                   (neyho.eywa.iam/init-default-encryption)
-                  (oauth2/start-maintenance)
+                  (oauth/start-maintenance)
                   (init-default-encryption)
                   (neyho.eywa.db.postgres/init)
                   (neyho.eywa.dataset/init)

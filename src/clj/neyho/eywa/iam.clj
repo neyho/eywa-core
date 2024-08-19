@@ -4,23 +4,19 @@
     clojure.java.io
     clojure.pprint
     clojure.data.json
-    [vura.core :as vura]
     [buddy.sign.jwt :as jwt]
     [buddy.core.codecs]
     [buddy.core.hash]
     [buddy.hashers :as hashers]
     [buddy.core.keys :as keys]
-    [buddy.sign.util :refer [to-timestamp]]
-    [nano-id.core :refer [nano-id] :as nano-id]
-    [buddy.sign.jwk :as jwk]
-    [neyho.eywa.iam.oauth2.uuids :as ou]
     [neyho.eywa.iam.uuids :as iu]
     [neyho.eywa.dataset
      :as dataset
      :refer [get-entity
              search-entity
              sync-entity
-             delete-entity]])
+             delete-entity]]
+    [neyho.eywa.iam.gen :as gen])
   (:import
     [java.security KeyPairGenerator]))
 
@@ -136,7 +132,7 @@
 (defn get-password [username]
   (:password
     (get-entity
-      ou/client
+      iu/app
       {:name username}
       {:password nil})))
 
@@ -191,7 +187,7 @@
 (defn get-client
   [id]
   (get-entity
-    ou/client
+    iu/app
     {:id id}
     {:euuid nil
      :id nil
@@ -202,22 +198,15 @@
      :settings nil}))
 
 
-(let [alphabet "ACDEFGHIJKLMNOPQRSTUVWXYZ"]
-  (def gen-client-id (nano-id/custom alphabet 48)))
-
-
-(let [alphabet "ACDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890-"]
-  (def gen-secret (nano-id/custom alphabet 48)))
-
 
 (defn add-client [{:keys [id name secret settings type]
-                   :or {id (gen-client-id)
+                   :or {id (gen/client-id)
                         type :public}}]
   (let [secret (or secret
                    (when (#{:confidential "confidential"} type)
-                     (gen-secret)))]
+                     (gen/client-secret)))]
     (sync-entity
-      ou/client
+      iu/app
       {:id id
        :name name
        :type type
@@ -227,7 +216,7 @@
 
 
 (defn remove-client [{:keys [euuid]}]
-  (delete-entity iu/user {:euuid euuid}))
+  (delete-entity iu/app {:euuid euuid}))
 
 
 (defn set-user
@@ -243,7 +232,7 @@
 (defn list-clients
   []
   (search-entity
-    ou/client nil
+    iu/app nil
     {:euuid nil
      :name nil
      :id nil

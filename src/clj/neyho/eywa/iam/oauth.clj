@@ -1,4 +1,4 @@
-(ns neyho.eywa.iam.oauth2-1
+(ns neyho.eywa.iam.oauth
   (:require
     [clojure.string :as str]
     clojure.java.io
@@ -13,6 +13,8 @@
     [ring.util.codec :as codec]
     [clojure.data.json :as json]
     [buddy.sign.util :refer [to-timestamp]]
+    [buddy.core.codecs :as codecs]
+    [buddy.core.crypto :as crypto]
     [io.pedestal.interceptor.chain :as chain]
     [io.pedestal.http.body-params :as bp]
     [neyho.eywa.iam
@@ -21,7 +23,8 @@
              get-client
              validate-password
              get-user-details]]
-    [neyho.eywa.server.interceptors :refer [spa-interceptor]])
+    [neyho.eywa.server.interceptors :refer [spa-interceptor]]
+    [neyho.eywa.env :as env])
   (:import
     [java.util Base64]))
 
@@ -47,11 +50,38 @@
 
 (defonce ^:dynamic *tokens* (atom nil))
 (defonce ^:dynamic *authorization-codes* (atom nil))
+(defonce ^:dynamic *device-codes* (atom nil))
 
 
 (defonce ^:dynamic *resource-owners* (atom nil))
 (defonce ^:dynamic *clients* (atom nil))
 (defonce ^:dynamic *sessions* (atom nil))
+
+
+(defn domain+
+  ([] (domain+ ""))
+  ([path]
+   (str env/iam-protocol "://" env/iam-domain path)))
+
+
+
+(defonce ^:dynamic *encryption-key* (nano-id/nano-id 32))
+(defonce ^:dynamic *initialization-vector* (nano-id/nano-id 12))
+
+
+(defn encrypt [data]
+            (let [json-data (.getBytes (json/write-str data))]
+              (codecs/bytes->hex
+                (crypto/encrypt
+                  json-data *encryption-key* *initialization-vector*
+                  {:alg :aes256-gcm}))))
+
+
+(defn decrypt [encrypted-data]
+  (String.
+    (crypto/decrypt
+      (codecs/hex->bytes encrypted-data) *encryption-key* *initialization-vector*
+      {:alg :aes256-gcm})))
 
 
 (let [alphabet "ACDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]
@@ -61,7 +91,7 @@
   (def gen-token (nano-id/custom alphabet 50)))
 
 (let [alphabet "ACDEFGHJKLMNOPQRSTUVWXYZ"]
-  (def gen-code (nano-id/custom alphabet 30)))
+  (def gen-authorization-code (nano-id/custom alphabet 30)))
 
 
 (let [default (vura/hours 2)]
@@ -108,7 +138,7 @@
 
 
 (defn token-error [code & description]
-  (log/debugf "Returning error: %s\n%s" code (str/join "\n" description))
+  ; (log/debugf "Returning error: %s\n%s" code (str/join "\n" description))
   {:status 400
    :headers {"Content-Type" "application/json;charset=UTF-8"
              "Pragma" "no-cache"
@@ -271,7 +301,7 @@
 
 (defn bind-authorization-code
   [session]
-  (let [code (gen-code)]
+  (let [code (gen-authorization-code)]
     (swap! *authorization-codes* assoc code {:session session
                                              :at (System/currentTimeMillis)})
     (swap! *sessions* update session
@@ -737,7 +767,7 @@
               ;; and hasn't been shared to user
               (not (code-was-issued? code)))
        code
-       (let [new-code (gen-code)]
+       (let [new-code (gen-authorization-code)]
          (swap! *authorization-codes*
                 (fn [codes]
                   (->
@@ -925,6 +955,46 @@
                          (str "Server error - " (:type params))))})))})
 
 
+
+
+(let [gen-device-code (nano-id/custom "ACDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" 20)
+      gen-user-code (nano-id/custom "0123456789" 6)]
+  (defn device-code-response
+    [request]
+    (log/debugf "Device code request:\n%s" request)
+    (letfn [(split-spaces [request k]
+              (if-some [val (get request k)]
+                (assoc request k (set (str/split val #"\s+")))
+                request))]
+      (let [{:keys [response_type redirect_uri] :as request}
+            (-> request
+                (split-spaces :scope)
+                (split-spaces :response_type))
+            device-code (gen-device-code)
+            user-code (gen-user-code)]
+        ;; Treba checkirati klijenta
+        ;; dohvatiti konfiguraciju za klijenta
+        {:device_code device-code
+         :user_code user-code
+         :verification_uri (domain+ "/oauth/activate-device")
+         :verification_uri_complete (domain+ (str "/oauth/activate-device?user_code=" user-code))
+         :interval 5
+         :expires_in 900}))))
+
+
+(def device-code-flow-interceptor
+  {:name ::device-code-flow
+   :enter
+   (fn [{{:keys [params]} :request :as context}]
+     (chain/terminate (assoc context :response (device-code-response params))))})
+
+
+(def device-confirm-interceptor
+  {:name ::device-confirm
+   :enter (fn [{{:keys [params]} :request :as context}]
+            (chain/terminate (assoc context :response (device-code-response params))))})
+
+
 (def token-interceptor
   {:name ::token
    :enter
@@ -1032,21 +1102,21 @@
 
 
 (def routes
-  #{["/oauth2/authorize"
+  #{["/oauth/authorize"
      :get [basic-authorization-interceptor
            (bp/body-params)
            keywordize-params
            scope->set
            authorize-request-interceptor]
      :route-name ::authorize-request]
-    ["/oauth2/request_error"
+    ["/oauth/request_error"
      :get [basic-authorization-interceptor
            (bp/body-params)
            keywordize-params
            scope->set
            authorize-request-error-interceptor]
      :route-name ::authorize-request-error]
-    ["/oauth2/token"
+    ["/oauth/token"
      :post [basic-authorization-interceptor
             (bp/body-params)
             keywordize-params
@@ -1057,6 +1127,12 @@
     ["/oidc/login/" :get [redirect-to-login] :route-name ::root-login]
     ["/oidc/login/*" :get [spa-interceptor] :route-name ::serve-login]
     ["/oidc/login/*" :post [login-interceptor] :route-name ::handle-login]})
+
+
+
+
+
+
 
 
 (defn expired? [token]
