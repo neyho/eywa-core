@@ -1,0 +1,103 @@
+(ns neyho.eywa.iam.oauth.page.device
+  {:shadow.css/include
+   ["neyho/eywa/iam/oauth/page/common.css"]}
+  (:require
+    [hiccup2.core :refer [html]]
+    [shadow.css :refer [css]]))
+
+
+(def $confirm-container
+  (css
+    :w-full
+    :h-full
+    :flex
+    :grow
+    :absolute
+    :top-0
+    :justify-center
+    :items-center
+    :flex-col))
+
+
+(defn authorize
+  ([] (authorize nil))
+  ([{:keys [error]}]
+   (html
+     [:head
+      [:meta {:charset "UTF-8"}]
+      [:title "EYWA Login"]
+      [:link {:rel "icon" :href "https://www.eywaonline.com/eywa/logo/eywa.svg" :crossorigin true}]
+      [:link {:rel "preconnect" :href "https://fonts.googleapis.com"}]
+      [:link {:rel "preconnect" :href "https://fonts.gstatic.com" :crossorigin true}]
+      [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;800;900&family=Roboto&display=swap"}]
+      [:link {:rel "stylesheet" :href "../css/device.css"}]]
+     [:body
+      [:svg
+       {:id "background-viewbox"
+        :viewBox "0 0 1000 1000"
+        :style {:width "100%"
+                :height "100%"}}
+       [:image
+        {:id "background-image"
+         :x 0 :y 0 :height 1000 :width 1000
+         :href "https://www.eywaonline.com/eywa/images/login_normal.png"}]]
+      [:div {:class $confirm-container}
+       [:div {:class (css
+                       :py-8
+                       :px-7
+                       :rounded-lg
+                       :max-width "400px"
+                       {:background "#ffffffbd"}
+                       ["& .header" :py-4 :flex :justify-center :items-center]
+                       ["& .logo" :w-10 :h-10 :mr-4]
+                       ["& h1, & button" {:color "#3a3c3f"}])}
+        [:div {:class (css :p-8 :bg-white :rounded-lg)}
+         [:div.header
+          [:div.logo
+           [:image {:src "https://www.eywaonline.com/eywa/logo/eywa.svg"}]]
+          [:div
+           [:h1 "Device Confirmation"]]]
+         [:div {:class (css
+                         :py-4
+                         :text-center
+                         :font-normal
+                         :text-sm
+                         :text-gray-700)}
+          "Type in device code displayed on your device"]
+         [:form {:class (css
+                          {:margin-block-end "0"}
+                          ["& .input-wrapper"
+                           :flex :grow
+                           :justify-center :items-center
+                           :border-b
+                           :border-gray-200
+                           :pt-4
+                           :pb-2]
+                          ["& .input-wrapper input"  {:text-align "center"}]
+                          ["& .input-wrapper:focus-within" :border-gray-500])}
+          [:div.input-wrapper
+           [:input {:placeholder "ABCD-WXYZ"}]]
+          [:div.error
+           {:class (css
+                     :flex
+                     :items-center
+                     :text-red-700
+                     :font-medium
+                     :text-sm
+                     {:min-height "4rem"
+                      :width "100%"})}
+           "hello this is error message!"
+           (when error [:div.message error])]
+          [:div {:class (css
+                          :flex
+                          :grow
+                          :justify-center
+                          ["& button"
+                           :m-4 :p-2
+                           :font-semibold
+                           {:min-width "8rem" :min-height "2rem"}]
+                          ["& button:hover" {:text-shadow "1px 1px 2px rgba(0,0,0,0.3)"}])}
+           [:div
+            [:button.confirm "Confirm"]
+            [:button.cancel "Cancel"]]]]]]]
+      [:script {:src "../js/login.js"}]])))

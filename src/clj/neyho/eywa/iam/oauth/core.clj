@@ -10,6 +10,7 @@
     [nano-id.core :as nano-id]
     [vura.core :as vura]
     [ring.util.codec :as codec]
+    [ring.util.response :as response]
     [clojure.data.json :as json]
     [buddy.core.codecs :as codecs]
     [buddy.core.crypto :as crypto]
@@ -37,9 +38,6 @@
 
 (defn publish [topic data]
   (async/put! subscription (assoc data :topic topic)))
-
-
-(defonce ^:dynamic *iss* "http://localhost:8080")
 
 
 (defonce ^:dynamic *resource-owners* (atom nil))
@@ -413,6 +411,17 @@
                     :type "server_error"}))))))
 
 
+
+
+
+(defn reset
+  []
+  (reset! *sessions* nil)
+  (reset! *resource-owners* nil)
+  (reset! *clients* nil))
+
+
+;; Interceptors
 (defn- decode-base64-credentials
   [data]
   (when data
@@ -447,20 +456,25 @@
      (update-in ctx [:request :params :scope] (fn [scope] (when scope (set (str/split scope #"\s+"))))))})
 
 
-(def redirect-to-login
+(def idsrv-session-read
   {:enter (fn [ctx]
-            (chain/terminate
-              (assoc ctx :response
-                     {:status 302
-                      :headers {"Location" (str "/oidc/login/index.html")
-                                "Cache-Control" "no-cache"}})))})
+            (let [{{{{idsrv-session :value} "idsrv.session"} :cookies} :request} ctx]
+              (if (empty? idsrv-session) ctx
+                (assoc-in ctx [:request :params :idsrv/session] idsrv-session))))})
 
 
-(defn reset
-  []
-  (reset! *sessions* nil)
-  (reset! *resource-owners* nil)
-  (reset! *clients* nil))
+(def idsrv-session-remove
+  {:leave (fn [ctx]
+            (assoc-in ctx [:response :cookies "idsrv.session"]
+                      {:value ""
+                       :path "/"
+                       :http-only true
+                       :secure true
+                       :max-age 0}))})
+
+(def serve-resource
+  {:enter (fn [{{:keys [uri]} :request :as ctx}]
+            (assoc ctx :response (response/resource-response uri)))})
 
 
 ;; Maintenance

@@ -3,11 +3,8 @@
     [clojure.string :as str]
     [clojure.spec.alpha :as s]
     [clojure.data.json :as json]
-    [clojure.tools.logging :as log]
-    [clojure.java.io :as io]
     [vura.core :as vura]
     [ring.util.codec :as codec]
-    [ring.util.response :as response]
     [buddy.core.codecs]
     [buddy.core.hash :as hash]
     [buddy.sign.util :refer [to-timestamp]]
@@ -21,15 +18,19 @@
              domain+
              keywordize-params
              basic-authorization-interceptor
+             idsrv-session-remove
+             idsrv-session-read
              get-session
              get-session-client
              get-session-resource-owner
              kill-session
              json-error
-             *clients*]]
-    [neyho.eywa.iam.oauth.login
+             *clients*
+             serve-resource]]
+    [neyho.eywa.iam.oauth.login :as login
      :refer [login-interceptor
-             redirect-to-login]]
+             redirect-to-login
+             serve-login-page]]
     [neyho.eywa.iam.oauth.token
      :refer [token-interceptor
              revoke-token-interceptor
@@ -166,9 +167,9 @@
        :authorization_endpoint (domain+ "/oauth/authorize")
        :device_authorization_endpoint (domain+ "/oauth/device")
        :token_endpoint (domain+ "/oauth/token")
-       :userinfo_endpoint (domain+ "/oidc/userinfo")
+       :userinfo_endpoint (domain+ "/oauth/userinfo")
        :jwks_uri (domain+ "/oauth/jwks")
-       :end_session_endpoint (domain+ "/oidc/logout")
+       :end_session_endpoint (domain+ "/oauth/logout")
        :revocation_endpoint (domain+ "/oauth/revoke")
        ; :response_types_supported ["code" "token" "id_token"
        ;                            "code id_token" "token id_token"
@@ -298,21 +299,7 @@
    :body (json/write-str (str/join "\n" description))})
 
 
-(def idsrv-session-read
-  {:enter (fn [ctx]
-            (let [{{{{idsrv-session :value} "idsrv.session"} :cookies} :request} ctx]
-              (if (empty? idsrv-session) ctx
-                (assoc-in ctx [:request :params :idsrv/session] idsrv-session))))})
 
-
-(def idsrv-session-remove
-  {:leave (fn [ctx]
-            (assoc-in ctx [:response :cookies "idsrv.session"]
-                      {:value ""
-                       :path "/"
-                       :http-only true
-                       :secure true
-                       :max-age 0}))})
 
 
 
@@ -503,73 +490,39 @@
         (clojure.string/split cookies #"[;\s]+")))))
 
 
-(def serve-login-page
-  {:enter (fn [{{:keys [uri]
-                 {:keys [session]
-                  idsrv-session :idsrv/session} :params} :request :as ctx}]
-            (let [ext (re-find #"(?<=\.).*?$" uri)
-                  path (subs uri 6)
-                  {:keys [code]} (get-session session)
-                  {{redirect-uri :redirect_uri
-                    :keys [state prompt]} :request} (ac/get-code-request code)
-                  response (letfn [(revoke-idsrv [response]
-                                     (assoc-in response [:cookies "idsrv.session"]
-                                               {:value ""
-                                                :path "/"
-                                                :max-age 0}))]
-                             (cond
-                               ;; First check if there is active session
-                               (and (= session idsrv-session) (= prompt "none"))
-                               (let [code (ac/bind-authorization-code session)]
-                                 {:status 302
-                                  :headers {"Location" (str redirect-uri "?" (codec/form-encode {:state state :code code}))}})
-                               ;; If there is session but it wasn't created by EYWA
-                               ;; return error
-                               ;; (nil? (oauth/get-session session))
-                               ;; (request-error 400 "Target session doesn't exist")
-                               ;; Then check if some file was requested
-                               (and ext (io/resource path))
-                               (revoke-idsrv (response/resource-response path))
-                               ;; Finally return index.html if you don't know what
-                               ;; to do
-                               :else
-                               (revoke-idsrv (response/resource-response "login/index.html"))))]
-              (assoc ctx :response response)))})
 
-
-
-(let [;; save-context (fn [context]
-      ;;                (def context context)
-      ;;                context) 
-      common [basic-authorization-interceptor
-              middleware/cookies
-              (bp/body-params)
-              keywordize-params]
+(let [common [basic-authorization-interceptor
+               middleware/cookies
+               (bp/body-params)
+               keywordize-params]
       ; authorize (conj common save-context)
       authorize (conj common
                       idsrv-session-read
                       authorize-request-interceptor)
-      device-code (conj common device-code-flow-interceptor)
       request_error (conj common authorize-request-error-interceptor)
       token (conj common scope->set pkce-interceptor token-interceptor)
       user-info (conj common user-info-interceptor)
       logout (conj common idsrv-session-remove idsrv-session-read logout-interceptor)
       revoke (conj common idsrv-session-read revoke-token-interceptor)]
   (def routes
-    #{["/oauth/authorize" :get authorize :route-name ::authorize-request]
-      ["/oauth/request_error" :get request_error :route-name ::authorize-request-error]
-      ["/oauth/token" :post token :route-name ::handle-token]
-      ["/oauth/revoke" :post revoke :route-name ::post-revoke]
-      ["/oauth/revoke" :get revoke :route-name ::get-revoke]
-      ["/oauth/jwks" :get [jwks-interceptor] :route-name ::get-jwks]
-      ; ["/oauth/device" :post [device-code] :route-name ::get-device-flow]
-      ["/oidc/login/*" :get (conj common idsrv-session-read serve-login-page) :route-name ::short-login-redirect]
-      ["/oidc/login/*" :post [middleware/cookies login-interceptor] :route-name ::handle-login]
-      ["/oidc/login" :get [redirect-to-login] :route-name ::short-login]
-      ["/oidc/userinfo" :get user-info :route-name ::user-info]
-      ["/oidc/logout" :post logout :route-name ::get-logout]
-      ["/oidc/logout" :get  logout :route-name ::post-logout]
-      ["/.well-known/openid-configuration" :get [open-id-configuration-interceptor] :route-name ::open-id-configuration]}))
+    (into
+      #{["/oauth/authorize" :get authorize :route-name ::authorize-request]
+        ["/oauth/request_error" :get request_error :route-name ::authorize-request-error]
+        ["/oauth/token" :post token :route-name ::handle-token]
+        ["/oauth/revoke" :post revoke :route-name ::post-revoke]
+        ["/oauth/revoke" :get revoke :route-name ::get-revoke]
+        ["/oauth/jwks" :get [jwks-interceptor] :route-name ::get-jwks]
+        ["/oauth/login/index.html" :get (conj common idsrv-session-read serve-login-page) :route-name ::short-login-redirect]
+        ["/oauth/login/icons/*" :get [serve-login-resource] :route-name ::login-images]
+        ["/oauth/css/*" :get [serve-resource] :route-name ::login-css]
+        ["/oauth/js/*" :get [serve-resource] :route-name ::login-js]
+        ["/oauth/login/index.html" :post [middleware/cookies login-interceptor] :route-name ::handle-login]
+        ["/oauth/login" :get [redirect-to-login] :route-name ::short-login]
+        ["/oauth/userinfo" :get user-info :route-name ::user-info]
+        ["/oauth/logout" :post logout :route-name ::get-logout]
+        ["/oauth/logout" :get  logout :route-name ::post-logout]
+        ["/.well-known/openid-configuration" :get [open-id-configuration-interceptor] :route-name ::open-id-configuration]}
+      dc/routes)))
 
 
 (comment

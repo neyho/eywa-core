@@ -12,9 +12,10 @@
 (defn generate-css []
   (let [result
         (-> @css-ref
-            (cb/generate '{:login {:include [neyho.eywa.login-page]}})
-            (cb/write-outputs-to (io/file "resources" "login" "css")))]
-    (println "Refreshing resources/login/css/login.css")
+            (cb/generate '{:login {:include [neyho.eywa.iam.oauth.page.login]}
+                           :device {:include [neyho.eywa.iam.oauth.page.device]}})
+            (cb/write-outputs-to (io/file "frontend" "dist" "oauth" "css")))]
+    (println "Refreshing frontend/dist/oauth/css")
     (doseq [mod (:outputs result)
             {:keys [warning-type] :as warning} (:warnings mod)]
       (prn [:CSS (name warning-type) (dissoc warning :warning-type)]))
@@ -25,7 +26,7 @@
   (->
     (cb/init)
     (cb/start)
-    (cb/index-path (io/file "login" "src") {})))
+    (cb/index-path (io/file "src" "clj") {})))
 
 
 (defn start
@@ -42,7 +43,7 @@
   (reset! css-watch-ref
           (fs-watch/start
             {}
-            [(io/file "login" "src" "clj")]
+            [(io/file "src" "clj")]
             ["cljs" "cljc" "clj"]
             (fn [updates]
               (try

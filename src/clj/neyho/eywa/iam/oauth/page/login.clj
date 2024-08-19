@@ -1,6 +1,6 @@
-(ns neyho.eywa.login-page
+(ns neyho.eywa.iam.oauth.page.login
   {:shadow.css/include
-   ["neyho/eywa/login_page.css"]}
+   ["neyho/eywa/iam/oauth/page/common.css"]}
   (:require
     [hiccup2.core :refer [html]]
     [shadow.css :refer [css]]))
@@ -51,7 +51,8 @@
      :absolute
      :top-2 :left-2
      :h-6 :w-6 {:color "#797979"}]
-    ["& .row:not(:last-child)" :mb-2]))
+    ["& .row:not(:last-child)" :mb-2]
+    ["& span.error" :h-8 :text-xs :block {:color "#B56B6B"}]))
 
 
 (def $input
@@ -69,7 +70,7 @@
 
 (def $sign-in
   (css
-    :mt-10
+    :mt-4
     :h-10
     :uppercase
     {:width "15em"
@@ -97,58 +98,62 @@
 
 
 (defn login-html
-  []
-  (html
-    [:head
-     [:meta {:charset "UTF-8"}]
-     [:title "EYWA Login"]
-     [:link {:rel "icon" :href "https://www.eywaonline.com/eywa/log/eywa.svg" :crossorigin true}]
-     [:link {:rel "preconnect" :href "https://fonts.googleapis.com"}]
-     [:link {:rel "preconnect" :href "https://fonts.gstatic.com" :crossorigin true}]
-     [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;800;900&family=Roboto&display=swap"}]
-     [:link {:rel "stylesheet" :href "css/login.css"}]]
-    [:body
-     [:svg
-      {:id "background-viewbox"
-       :viewBox "0 0 1000 1000"
-       :style {:width "100%"
-               :height "100%"}}
-      [:image
-       {:id "background-image"
-        :x 0 :y 0 :height 1000 :width 1000
-        :href "https://www.eywaonline.com/eywa/images/login_normal.png"}]]
-     [:div {:class $login-wrapper}
-      [:div
-       {:class $login-greeting}
-       [:h1 "Hellow mate,"]
-       [:h4 "Welcome to EYWA authentication page"]]
-      [:form
-       {:class $login-form
-        :method "post"}
+  ([] (login-html nil))
+  ([{:keys [error]}]
+   (html
+     [:head
+      [:meta {:charset "UTF-8"}]
+      [:title "EYWA Login"]
+      [:link {:rel "icon" :href "https://www.eywaonline.com/eywa/log/eywa.svg" :crossorigin true}]
+      [:link {:rel "preconnect" :href "https://fonts.googleapis.com"}]
+      [:link {:rel "preconnect" :href "https://fonts.gstatic.com" :crossorigin true}]
+      [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;800;900&family=Roboto&display=swap"}]
+      [:link {:rel "stylesheet" :href "../css/login.css"}]]
+     [:body
+      [:svg
+       {:id "background-viewbox"
+        :viewBox "0 0 1000 1000"
+        :style {:width "100%"
+                :height "100%"}}
+       [:image
+        {:id "background-image"
+         :x 0 :y 0 :height 1000 :width 1000
+         :href "https://www.eywaonline.com/eywa/images/login_normal.png"}]]
+      [:div {:class $login-wrapper}
        [:div
-        {:class :row}
-        user-icon
-        [:input
-         {:id "username"
-          :name "username"
-          :class $input
-          :autoComplete "new-password"}]]
-       [:div
-        {:class :row}
-        password-icon
-        [:input
-         {:id "password"
-          :name "password"
-          :class $input
-          :type "password"
-          :autocomplete "new-password"
-          :autocorrect "off"
-          :spellcheck false}]]
-       [:button {:class $sign-in}
-        [:h4 "SIGN IN"]]]]
-     [:script {:src "js/login.js"}]]))
+        {:class $login-greeting}
+        [:h1 "Hellow mate,"]
+        [:h4 "Welcome to EYWA authentication page"]]
+       [:form
+        {:class $login-form
+         :method "post"}
+        [:div
+         {:class :row}
+         user-icon
+         [:input
+          {:id "username"
+           :name "username"
+           :class $input
+           :autoComplete "new-password"}]]
+        [:div
+         {:class :row}
+         password-icon
+         [:input
+          {:id "password"
+           :name "password"
+           :class $input
+           :type "password"
+           :autocomplete "new-password"
+           :autocorrect "off"
+           :spellcheck false}]]
+        [:div
+         {:class :row}
+         [:span.error (when error error)]]
+        [:button {:class $sign-in}
+         [:h4 "SIGN IN"]]]]
+      [:script {:src "../js/login.js"}]])))
 
 
 (defn generate-login
   []
-  (spit "resources/login/index.html" (login-html)))
+  (spit "frontend/dist/oauth/login/index.html" (login-html)))

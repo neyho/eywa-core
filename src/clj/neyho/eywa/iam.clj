@@ -282,7 +282,7 @@
        :secret nil
        :settings
        {"version" 0,
-        "login-page" "http://localhost:8080/oidc/login/index.html",
+        "login-page" "http://localhost:8080/oauth/login/index.html",
         "redirections"
         ["http://localhost:8080/eywa/"
          "http://localhost:8080/app/kbdev"
