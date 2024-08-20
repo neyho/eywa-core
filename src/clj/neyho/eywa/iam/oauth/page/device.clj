@@ -3,7 +3,8 @@
    ["neyho/eywa/iam/oauth/page/common.css"]}
   (:require
     [hiccup2.core :refer [html]]
-    [shadow.css :refer [css]]))
+    [shadow.css :refer [css]]
+    [neyho.eywa.iam.oauth.device-code :as device-code]))
 
 
 (def $confirm-container
@@ -21,7 +22,11 @@
 
 (defn authorize
   ([] (authorize nil))
-  ([{:keys [error]}]
+  ([{:as data
+     challenge ::device-code/challenge
+     error ::device-code/error
+     user-code ::device-code/user-code
+     complete? ::device-code/complete?}]
    (html
      [:head
       [:meta {:charset "UTF-8"}]
@@ -46,11 +51,11 @@
                        :py-8
                        :px-7
                        :rounded-lg
-                       :max-width "400px"
-                       {:background "#ffffffbd"}
-                       ["& .header" :py-4 :flex :justify-center :items-center]
+                       {:background "#ffffffbd"
+                        :max-width "500px"}
+                       ["& .header" :py-4 :flex :justify-center :items-center :select-none]
                        ["& .logo" :w-10 :h-10 :mr-4]
-                       ["& h1, & button" {:color "#3a3c3f"}])}
+                       ["& h1, & button" :select-none {:color "#3a3c3f"}])}
         [:div {:class (css :p-8 :bg-white :rounded-lg)}
          [:div.header
           [:div.logo
@@ -62,9 +67,13 @@
                          :text-center
                          :font-normal
                          :text-sm
-                         :text-gray-700)}
-          "Type in device code displayed on your device"]
-         [:form {:class (css
+                         :text-gray-700
+                         :select-none)}
+          (if complete?
+            "Confirm that following user code is used for device authorization"
+            "Type in device code displayed on your device")]
+         [:form {:method "POST"
+                 :class (css
                           {:margin-block-end "0"}
                           ["& .input-wrapper"
                            :flex :grow
@@ -75,8 +84,24 @@
                            :pb-2]
                           ["& .input-wrapper input"  {:text-align "center"}]
                           ["& .input-wrapper:focus-within" :border-gray-500])}
+          (when complete?
+            [:input {:type "hidden" 
+                     :name "challenge"
+                     :value challenge}])
           [:div.input-wrapper
-           [:input {:placeholder "ABCD-WXYZ"}]]
+           [:input (cond->
+                     {
+                      :id "device_code"
+                      :type "text"
+                      :placeholder "ABCD-WXYZ"
+                      :required true
+                      :autocomplete "off"
+                      :autocapitalize "off"
+                      :spellcheck false}
+                     complete? (assoc :value user-code
+                                      :read-only true
+                                      :disabled true)
+                     (not complete?) (assoc :name "device_code"))]]
           [:div.error
            {:class (css
                      :flex
@@ -86,7 +111,6 @@
                      :text-sm
                      {:min-height "4rem"
                       :width "100%"})}
-           "hello this is error message!"
            (when error [:div.message error])]
           [:div {:class (css
                           :flex
@@ -95,9 +119,9 @@
                           ["& button"
                            :m-4 :p-2
                            :font-semibold
-                           {:min-width "8rem" :min-height "2rem"}]
+                           {:min-width "6rem" :min-height "2rem"}]
                           ["& button:hover" {:text-shadow "1px 1px 2px rgba(0,0,0,0.3)"}])}
            [:div
-            [:button.confirm "Confirm"]
-            [:button.cancel "Cancel"]]]]]]]
+            [:button.confirm {:type "submit" :name "action" :value "confirm"} "Confirm"]
+            [:button.cancel {:type "submit" :name "action" :value "cancel"} "Cancel"]]]]]]]
       [:script {:src "../js/login.js"}]])))

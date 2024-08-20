@@ -17,11 +17,11 @@
 
 
 (def redirect-to-login
-  {:enter (fn [ctx]
+  {:enter (fn [{{query :query-string} :request :as ctx}]
             (chain/terminate
               (assoc ctx :response
                      {:status 302
-                      :headers {"Location" (str "/oauth/login/index.html")
+                      :headers {"Location" (str "/oauth/login/index.html" (when query (str "?" query)))
                                 "Cache-Control" "no-cache"}})))})
 
 

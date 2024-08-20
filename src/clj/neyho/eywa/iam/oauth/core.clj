@@ -14,7 +14,6 @@
     [clojure.data.json :as json]
     [buddy.core.codecs :as codecs]
     [buddy.core.crypto :as crypto]
-    [io.pedestal.interceptor.chain :as chain]
     [neyho.eywa.iam
      :refer [get-client
              validate-password
@@ -55,22 +54,47 @@
 (defonce ^:dynamic *encryption-key* (nano-id/nano-id 32))
 (defonce ^:dynamic *initialization-vector* (nano-id/nano-id 12))
 
+;
+; (defn encrypt
+;   [data]
+;   (String. (codecs/bytes->b64 (nippy/freeze data {:password [:salted *encryption-key*]}))))
+;
+;
+; (defn decrypt
+;   [data]
+;   (nippy/thaw (codecs/b64->bytes data) {:password [:salted *encryption-key*]}))
 
-(defn encrypt [data]
-            (let [json-data (.getBytes (json/write-str data))]
-              (codecs/bytes->hex
-                (crypto/encrypt
-                  json-data *encryption-key* *initialization-vector*
-                  {:alg :aes256-gcm}))))
+
+(defn encrypt
+  [data]
+  (let [json-data (.getBytes (json/write-str data))]
+    (String.
+      (codecs/bytes->b64
+        (crypto/encrypt
+          json-data *encryption-key* *initialization-vector*
+          {:alg :aes256-gcm})))))
 
 
 (defn decrypt [encrypted-data]
   (json/read-str
     (String.
       (crypto/decrypt
-        (codecs/hex->bytes encrypted-data) *encryption-key* *initialization-vector*
+        (codecs/b64->bytes encrypted-data) *encryption-key* *initialization-vector*
         {:alg :aes256-gcm}))
     :key-fn keyword))
+
+
+(comment
+  (time
+    (decrypt
+      (encrypt
+        {:device-code 100
+         :user-code 200
+         :ip "a"
+         :user-agent "jfioq"}))))
+
+
+
 
 
 (let [alphabet "ACDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]

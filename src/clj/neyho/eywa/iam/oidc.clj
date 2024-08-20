@@ -513,7 +513,7 @@
         ["/oauth/revoke" :get revoke :route-name ::get-revoke]
         ["/oauth/jwks" :get [jwks-interceptor] :route-name ::get-jwks]
         ["/oauth/login/index.html" :get (conj common idsrv-session-read serve-login-page) :route-name ::short-login-redirect]
-        ["/oauth/login/icons/*" :get [serve-login-resource] :route-name ::login-images]
+        ["/oauth/login/icons/*" :get [serve-resource] :route-name ::login-images]
         ["/oauth/css/*" :get [serve-resource] :route-name ::login-css]
         ["/oauth/js/*" :get [serve-resource] :route-name ::login-js]
         ["/oauth/login/index.html" :post [middleware/cookies login-interceptor] :route-name ::handle-login]
