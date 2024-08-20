@@ -539,7 +539,7 @@ h4 {
 .neyho_eywa_iam_oauth_page_device__L76_C25 .input-wrapper:focus-within {
   border-color: #6b7280;
 }
-.neyho_eywa_iam_oauth_page_device__L106_C20 {
+.neyho_eywa_iam_oauth_page_device__L105_C20 {
   align-items: center;
   color: #b91c1c;
   display: flex;
@@ -549,18 +549,18 @@ h4 {
   min-height: 4rem;
   width: 100%;
 }
-.neyho_eywa_iam_oauth_page_device__L115_C25 {
+.neyho_eywa_iam_oauth_page_device__L114_C25 {
   display: flex;
   flex-grow: 1;
   justify-content: center;
 }
-.neyho_eywa_iam_oauth_page_device__L115_C25 button {
+.neyho_eywa_iam_oauth_page_device__L114_C25 button {
   font-weight: 600;
   margin: 1rem;
   min-height: 2rem;
   min-width: 6rem;
   padding: 0.5rem;
 }
-.neyho_eywa_iam_oauth_page_device__L115_C25 button:hover {
+.neyho_eywa_iam_oauth_page_device__L114_C25 button:hover {
   text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
 }

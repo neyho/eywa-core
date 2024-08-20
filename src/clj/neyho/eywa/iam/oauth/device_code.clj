@@ -173,11 +173,11 @@
             
             If request isn't valid ctx will be associated"}
   device-activate-interceptor
-  {:enter (fn [{{:keys [remote-addr]
+  {:enter (fn [{{:keys [remote-addr query-params]
                  {:keys [challenge action user_code]} :params
                  {:strs [user-agent]} :headers
                  method :request-method} :request :as ctx}]
-            (letfn [(find-device-code []
+            (letfn [(find-device-code [user_code]
                       (some
                         (fn [[device-code {:keys [user-code]}]]
                           (when (= user_code user-code)
@@ -197,77 +197,80 @@
                                                                              :flow :device-code
                                                                              :challenge challenge))}))
                                           "Cache-Control" "no-cache"}})))]
-              (case method
-                ;;
-                :get
-                ;; If there is some user_code provided
-                (if (some? user_code)
-                  ;; Then try to find device code for given user code
-                  (if-let [device-code (find-device-code)]
-                    ;; if device code is found, than create challenge that will
-                    ;; be served to end user for confirm action
-                    (assoc ctx
-                           ::complete? true
-                           ::device-code device-code
-                           ::user-code user_code
-                           ::challenge (encrypt {:user-code user_code
-                                                 :device-code device-code
-                                                 :ip remote-addr
-                                                 :user-agent user-agent}))
-                    ;; when device code isn't found associate ctx with error
-                    (assoc ctx ::error :device-code/not-available))
-                  ;; If complete validation uri isn't target, just mark ctx
-                  ;; so that page render can know what to display
-                  (assoc ctx ::complete? false))
-                ;;
-                :post
-                (cond
-                  ;; Missing challenge... Handle error in next interceptor
-                  (and (some? user_code) (nil? challenge))
-                  (assoc ctx ::error :no-challenge)
-                  ;; There is user code so it is verification_uri_complete
-                  (some? user_code)
-                  (let [{:keys [device-code user-code ip]
-                         :as decrypted-challenge} (decrypt challenge)
-                        real-code (get-in @*device-codes* [device-code :user-code])]
-                    (cond
-                      ;; Check user code
-                      (not= real-code user-code user_code)
-                      (assoc ctx ::error :malicius-code)
-                      ;; Check IP address
-                      (not= remote-addr ip)
-                      (assoc ctx ::erorr :malicious-ip)
-                      ;; Check user agent
-                      (not= user-agent (:user-agent decrypted-challenge))
-                      (assoc ctx ::error :malicius-user-agent)
-                      ;; If everything was ok than and confirmed
-                      ;; Than handle device session creation and remove device
-                      ;; code so that it won't be used again
-                      (= action "confirm")
+              (let [complete? (boolean (:user_code query-params))]
+                (case method
+                  ;;
+                  :get
+                  ;; If there is some user_code provided
+                  (if (some? user_code)
+                    ;; Then try to find device code for given user code
+                    (if-let [device-code (find-device-code user_code)]
+                      ;; if device code is found, than create challenge that will
+                      ;; be served to end user for confirm action
+                      (assoc ctx
+                             ::complete? complete?
+                             ::device-code device-code
+                             ::user-code user_code
+                             ::challenge (encrypt {:user-code user_code
+                                                   :device-code device-code
+                                                   :ip remote-addr
+                                                   :user-agent user-agent}))
+                      ;; when device code isn't found associate ctx with error
+                      (assoc ctx ::error :device-code/not-available))
+                    ;; If complete validation uri isn't target, just mark ctx
+                    ;; so that page render can know what to display
+                    (assoc ctx ::complete? complete?))
+                  ;;
+                  :post
+                  (cond
+                    ;; Missing challenge... Handle error in next interceptor
+                    (and complete? (nil? challenge))
+                    (assoc ctx ::error :no-challenge)
+                    ;; There is user code so it is verification_uri_complete
+                    complete?
+                    (let [{:keys [device-code user-code ip]
+                           :as decrypted-challenge} (decrypt challenge)
+                          real-code (get-in @*device-codes* [device-code :user-code])]
+                      (cond
+                        ;; Check user code
+                        (not= real-code user-code user_code)
+                        (assoc ctx ::error :malicius-code)
+                        ;; Check IP address
+                        (not= remote-addr ip)
+                        (assoc ctx ::erorr :malicious-ip)
+                        ;; Check user agent
+                        (not= user-agent (:user-agent decrypted-challenge))
+                        (assoc ctx ::error :malicius-user-agent)
+                        ;; If everything was ok than and confirmed
+                        ;; Than handle device session creation and remove device
+                        ;; code so that it won't be used again
+                        (= action "confirm")
+                        (redirect-to-login
+                          {:device-code device-code
+                           :ip ip
+                           :user-agent user-agent})
+                        ;; If canceled than remove device code and forward ctx
+                        ;; to render
+                        (= action "cancel")
+                        (do
+                          (assoc ctx ::user-code user-code ::canceled? true))
+                        ;;
+                        :else (assoc ctx
+                                     ::user-code user-code
+                                     ::error :unknown-action)))
+                    ;; Otherwise it is verification_uri, with user typeing in
+                    ;; URI manually
+                    :else
+                    (if-let [device-code (find-device-code user_code)]
                       (redirect-to-login
                         {:device-code device-code
-                         :ip ip
+                         :ip remote-addr
                          :user-agent user-agent})
-                      ;; If canceled than remove device code and forward ctx
-                      ;; to render
-                      (= action "cancel")
                       (do
-                        (assoc ctx ::user-code user-code ::canceled? true))
-                      ;;
-                      :else (assoc ctx
-                                   ::user-code user-code
-                                   ::error :unknown-action)))
-                  ;; Otherwise it is verification_uri, with user typeing in
-                  ;; URI manually
-                  :else
-                  (if-let [device-code (find-device-code)]
-                    (redirect-to-login
-                      {:device-code device-code
-                       :ip remote-addr
-                       :user-agent user-agent})
-                    (assoc ctx
-                           ::user-code user_code
-                           ::error :not-available))))))})
+                        (def ctx ctx)
+                        (assoc ctx
+                               ::user-code user_code
+                               ::error :not-available))))))))})
 
 
 (def user-code-page

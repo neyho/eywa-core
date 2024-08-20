@@ -90,8 +90,7 @@
                      :value challenge}])
           [:div.input-wrapper
            [:input (cond->
-                     {
-                      :id "device_code"
+                     {:id "user_code"
                       :type "text"
                       :placeholder "ABCD-WXYZ"
                       :required true
@@ -101,7 +100,7 @@
                      complete? (assoc :value user-code
                                       :read-only true
                                       :disabled true)
-                     (not complete?) (assoc :name "device_code"))]]
+                     (not complete?) (assoc :name "user_code"))]]
           [:div.error
            {:class (css
                      :flex
@@ -121,7 +120,10 @@
                            :font-semibold
                            {:min-width "6rem" :min-height "2rem"}]
                           ["& button:hover" {:text-shadow "1px 1px 2px rgba(0,0,0,0.3)"}])}
-           [:div
-            [:button.confirm {:type "submit" :name "action" :value "confirm"} "Confirm"]
-            [:button.cancel {:type "submit" :name "action" :value "cancel"} "Cancel"]]]]]]]
+           (if complete?
+             [:div
+              [:button.confirm {:type "submit" :name "action" :value "confirm"} "Confirm"]
+              [:button.cancel {:type "submit" :name "action" :value "cancel"} "Cancel"]]
+             [:div
+              [:button.continue {:type "submit"} "Continue"]])]]]]]
       [:script {:src "../js/login.js"}]])))
