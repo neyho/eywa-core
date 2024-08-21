@@ -8,13 +8,17 @@
     [vura.core :as vura]
     [clojure.data.json :as json]
     [buddy.sign.util :refer [to-timestamp]]
+    [ring.util.codec :as codec]
+    [buddy.core.codecs]
+    [buddy.core.hash :as hash]
     [io.pedestal.interceptor.chain :as chain]
     [neyho.eywa.iam
      :refer [sign-data]]
     [neyho.eywa.iam.oauth.core :as core
      :refer [pprint
              process-scope
-             sign-token]]))
+             sign-token]]
+    [neyho.eywa.iam.oauth.authorization-code :as ac]))
 
 
 (defonce ^:dynamic *tokens* (atom nil))
@@ -337,3 +341,43 @@
                              :headers {"Content-Type" "application/json"
                                        "Cache-Control" "no-store"
                                        "Pragma" "no-cache"}}))))))}))
+
+
+(defn generate-code-challenge
+  ([code-verifier] (generate-code-challenge code-verifier "S256"))
+  ([code-verifier code-challenge-method]
+   (case code-challenge-method
+     "plain" code-verifier
+     "S256"
+     (let [bs (.getBytes code-verifier)
+           hashed (hash/sha256 bs)]
+       (-> hashed
+           codec/base64-encode
+           (.replace "+" "-")
+           (.replace "/" "_")
+           (.replace "=" ""))))))
+
+
+(def pkce-interceptor
+  {:enter
+   (fn [ctx]
+     (let [{{{:keys [code code_verifier grant_type]} :params} :request} ctx
+           {{:keys [code_challenge code_challenge_method]} :request} (-> code
+                                                                       ac/get-code-session 
+                                                                       core/get-session)
+           is-pkce? (and code_challenge code_challenge_method)]
+       (if (or (not is-pkce?) (not= "authorization_code" grant_type)) ctx
+         (let [current-challenge (generate-code-challenge code_verifier code_challenge_method)]
+           (if (= current-challenge code_challenge) ctx
+             (chain/terminate
+               (core/json-error
+                 "invalid_request"
+                 "Proof Key for Code Exchange failed")))))))})
+
+
+(let [token (conj core/oauth-common-interceptor core/scope->set pkce-interceptor token-interceptor)
+      revoke (conj core/oauth-common-interceptor core/idsrv-session-read revoke-token-interceptor)]
+  (def routes
+    #{["/oauth/token" :post token :route-name ::handle-token]
+      ["/oauth/revoke" :post revoke :route-name ::post-revoke]
+      ["/oauth/revoke" :get revoke :route-name ::get-revoke]}))

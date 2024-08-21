@@ -5,8 +5,6 @@
     clojure.pprint
     [clojure.data.json :as json]
     [clojure.tools.logging :as log]
-    [vura.core :as vura]
-    [buddy.sign.util :refer [to-timestamp]]
     [nano-id.core :as nano-id]
     [ring.util.codec :as codec]
     [io.pedestal.interceptor.chain :as chain]
@@ -15,13 +13,16 @@
              validate-password]]
     [neyho.eywa.iam.oauth.core :as core
      :refer [pprint
-             publish]]
+             publish
+             keywordize-params
+             basic-authorization-interceptor]]
     [neyho.eywa.iam.oauth.token :as token
      :refer [grant-token
              token-error
              client-id-missmatch
-             owner-not-authorized
-             access-token-expiry]]))
+             owner-not-authorized]]
+    [io.pedestal.http.ring-middlewares :as middleware]
+    [io.pedestal.http.body-params :as bp]))
 
 
 (defonce ^:dynamic *authorization-codes* (atom nil))
@@ -78,7 +79,6 @@
 (defn get-code-request
   [code]
   (get-in @*authorization-codes* [code :request]))
-
 
 
 (defn mark-code-issued [code] (swap! *authorization-codes* assoc-in [code :issued?] true))
@@ -168,9 +168,6 @@
                    {:request request
                     :type "server_error"}))))))
 
-; (ns-unmap 'neyho.eywa.iam.oauth.authorization-code 'validate-client)
-
-
 
 (defn authorization-code-flow
   [{cookie-session :idsrv/session :as request
@@ -225,17 +222,14 @@
           (core/handle-request-error (ex-data ex)))))))
 
 
-
-
 (defmethod grant-token "authorization_code"
   [request]
-  (let [{:keys [code redirect_uri client_id client_secret grant_type audience]} request
+  (let [{:keys [code redirect_uri client_id client_secret grant_type]} request
         {request-redirect-uri :redirect_uri
-         scope :scope
          :as original-request} (get-code-request code)
         session (get-code-session code)
         {:as client id :id} (core/get-session-client session)
-        {:keys [euuid active]} (core/get-session-resource-owner session)]
+        {:keys [active]} (core/get-session-resource-owner session)]
     (log/debugf
       "[%s] Processing token code grant for code: %s\n%s"
       session code (pprint request))
@@ -341,7 +335,7 @@
            :request request})))))
 
 
-(def authorize-request-interceptor
+(def start-authorization-code-flow
   {:name ::authorize-request
    :enter
    (fn [{{:keys [params]} :request :as context}]
@@ -350,6 +344,7 @@
               (authorization-request params))))})
 
 
+;; TODO - change this to point to /oauth/status
 (def authorize-request-error-interceptor
   {:name ::authorize-error
    :enter
@@ -369,3 +364,12 @@
                          "redirect_missmatch" "Couldn't match requested redirect to any of configured redirects for client"
                          "no_redirections" "Client doesn't has 0 configured redirections"
                          (str "Server error - " (:type params))))})))})
+
+
+(let [common [basic-authorization-interceptor
+              middleware/cookies
+              (bp/body-params)
+              keywordize-params]]
+  (def routes
+    #{["/oauth/authorize" :get (conj common core/idsrv-session-read start-authorization-code-flow)
+       :route-name ::authorize-request]}))

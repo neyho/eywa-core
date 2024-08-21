@@ -2,16 +2,21 @@
   (:require
     clojure.java.io
     clojure.pprint
+    [clojure.string :as str]
     [clojure.set :as set]
     [clojure.tools.logging :as log]
     [vura.core :as vura]
     [ring.util.codec :as codec]
-    [io.pedestal.interceptor.chain :as chain]
-    [io.pedestal.http.body-params :as bp]
+    [clojure.data.json :as json]
+    [neyho.eywa.iam :as iam]
     [neyho.eywa.iam.oauth.core :as core]
     [neyho.eywa.iam.oauth.authorization-code :as ac]
     [neyho.eywa.iam.oauth.device-code :as dc]
-    [neyho.eywa.iam.oauth.page.login :refer [login-html]]))
+    [neyho.eywa.iam.oauth.page.login :refer [login-html]]
+    [neyho.eywa.iam.oauth.token :as token]
+    [io.pedestal.interceptor.chain :as chain]
+    [io.pedestal.http.body-params :as bp]
+    [io.pedestal.http.ring-middlewares :as middleware]))
 
 
 (def redirect-to-login
@@ -185,6 +190,78 @@
             (assoc ctx :response {:status (if (::error ctx) 400 200)
                                   :headers {"Content-Type" "text/html"}
                                   :body (str (login-html ctx))}))})
+
+
+(defn request-error
+  [code & description]
+  {:status code
+   :headers {"Content-Type" "text/html"}
+   :body (json/write-str (str/join "\n" description))})
+
+
+(let [invalid-token (request-error 400 "Token is not valid")
+      session-not-found (request-error 400 "Session is not active")
+      invalid-session (request-error 400 "Session is not valid")
+      invalid-issuer (request-error 400 "Issuer is not valid")
+      invalid-redirect (request-error 400 "Provided 'post_logout_redirect_uri' is not valid")]
+  (def logout-interceptor
+    {:enter
+     (fn [ctx]
+       (let [{{{:keys [post_logout_redirect_uri id_token_hint state]
+                idsrv-session :idsrv/session} :params} :request} ctx
+             session (or (token/get-token-session :id_token id_token_hint)
+                         idsrv-session)
+             {client_id :id} (core/get-session-client session)
+             {{valid-redirections "logout-redirections"} :settings} (iam/get-client client_id)
+             {:keys [iss sid] :as token} (try
+                                           (iam/unsign-data id_token_hint)
+                                           (catch Throwable _ nil))
+             post-redirect-ok? (some #(when (= % post_logout_redirect_uri) true) valid-redirections)]
+         (assoc ctx :response
+                (cond
+                  (nil? session)
+                  (core/idsrv-session-remove session-not-found)
+                  ;; Token couldn't be unsigned
+                  (and id_token_hint (nil? token))
+                  invalid-token
+                  ;; Session doesn't match
+                  (and id_token_hint (not= sid session))
+                  invalid-session
+                  ;; Issuer is not the same
+                  (and id_token_hint (not= iss (core/domain+)))
+                  invalid-issuer
+                  ;; Redirect uri isn't valid
+                  (not post-redirect-ok?)
+                  invalid-redirect
+                  ;;
+                  (some? post_logout_redirect_uri)
+                  (do
+                    (core/kill-session session)
+                    {:status 302
+                     :headers {"Location" (str post_logout_redirect_uri (when (not-empty state) (str "?" (codec/form-encode {:state state}))))
+                               "Cache-Control" "no-cache"}})
+                  ;;
+                  :else
+                  (do
+                    (core/kill-session session)
+                    {:status 200
+                     :headers {"Content-Type" "text/html"}
+                     :body "User logged out!"})))))}))
+
+
+(let [logout (conj core/oauth-common-interceptor core/idsrv-session-remove core/idsrv-session-read logout-interceptor)]
+  (def routes
+    #{["/oauth/login" :get [redirect-to-login] :route-name ::short-login]
+      ["/oauth/login/index.html" :post [middleware/cookies login-interceptor login-page] :route-name ::handle-login]
+      ["/oauth/login/index.html" :get (conj core/oauth-common-interceptor core/idsrv-session-read login-interceptor login-page) :route-name ::short-login-redirect]
+      ;; Login resources
+      ["/oauth/login/icons/*" :get [core/serve-resource] :route-name ::login-images]
+      ["/oauth/icons/*" :get [core/serve-resource] :route-name ::login-icons]
+      ["/oauth/css/*" :get [core/serve-resource] :route-name ::login-css]
+      ["/oauth/js/*" :get [core/serve-resource] :route-name ::login-js]
+      ;; Logout logic
+      ["/oauth/logout" :post logout :route-name ::get-logout]
+      ["/oauth/logout" :get  logout :route-name ::post-logout]}))
 
 (comment
   (ns-unmap 'neyho.eywa.iam.oauth.login 'login-page))

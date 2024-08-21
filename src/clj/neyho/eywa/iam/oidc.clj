@@ -1,5 +1,6 @@
 (ns neyho.eywa.iam.oidc
   (:require
+    [clojure.set :as set]
     [clojure.string :as str]
     [clojure.spec.alpha :as s]
     [clojure.data.json :as json]
@@ -9,40 +10,22 @@
     [buddy.core.hash :as hash]
     [buddy.sign.util :refer [to-timestamp]]
     [io.pedestal.interceptor.chain :as chain]
-    [io.pedestal.http.body-params :as bp]
     [neyho.eywa.iam :as iam]
-    [neyho.eywa.iam.oauth.page.status
-     :refer [status-page]]
     [neyho.eywa.iam.oauth.core
      :refer [process-scope
-             scope->set
              sign-token
              domain+
-             keywordize-params
-             basic-authorization-interceptor
-             idsrv-session-remove
-             idsrv-session-read
              get-session
              get-session-client
              get-session-resource-owner
-             kill-session
              json-error
-             *clients*
-             serve-resource]]
-    [neyho.eywa.iam.oauth.login :as login
-     :refer [login-interceptor
-             redirect-to-login
-             login-page]]
+             *clients*]]
+    [neyho.eywa.iam.oauth.core :as core]
+    [neyho.eywa.iam.oauth.login :as login]
     [neyho.eywa.iam.oauth.token
-     :refer [token-interceptor
-             revoke-token-interceptor
-             get-token-session]]
-    [neyho.eywa.iam.oauth.device-code :as dc
-     :refer [device-code-flow-interceptor]]
-    [neyho.eywa.iam.oauth.authorization-code :as ac
-     :refer [authorize-request-interceptor
-             authorize-request-error-interceptor]]
-    [io.pedestal.http.ring-middlewares :as middleware]))
+     :refer [get-token-session]]
+    [neyho.eywa.iam.oauth.authorization-code :as ac]
+    [neyho.eywa.iam.oauth.device-code :as dc]))
 
 
 (s/def ::iss string?)
@@ -302,106 +285,6 @@
 
 
 
-
-
-
-; (let [invalid-token (request-error 400 "Token is not valid")
-;       session-not-found (request-error 400 "Session is not active")
-;       invalid-session (request-error 400 "Session is not valid")
-;       invalid-issuer (request-error 400 "Issuer is not valid")
-;       invalid-redirect (request-error 400 "Provided 'post_logout_redirect_uri' is not valid")]
-;   (let [{{{:keys [post_logout_redirect_uri id_token_hint]} :params} :request} ctx
-;         session (or (oauth/get-token-session :id_token id_token_hint))
-;         {client_id :id} (oauth/get-session-client session)
-;         {{valid-redirections "logout-redirections"} :settings} (iam/get-client client_id)
-;         {:keys [iss sid] :as token} (try
-;                                       (iam/unsign-data id_token_hint)
-;                                       (catch Throwable _ nil))
-;         post-redirect-ok? (some #(when (= % post_logout_redirect_uri) true) valid-redirections)]
-;     [session token sid iss post-redirect-ok? post_logout_redirect_uri]
-;     #_(cond
-;       (nil? session)
-;       (idsrv-session-remove session-not-found)
-;       ;; Token couldn't be unsigned
-;       (nil? token)
-;       invalid-token
-;       ;; Session doesn't match
-;       (not= sid session)
-;       invalid-session
-;       ;; Issuer is not the same
-;       (not= iss oauth/*iss*)
-;       invalid-issuer
-;       ;; Redirect uri isn't valid
-;       (not post-redirect-ok?)
-;       invalid-redirect
-;       ;;
-;       (some? post_logout_redirect_uri)
-;       (do
-;         (oauth/kill-session session)
-;         {:status 302
-;          :headers {"Location" (str post_logout_redirect_uri (when (not-empty state) (str "?" (codec/form-encode {:state state}))))
-;                    "Cache-Control" "no-cache"}})
-;       ;;
-;       :else
-;       (do
-;         (oauth/kill-session session)
-;         {:status 200
-;          :headers {"Content-Type" "text/html"}
-;          :body "User logged out!"}))))
-
-
-
-
-(let [invalid-token (request-error 400 "Token is not valid")
-      session-not-found (request-error 400 "Session is not active")
-      invalid-session (request-error 400 "Session is not valid")
-      invalid-issuer (request-error 400 "Issuer is not valid")
-      invalid-redirect (request-error 400 "Provided 'post_logout_redirect_uri' is not valid")]
-  (def logout-interceptor
-    {:enter
-     (fn [ctx]
-       (let [{{{:keys [post_logout_redirect_uri id_token_hint state]
-                idsrv-session :idsrv/session} :params} :request} ctx
-             session (or (get-token-session :id_token id_token_hint)
-                         idsrv-session)
-             {client_id :id} (get-session-client session)
-             {{valid-redirections "logout-redirections"} :settings} (iam/get-client client_id)
-             {:keys [iss sid] :as token} (try
-                                           (iam/unsign-data id_token_hint)
-                                           (catch Throwable _ nil))
-             post-redirect-ok? (some #(when (= % post_logout_redirect_uri) true) valid-redirections)]
-         (assoc ctx :response
-                (cond
-                  (nil? session)
-                  (idsrv-session-remove session-not-found)
-                  ;; Token couldn't be unsigned
-                  (and id_token_hint (nil? token))
-                  invalid-token
-                  ;; Session doesn't match
-                  (and id_token_hint (not= sid session))
-                  invalid-session
-                  ;; Issuer is not the same
-                  (and id_token_hint (not= iss (domain+)))
-                  invalid-issuer
-                  ;; Redirect uri isn't valid
-                  (not post-redirect-ok?)
-                  invalid-redirect
-                  ;;
-                  (some? post_logout_redirect_uri)
-                  (do
-                    (kill-session session)
-                    {:status 302
-                     :headers {"Location" (str post_logout_redirect_uri (when (not-empty state) (str "?" (codec/form-encode {:state state}))))
-                               "Cache-Control" "no-cache"}})
-                  ;;
-                  :else
-                  (do
-                    (kill-session session)
-                    {:status 200
-                     :headers {"Content-Type" "text/html"}
-                     :body "User logged out!"})))))}))
-
-
 ;; This is not used, because clients not all clients are available from start
 ;; this will be changed in the future and should be used when iam.oauth2 will
 ;; track delta events from dataset.core
@@ -492,66 +375,79 @@
         (clojure.string/split cookies #"[;\s]+")))))
 
 
-
-(let [common [basic-authorization-interceptor
-              middleware/cookies
-              (bp/body-params)
-              keywordize-params]
-      ; authorize (conj common save-context)
-      authorize (conj common
-                      idsrv-session-read
-                      authorize-request-interceptor)
-      request_error (conj common authorize-request-error-interceptor)
-      token (conj common scope->set pkce-interceptor token-interceptor)
-      user-info (conj common user-info-interceptor)
-      logout (conj common idsrv-session-remove idsrv-session-read logout-interceptor)
-      revoke (conj common idsrv-session-read revoke-token-interceptor)]
+(let [user-info (conj core/oauth-common-interceptor user-info-interceptor)]
   (def routes
-    (into
-      #{["/oauth/authorize" :get authorize :route-name ::authorize-request]
-        ["/oauth/status" :get status-page :route-name ::oauth-status]
-        ["/oauth/request_error" :get request_error :route-name ::authorize-request-error]
-        ["/oauth/token" :post token :route-name ::handle-token]
-        ["/oauth/revoke" :post revoke :route-name ::post-revoke]
-        ["/oauth/revoke" :get revoke :route-name ::get-revoke]
-        ;; Login authentication logic
-        ["/oauth/login" :get [redirect-to-login] :route-name ::short-login]
-        ["/oauth/login/index.html" :post [middleware/cookies login-interceptor login-page] :route-name ::handle-login]
-        ["/oauth/login/index.html" :get (conj common idsrv-session-read login-interceptor login-page) :route-name ::short-login-redirect]
-        ;; Login resources
-        ["/oauth/login/icons/*" :get [serve-resource] :route-name ::login-images]
-        ["/oauth/icons/*" :get [serve-resource] :route-name ::login-icons]
-        ["/oauth/css/*" :get [serve-resource] :route-name ::login-css]
-        ["/oauth/js/*" :get [serve-resource] :route-name ::login-js]
-        ;; Logout logic
-        ["/oauth/logout" :post logout :route-name ::get-logout]
-        ["/oauth/logout" :get  logout :route-name ::post-logout]
-        ;; OIDC
-        ["/oauth/jwks" :get [jwks-interceptor] :route-name ::get-jwks]
-        ["/oauth/userinfo" :get user-info :route-name ::user-info]
-        ["/.well-known/openid-configuration" :get [open-id-configuration-interceptor] :route-name ::open-id-configuration]}
-      dc/routes)))
+    (reduce
+      set/union
+      [ac/routes
+       dc/routes
+       login/routes
+       #{["/oauth/jwks" :get [jwks-interceptor] :route-name ::get-jwks]
+         ["/oauth/userinfo" :get user-info :route-name ::user-info]
+         ["/.well-known/openid-configuration" :get [open-id-configuration-interceptor] :route-name ::open-id-configuration]}])))
 
 
-(comment
-  (ns-unmap 'neyho.eywa.iam.oidc 'process-scope)
-  (ns-unmap 'neyho.eywa.iam.oidc 'sign-token)
-  (ns-unmap 'neyho.eywa.iam.oidc 'domain+)
-  (ns-unmap 'neyho.eywa.iam.oidc 'device-code-flow-interceptor)
-  (def client
-    {:euuid #uuid "62be820e-379e-11ef-94b3-02a535895d2d",
-     :id "MXQUDYKLLJXXSJOODPFEALTNAMJPVWYKSQRIYJFSIGRVGECZ",
-     :name "oidc-client-test",
-     :type "confidential",
-     :active true,
-     :secret "dvG99sAMQXlR6PmT7N2-7AD9PNEz3osew7p06QUHEK8hji66",
-     :settings
-     {"version" 0,
-      "login-page" "http://localhost:8080/login/kbdev/",
-      "redirections"
-      ["http://localhost:8080/eywa/" "http://localhost:8080/app/kbdev"],
-      "token-expiry" {"access" 300000, "refresh" 129600000},
-      "allowed-grants" ["refresh_token" "code" "token" "id_token"],
-      "refresh-tokens" true}})
-  (s/valid? ::id-token {:iss 100})
-  (s/valid? ::id-token {:iss 100 :sub "09102" :aud "291" :exp "2019" :iat 100}))
+; (let [common [basic-authorization-interceptor
+;               middleware/cookies
+;               (bp/body-params)
+;               keywordize-params]
+;       ; authorize (conj common save-context)
+;       authorization-code (conj common
+;                                idsrv-session-read
+;                                start-authorization-code-flow)
+;       request_error (conj common authorize-request-error-interceptor)
+;       token (conj common scope->set pkce-interceptor token-interceptor)
+;       user-info (conj common user-info-interceptor)
+;       logout (conj common idsrv-session-remove idsrv-session-read logout-interceptor)
+;       revoke (conj common idsrv-session-read revoke-token-interceptor)]
+;   (def routes
+;       (into
+;         #{["/oauth/authorize" :get authorization-code :route-name ::authorize-request]
+;           ["/oauth/status" :get status-page :route-name ::oauth-status]
+;           ["/oauth/request_error" :get request_error :route-name ::authorize-request-error]
+;           ["/oauth/status" :get status-page :route-name ::oauth-status]
+;           ["/oauth/token" :post token :route-name ::handle-token]
+;           ["/oauth/revoke" :post revoke :route-name ::post-revoke]
+;           ["/oauth/revoke" :get revoke :route-name ::get-revoke]
+;           ;; Login authentication logic
+;           ["/oauth/login" :get [redirect-to-login] :route-name ::short-login]
+;           ["/oauth/login/index.html" :post [middleware/cookies login-interceptor login-page] :route-name ::handle-login]
+;           ["/oauth/login/index.html" :get (conj common idsrv-session-read login-interceptor login-page) :route-name ::short-login-redirect]
+;           ;; Login resources
+;           ["/oauth/login/icons/*" :get [serve-resource] :route-name ::login-images]
+;           ["/oauth/icons/*" :get [serve-resource] :route-name ::login-icons]
+;           ["/oauth/css/*" :get [serve-resource] :route-name ::login-css]
+;           ["/oauth/js/*" :get [serve-resource] :route-name ::login-js]
+;           ;; Logout logic
+;           ["/oauth/logout" :post logout :route-name ::get-logout]
+;           ["/oauth/logout" :get  logout :route-name ::post-logout]
+;           ;; OIDC
+;           }
+;         dc/routes))
+;   
+;   
+;   )
+;
+;
+; (comment
+;   (ns-unmap 'neyho.eywa.iam.oidc 'process-scope)
+;   (ns-unmap 'neyho.eywa.iam.oidc 'sign-token)
+;   (ns-unmap 'neyho.eywa.iam.oidc 'domain+)
+;   (ns-unmap 'neyho.eywa.iam.oidc 'device-code-flow-interceptor)
+;   (def client
+;     {:euuid #uuid "62be820e-379e-11ef-94b3-02a535895d2d",
+;      :id "MXQUDYKLLJXXSJOODPFEALTNAMJPVWYKSQRIYJFSIGRVGECZ",
+;      :name "oidc-client-test",
+;      :type "confidential",
+;      :active true,
+;      :secret "dvG99sAMQXlR6PmT7N2-7AD9PNEz3osew7p06QUHEK8hji66",
+;      :settings
+;      {"version" 0,
+;       "login-page" "http://localhost:8080/login/kbdev/",
+;       "redirections"
+;       ["http://localhost:8080/eywa/" "http://localhost:8080/app/kbdev"],
+;       "token-expiry" {"access" 300000, "refresh" 129600000},
+;       "allowed-grants" ["refresh_token" "code" "token" "id_token"],
+;       "refresh-tokens" true}})
+;   (s/valid? ::id-token {:iss 100})
+;   (s/valid? ::id-token {:iss 100 :sub "09102" :aud "291" :exp "2019" :iat 100}))

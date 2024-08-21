@@ -9,11 +9,8 @@
     [nano-id.core :as nano-id]
     [ring.util.codec :as codec]
     [io.pedestal.interceptor.chain :as chain]
-    [io.pedestal.http.body-params :as bp]
     [neyho.eywa.iam.oauth.core :as core
      :refer [pprint
-             basic-authorization-interceptor
-             keywordize-params
              encrypt
              decrypt]]
     [neyho.eywa.iam
@@ -24,8 +21,7 @@
              token-error
              client-id-missmatch
              owner-not-authorized]]
-    [neyho.eywa.iam.oauth.page.device :as device]
-    [io.pedestal.http.ring-middlewares :as middleware]))
+    [neyho.eywa.iam.oauth.page.device :as device]))
 
 
 (defonce ^:dynamic *device-codes* (atom nil))
@@ -36,6 +32,10 @@
 (let [gen-par (nano-id/custom "ACDEFGHIJKLMNOPQRSTUVWXYZ" 4)]
   (defn gen-user-code []
     (str (gen-par) \- (gen-par))))
+
+
+(defn get-device-code-data [device-code]
+  (get @*device-codes* device-code))
 
 
 (defn validate-client [request]
@@ -100,9 +100,8 @@
   (let [{:keys [device_code client_id client_secret]} request
         {{:keys [scope audience] :as original-request} :request
          :keys [session delivered?]} (get @*device-codes* device_code)
-        {{refresh? "refresh-tokens"} :settings :as client
-         id :id} (core/get-session-client session)
-        {:keys [euuid active]} (core/get-session-resource-owner session)]
+        {:as client id :id} (core/get-session-client session)
+        {:keys [active]} (core/get-session-resource-owner session)]
     (log/debugf
       "[%s] Processing token code grant for code: %s\n%s"
       session device_code (pprint request))
@@ -176,7 +175,19 @@
            :body response})))))
 
 
-(def device-code-flow-interceptor
+(def ^{:doc "This interceptor will start device code flow. It will create device code
+            and store it for latter usage. Also other info is stored, like:
+
+              :device/agent
+              :device/ip
+              :client
+              :request
+              :user-code
+              :expires-at
+              :interval
+            
+            You can get this information by calling (get-device-code-data)"}
+  start-device-flow
   {:enter
    (letfn [(split-spaces [request k]
              (if-some [val (get request k)]
@@ -371,15 +382,11 @@
             (assoc ctx :response {:status (if (::error ctx) 400 200) :body "hi"}))})
 
 
-(let [common [basic-authorization-interceptor
-              middleware/cookies
-              (bp/body-params)
-              keywordize-params]
-      device-code (conj common device-code-flow-interceptor)]
+(let [device-code (conj core/oauth-common-interceptor start-device-flow)]
   (def routes
     #{["/oauth/device/auth" :post device-code :route-name ::get-device-flow]
       ["/oauth/device/activate" :get [device-interceptor user-code-page] :route-name ::user-code-page]
-      ["/oauth/device/activate" :post  (conj common device-interceptor user-code-page) :route-name ::user-code-check]
+      ["/oauth/device/activate" :post  (conj core/oauth-common-interceptor device-interceptor user-code-page) :route-name ::user-code-check]
       ;;
       ["/oauth/device/confirm" :get [user-code-confirm-page] :route-name ::serve-confirm-page]
       ["/oauth/device/confirm" :post [user-code-confirm-page] :route-name ::confirm-device]}))

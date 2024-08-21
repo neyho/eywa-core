@@ -18,7 +18,9 @@
      :refer [get-client
              validate-password
              get-user-details]]
-    [neyho.eywa.env :as env])
+    [neyho.eywa.env :as env]
+    [io.pedestal.http.body-params :as bp]
+    [io.pedestal.http.ring-middlewares :as middleware])
   (:import
     [java.util Base64]))
 
@@ -490,6 +492,13 @@
    :enter
    (fn [ctx]
      (update-in ctx [:request :params :scope] (fn [scope] (when scope (set (str/split scope #"\s+"))))))})
+
+
+(def oauth-common-interceptor
+  [basic-authorization-interceptor
+   middleware/cookies
+   (bp/body-params)
+   keywordize-params])
 
 
 (def idsrv-session-read
