@@ -1,6 +1,6 @@
-(ns neyho.eywa.iam.oauth.page.login
+(ns neyho.eywa.login-page
   {:shadow.css/include
-   ["neyho/eywa/iam/oauth/page/common.css"]}
+   ["neyho/eywa/login_page.css"]}
   (:require
     [hiccup2.core :refer [html]]
     [shadow.css :refer [css]]
@@ -99,7 +99,7 @@
 
 
 (defn login-html
-  ([{error ::login/error :as data}]
+  ([{error ::login/error}]
    (html
      [:head
       [:meta {:charset "UTF-8"}]
@@ -108,7 +108,7 @@
       [:link {:rel "preconnect" :href "https://fonts.googleapis.com"}]
       [:link {:rel "preconnect" :href "https://fonts.gstatic.com" :crossorigin true}]
       [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;800;900&family=Roboto&display=swap"}]
-      [:link {:rel "stylesheet" :href "../css/login.css"}]]
+      [:link {:rel "stylesheet" :href "css/login.css"}]]
      [:body
       [:svg
        {:id "background-viewbox"
@@ -149,15 +149,8 @@
         [:div
          {:class :row}
          [:span.error (case error
-                        nil ""
-                        ;;
-                        :credentials
-                        "Wrong credentials. Check you username and password"
-                        ;;
-                        :already-authorized
-                        "User has alredy authorized this device"
-                        ;;
-                        "Unknown error... Contact support")]]
+                        ::login/credentials "Invalid credentials. Check your username and password"
+                        ::unknown "Something unexpected happened!")]]
         [:button {:class $sign-in}
          [:h4 "SIGN IN"]]]]
-      [:script {:src "../js/login.js"}]])))
+      [:script {:src "js/login.js"}]])))

@@ -87,11 +87,11 @@
 (comment
   (time
     (decrypt
-      (encrypt
-        {:device-code 100
-         :user-code 200
-         :ip "a"
-         :user-agent "jfioq"}))))
+    (encrypt
+      {:device-code 100
+       :user-code 200
+       :ip "a"
+       :user-agent "jfioq"}))))
 
 
 
@@ -189,6 +189,18 @@
              (fn [current]
                (update current :sessions (fnil disj #{}) session))))
     nil))
+
+
+(defn set-session-audience-scope
+  ([session scope] (set-session-audience-scope session nil scope))
+  ([session audience scope]
+   (swap! *sessions* assoc-in [session :scopes audience] scope)))
+
+
+(defn get-session-audience-scope
+  ([session] (get-session-audience-scope session nil))
+  ([session audience]
+   (get-in @*sessions* [session :scopes audience])))
 
 
 (defn set-session-client [session {:keys [euuid] :as client}]

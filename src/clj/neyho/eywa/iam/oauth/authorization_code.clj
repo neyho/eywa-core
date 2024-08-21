@@ -3,7 +3,10 @@
     [clojure.string :as str]
     clojure.java.io
     clojure.pprint
+    [clojure.data.json :as json]
     [clojure.tools.logging :as log]
+    [vura.core :as vura]
+    [buddy.sign.util :refer [to-timestamp]]
     [nano-id.core :as nano-id]
     [ring.util.codec :as codec]
     [io.pedestal.interceptor.chain :as chain]
@@ -11,7 +14,14 @@
      :refer [get-client
              validate-password]]
     [neyho.eywa.iam.oauth.core :as core
-     :refer [pprint publish]]))
+     :refer [pprint
+             publish]]
+    [neyho.eywa.iam.oauth.token :as token
+     :refer [grant-token
+             token-error
+             client-id-missmatch
+             owner-not-authorized
+             access-token-expiry]]))
 
 
 (defonce ^:dynamic *authorization-codes* (atom nil))
@@ -100,7 +110,6 @@
          code)))))
 
 
-
 (defn validate-client [request]
   (let [{:keys [client_id state redirect_uri]
           request-secret :client_secret} request 
@@ -159,13 +168,13 @@
                    {:request request
                     :type "server_error"}))))))
 
+; (ns-unmap 'neyho.eywa.iam.oauth.authorization-code 'validate-client)
+
+
 
 (defn authorization-code-flow
   [{cookie-session :idsrv/session :as request
     :keys [prompt redirect_uri state]}]
-  ; (def request request)
-  ; (def cookie-session (get request :idsrv/session))
-  ; (def now (System/currentTimeMillis))
   (let [now (System/currentTimeMillis)
         session (if (core/get-session cookie-session) cookie-session
                   (let [session (core/gen-session-id)]
@@ -214,6 +223,90 @@
                        "Cache-Control" "no-cache"}}))
         (catch clojure.lang.ExceptionInfo ex
           (core/handle-request-error (ex-data ex)))))))
+
+
+
+
+(defmethod grant-token "authorization_code"
+  [request]
+  (let [{:keys [code redirect_uri client_id client_secret grant_type audience]} request
+        {request-redirect-uri :redirect_uri
+         scope :scope
+         :as original-request} (get-code-request code)
+        session (get-code-session code)
+        {:as client id :id} (core/get-session-client session)
+        {:keys [euuid active]} (core/get-session-resource-owner session)]
+    (log/debugf
+      "[%s] Processing token code grant for code: %s\n%s"
+      session code (pprint request))
+    (if-not session
+      ;; If session isn't available, that is if somebody
+      ;; is trying to hack in
+      (token-error
+        "invalid_request"
+        "Trying to abuse token endpoint for code that"
+        "doesn't exsist or has expired. Further actions"
+        "will be logged and processed")
+      ;; If there is some session than check other requirements
+      (let [{_secret :secret
+             {:strs [allowed-grants]} :settings
+             session-client :id} (core/get-session-client session)
+            grants (set allowed-grants)]
+        (cond
+          ;;
+          (not (contains? @*authorization-codes* code))
+          (token-error
+            "invalid_request"
+            "Provided authorization code is illegal!"
+            "Your request will be logged"
+            "and processed")
+          ;;
+          (or
+            (not (contains? grants "code"))
+            (not= grant_type "authorization_code"))
+          (token-error
+            "unauthorized_grant"
+            "Client sent access token request"
+            "for grant type that is outside"
+            "of client configured privileges")
+          ;; If redirect uri doesn't match
+          (not= request-redirect-uri redirect_uri)
+          (token-error
+            "invalid_request"
+            "Redirect URI that you provided doesn't"
+            "match URI that was issued to provided authorization code")
+          ;; If client ids don't match
+          (not= session-client client_id)
+          (token-error
+            "invalid_client"
+            "Client ID that was provided doesn't"
+            "match client ID that was used in authorization request")
+          ;;
+          (and (some? _secret) (empty? client_secret))
+          (token-error
+            "invalid_client"
+            "Client secret wasn't provided")
+          ;; If client has secret, than
+          (and (some? _secret) (not (validate-password client_secret _secret)))
+          (token-error
+            "invalid_client"
+            "Provided client secret is wrong")
+          (not= id client_id)
+          client-id-missmatch
+          ;;
+          (not active)
+          (do
+            (core/kill-session session)
+            owner-not-authorized)
+          ;; Issue that token
+          :else
+          (let [response (json/write-str (token/generate client session original-request))]
+            (revoke-authorization-code code)
+            {:status 200
+             :headers {"Content-Type" "application/json;charset=UTF-8"
+                       "Pragma" "no-cache"
+                       "Cache-Control" "no-store"}
+             :body response}))))))
 
 
 (defn authorization-request

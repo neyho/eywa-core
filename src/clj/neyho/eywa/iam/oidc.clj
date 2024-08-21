@@ -11,6 +11,8 @@
     [io.pedestal.interceptor.chain :as chain]
     [io.pedestal.http.body-params :as bp]
     [neyho.eywa.iam :as iam]
+    [neyho.eywa.iam.oauth.page.status
+     :refer [status-page]]
     [neyho.eywa.iam.oauth.core
      :refer [process-scope
              scope->set
@@ -30,7 +32,7 @@
     [neyho.eywa.iam.oauth.login :as login
      :refer [login-interceptor
              redirect-to-login
-             serve-login-page]]
+             login-page]]
     [neyho.eywa.iam.oauth.token
      :refer [token-interceptor
              revoke-token-interceptor
@@ -492,9 +494,9 @@
 
 
 (let [common [basic-authorization-interceptor
-               middleware/cookies
-               (bp/body-params)
-               keywordize-params]
+              middleware/cookies
+              (bp/body-params)
+              keywordize-params]
       ; authorize (conj common save-context)
       authorize (conj common
                       idsrv-session-read
@@ -507,20 +509,26 @@
   (def routes
     (into
       #{["/oauth/authorize" :get authorize :route-name ::authorize-request]
+        ["/oauth/status" :get status-page :route-name ::oauth-status]
         ["/oauth/request_error" :get request_error :route-name ::authorize-request-error]
         ["/oauth/token" :post token :route-name ::handle-token]
         ["/oauth/revoke" :post revoke :route-name ::post-revoke]
         ["/oauth/revoke" :get revoke :route-name ::get-revoke]
-        ["/oauth/jwks" :get [jwks-interceptor] :route-name ::get-jwks]
-        ["/oauth/login/index.html" :get (conj common idsrv-session-read serve-login-page) :route-name ::short-login-redirect]
+        ;; Login authentication logic
+        ["/oauth/login" :get [redirect-to-login] :route-name ::short-login]
+        ["/oauth/login/index.html" :post [middleware/cookies login-interceptor login-page] :route-name ::handle-login]
+        ["/oauth/login/index.html" :get (conj common idsrv-session-read login-interceptor login-page) :route-name ::short-login-redirect]
+        ;; Login resources
         ["/oauth/login/icons/*" :get [serve-resource] :route-name ::login-images]
+        ["/oauth/icons/*" :get [serve-resource] :route-name ::login-icons]
         ["/oauth/css/*" :get [serve-resource] :route-name ::login-css]
         ["/oauth/js/*" :get [serve-resource] :route-name ::login-js]
-        ["/oauth/login/index.html" :post [middleware/cookies login-interceptor] :route-name ::handle-login]
-        ["/oauth/login" :get [redirect-to-login] :route-name ::short-login]
-        ["/oauth/userinfo" :get user-info :route-name ::user-info]
+        ;; Logout logic
         ["/oauth/logout" :post logout :route-name ::get-logout]
         ["/oauth/logout" :get  logout :route-name ::post-logout]
+        ;; OIDC
+        ["/oauth/jwks" :get [jwks-interceptor] :route-name ::get-jwks]
+        ["/oauth/userinfo" :get user-info :route-name ::user-info]
         ["/.well-known/openid-configuration" :get [open-id-configuration-interceptor] :route-name ::open-id-configuration]}
       dc/routes)))
 

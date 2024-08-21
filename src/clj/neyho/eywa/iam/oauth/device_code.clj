@@ -19,6 +19,11 @@
     [neyho.eywa.iam
      :refer [get-client
              validate-password]]
+    [neyho.eywa.iam.oauth.token :as token
+     :refer [grant-token
+             token-error
+             client-id-missmatch
+             owner-not-authorized]]
     [neyho.eywa.iam.oauth.page.device :as device]
     [io.pedestal.http.ring-middlewares :as middleware]))
 
@@ -69,11 +74,6 @@
                     :type "server_error"}))))))
 
 
-(def activate-device-code
-  {:name ::activate-device-code
-   :enter
-   (fn [])})
-
 
 (defn code-expired? [code]
   (when-some [{:keys [expires-at]} (get-in @*device-codes* code)]
@@ -93,6 +93,89 @@
     (swap! *device-codes* (fn [codes] (apply dissoc codes expired)))))
 
 
+
+(defmethod grant-token "urn:ietf:params:oauth:grant-type:device_code"
+  [request]
+  (def request request)
+  (let [{:keys [device_code client_id client_secret]} request
+        {{:keys [scope audience] :as original-request} :request
+         :keys [session delivered?]} (get @*device-codes* device_code)
+        {{refresh? "refresh-tokens"} :settings :as client
+         id :id} (core/get-session-client session)
+        {:keys [euuid active]} (core/get-session-resource-owner session)]
+    (log/debugf
+      "[%s] Processing token code grant for code: %s\n%s"
+      session device_code (pprint request))
+    (let [{_secret :secret
+           {:strs [allowed-grants]} :settings
+           session-client :id} (core/get-session-client session)
+          grants (set allowed-grants)]
+      (cond
+        ;;
+        delivered?
+        (token-error
+          "invalid_request"
+          "Tokens have already been granted. To get"
+          "new tokens use refresh token endpoint."
+          "Your request will be logged and processed")
+        ;;
+        (not (contains? @*device-codes* device_code))
+        (token-error
+          "invalid_request"
+          "Provided authorization code is illegal!"
+          "Your request will be logged"
+          "and processed")
+        (nil? session)
+        (token-error
+          403
+          "authorization_pending"
+          "The authorization request is still pending as"
+          "the end user hasn't yet completed the user-interaction steps")
+        ;; If client ids don't match
+        (not= session-client client_id)
+        (token-error
+          "invalid_client"
+          "Client ID that was provided doesn't"
+          "match client ID that was used in authorization request")
+        ;;
+        (and (some? _secret) (empty? client_secret))
+        (token-error
+          "invalid_client"
+          "Client secret wasn't provided")
+        ;; If client has secret, than
+        (and (some? _secret) (not (validate-password client_secret _secret)))
+        (token-error
+          "invalid_client"
+          "Provided client secret is wrong")
+        ;;
+        (not= id client_id)
+        client-id-missmatch
+        ;;
+        (not active)
+        (do
+          (swap! *device-codes* dissoc device_code)
+          (core/kill-session session)
+          owner-not-authorized)
+        ;;
+        (nil? session)
+        {:status 403
+         :headers {"Content-Type" "application/json"}
+         :body (json/write-str
+                 {:error "authorization_pending"
+                  :error_description "The authorization request is still pending as the end user hasn't yet completed the user-interaction steps"})}
+        ;; Issue that token
+        :else
+        (let [response (json/write-str (token/generate client session original-request))]
+          ; (swap! *device-codes* assoc-in [device_code :delivered?] true)
+          (swap! *device-codes* dissoc device_code)
+          (core/set-session-audience-scope session audience scope)
+          {:status 200
+           :headers {"Content-Type" "application/json;charset=UTF-8"
+                     "Pragma" "no-cache"
+                     "Cache-Control" "no-store"}
+           :body response})))))
+
+
 (def device-code-flow-interceptor
   {:enter
    (letfn [(split-spaces [request k]
@@ -110,17 +193,19 @@
          (chain/terminate
            (assoc context :response
                   (try
-                    (validate-client params)
-                    (let [expires-at (-> 
+                    (let [client (validate-client params)
+                          expires-at (-> 
                                        (System/currentTimeMillis)
                                        (+ (vura/minutes 5)))]
+                      (swap! core/*clients* assoc (:euuid client) client)
                       (swap! *device-codes* assoc device-code
                              {:user-code user-code
                               :expires-at expires-at
-                              :user/agent user-agent
-                              :user/ip remote-addr
+                              :request params
+                              :device/agent user-agent
+                              :device/ip remote-addr
                               :interval 5
-                              :client client_id})
+                              :client (:euuid client)})
                       {:status 200
                        :headers {"Content-Type" "application/json"}
                        :body (json/write-str
@@ -132,17 +217,6 @@
                                 :expires_in 900})})
                     (catch clojure.lang.ExceptionInfo ex
                       (core/handle-request-error (ex-data ex)))))))))})
-
-
-(def check-user-code-interceptor
-  {:enter (fn [ctx]
-            (assoc ctx :response {:status 200 :body "hi"}))})
-
-
-(def confirm-device-interceptor
-  {:enter (fn [ctx]
-            (assoc ctx :response {:status 200 :body "hi"}))})
-
 
 
 (def ^{:doc "This interceptor should be used for device activation. Both
@@ -172,7 +246,7 @@
             flow is redirected to confirm page.
             
             If request isn't valid ctx will be associated"}
-  device-activate-interceptor
+  device-interceptor
   {:enter (fn [{{:keys [remote-addr query-params]
                  {:keys [challenge action user_code]} :params
                  {:strs [user-agent]} :headers
@@ -187,15 +261,23 @@
                       (let [challenge (nano-id/nano-id 20)]
                         (swap! *device-codes* update device-code
                                (fn [data]
-                                 (assoc-in data [:challenges challenge] state)))
+                                 (assoc-in data [:challenges challenge] (dissoc state :device-code))))
                         (assoc ctx :response
                                {:status 302
                                 :headers {"Location" (str "/oauth/login?"
                                                           (codec/form-encode
                                                             {:state (encrypt
                                                                       (assoc state
-                                                                             :flow :device-code
+                                                                             :flow :device_code
                                                                              :challenge challenge))}))
+                                          "Cache-Control" "no-cache"}})))
+                    (redirect-to-canceled
+                      [{:keys [user-code device-code]}]
+                      (swap! *device-codes* dissoc device-code)
+                      (chain/terminate
+                        (assoc :response
+                               {:status 302
+                                :headers {"Location" (str "/oauth/device/status?value=canceled&user_code=" user-code)
                                           "Cache-Control" "no-cache"}})))]
               (let [complete? (boolean (:user_code query-params))]
                 (case method
@@ -252,8 +334,9 @@
                         ;; If canceled than remove device code and forward ctx
                         ;; to render
                         (= action "cancel")
-                        (do
-                          (assoc ctx ::user-code user-code ::canceled? true))
+                        (redirect-to-canceled
+                          {:user-code user-code
+                           :device-code device-code})
                         ;;
                         :else (assoc ctx
                                      ::user-code user-code
@@ -266,11 +349,9 @@
                         {:device-code device-code
                          :ip remote-addr
                          :user-agent user-agent})
-                      (do
-                        (def ctx ctx)
-                        (assoc ctx
-                               ::user-code user_code
-                               ::error :not-available))))))))})
+                      (assoc ctx
+                             ::user-code user_code
+                             ::error :not-available)))))))})
 
 
 (def user-code-page
@@ -293,10 +374,8 @@
       device-code (conj common device-code-flow-interceptor)]
   (def routes
     #{["/oauth/device/auth" :post device-code :route-name ::get-device-flow]
-      ["/oauth/device/activate" :get [device-activate-interceptor user-code-page] :route-name ::user-code-page]
-      ["/oauth/device/activate" :post  (conj common device-activate-interceptor user-code-page) :route-name ::user-code-check]
-      ["/oauth/device/activate/success" :get [device-activate-interceptor user-code-page] :route-name ::user-code-activated]
-      ["/oauth/device/activate/canceled" :get [device-activate-interceptor check-user-code-interceptor] :route-name ::user-code-canceled]
+      ["/oauth/device/activate" :get [device-interceptor user-code-page] :route-name ::user-code-page]
+      ["/oauth/device/activate" :post  (conj common device-interceptor user-code-page) :route-name ::user-code-check]
       ;;
       ["/oauth/device/confirm" :get [user-code-confirm-page] :route-name ::serve-confirm-page]
-      ["/oauth/device/confirm" :post [confirm-device-interceptor] :route-name ::confirm-device]}))
+      ["/oauth/device/confirm" :post [user-code-confirm-page] :route-name ::confirm-device]}))

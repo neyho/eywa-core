@@ -13,7 +13,8 @@
   (let [result
         (-> @css-ref
             (cb/generate '{:login {:include [neyho.eywa.iam.oauth.page.login]}
-                           :device {:include [neyho.eywa.iam.oauth.page.device]}})
+                           :device {:include [neyho.eywa.iam.oauth.page.device]}
+                           :status {:include [neyho.eywa.iam.oauth.page.status]}})
             (cb/write-outputs-to (io/file "frontend" "dist" "oauth" "css")))]
     (println "Refreshing frontend/dist/oauth/css")
     (doseq [mod (:outputs result)

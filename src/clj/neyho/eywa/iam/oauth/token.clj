@@ -10,13 +10,11 @@
     [buddy.sign.util :refer [to-timestamp]]
     [io.pedestal.interceptor.chain :as chain]
     [neyho.eywa.iam
-     :refer [sign-data
-             validate-password]]
+     :refer [sign-data]]
     [neyho.eywa.iam.oauth.core :as core
      :refer [pprint
              process-scope
-             sign-token]]
-    [neyho.eywa.iam.oauth.authorization-code :as ac]))
+             sign-token]]))
 
 
 (defonce ^:dynamic *tokens* (atom nil))
@@ -37,15 +35,24 @@
     (or expiry default)))
 
 
-(defn token-error [code & description]
+(defn token-error [status code & description]
   ; (log/debugf "Returning error: %s\n%s" code (str/join "\n" description))
-  {:status 400
+  {:status (if (number? status) status 400)
    :headers {"Content-Type" "application/json;charset=UTF-8"
              "Pragma" "no-cache"
              "Cache-Control" "no-store"}
    :body (json/write-str
-           {:error code
-            :error_description (str/join "\n" description)})})
+           {:error (if (number? status) code status)
+            :error_description (str/join "\n"
+                                         (if (number? status) description
+                                           (conj description code)))})})
+
+
+(comment
+  (token-error
+    400
+    "authorization_pending"
+    "Evo nekog opisa"))
 
 
 (defn set-session-tokens
@@ -94,7 +101,7 @@
 (defn revoke-token
   ([session token-key] (revoke-token session nil token-key))
   ([session audience token-key]
-   (let [{{{token token-key} :tokens} audience} (core/get-session session)]
+   (let [{{{token token-key} audience} :tokens} (core/get-session session)]
      (swap! core/*sessions* update-in [session :tokens audience] dissoc token-key)
      (when token
        (swap! *tokens* update token-key dissoc token)
@@ -110,9 +117,9 @@
    (doseq [[audience] (core/get-session session)]
      (revoke-session-tokens session audience)))
   ([session audience]
-   (let [{{:keys [tokens]} audience} (core/get-session session)]
+   (let [{{tokens audience} :tokens} (core/get-session session)]
      (doseq [[token-key] tokens]
-       (revoke-token session token-key)))
+       (revoke-token session audience token-key)))
    nil))
 
 
@@ -184,152 +191,73 @@
 (defmethod grant-token :default [_] unsupported)
 
 
-(defmethod grant-token "authorization_code"
-  [request]
-  (let [{:keys [code redirect_uri client_id client_secret grant_type audience]} request
-        {request-redirect-uri :redirect_uri
-         scope :scope} (ac/get-code-request code)
-        session (ac/get-code-session code)
-        {{refresh? "refresh-tokens"} :settings :as client
-         id :id} (core/get-session-client session)
-        {:keys [euuid active]} (core/get-session-resource-owner session)]
-    (log/debugf
-      "[%s] Processing token code grant for code: %s\n%s"
-      session code (pprint request))
-    (if-not session
-      ;; If session isn't available, that is if somebody
-      ;; is trying to hack in
-      (token-error
-        "invalid_request"
-        "Trying to abuse token endpoint for code that"
-        "doesn't exsist or has expired. Further actions"
-        "will be logged and processed")
-      ;; If there is some session than check other requirements
-      (let [{_secret :secret
-             {:strs [allowed-grants]} :settings
-             session-client :id} (core/get-session-client session)
-            grants (set allowed-grants)]
-        (cond
-          ;;
-          (not (contains? @ac/*authorization-codes* code))
-          (token-error
-            "invalid_request"
-            "Provided authorization code is illegal!"
-            "Your request will be logged"
-            "and processed")
-          ;;
-          (or
-            (not (contains? grants "code"))
-            (not= grant_type "authorization_code"))
-          (token-error
-            "unauthorized_grant"
-            "Client sent access token request"
-            "for grant type that is outside"
-            "of client configured privileges")
-          ;; If redirect uri doesn't match
-          (not= request-redirect-uri redirect_uri)
-          (token-error
-            "invalid_request"
-            "Redirect URI that you provided doesn't"
-            "match URI that was issued to provided authorization code")
-          ;; If client ids don't match
-          (not= session-client client_id)
-          (token-error
-            "invalid_client"
-            "Client ID that was provided doesn't"
-            "match client ID that was used in authorization request")
-          ;;
-          (and (some? _secret) (empty? client_secret))
-          (token-error
-            "invalid_client"
-            "Client secret wasn't provided")
-          ;; If client has secret, than
-          (and (some? _secret) (not (validate-password client_secret _secret)))
-          (token-error
-            "invalid_client"
-            "Provided client secret is wrong")
-          (not= id client_id)
-          client-id-missmatch
-          ;;
-          (not active)
-          (do
-            (core/kill-session session)
-            owner-not-authorized)
-          ;; Issue that token
-          :else
-          (let [access-exp (-> 
-                             (System/currentTimeMillis)
-                             (quot 1000)
-                             (+ (access-token-expiry client)))
-                access-token {:session session
-                              :aud audience
-                              :exp access-exp
-                              :iss (core/domain+)
-                              :sub euuid
-                              :iat (-> (vura/date) to-timestamp)
-                              :client_id client_id
-                              :sid session
-                              :scope (str/join " " scope)}
-                response (if (pos? access-exp)
-                           (let [refresh-token (when (and refresh? session
-                                                          (contains? scope "offline_access"))
-                                                 (log/debugf "Creating refresh token: %s" session)
-                                                 (gen-token)
-                                                 #_{:iss *iss*
-                                                    :sid session})
-                                 tokens (reduce
-                                          (fn [tokens scope]
-                                            (process-scope session tokens scope))
-                                          (if refresh-token
-                                            {:access_token access-token
-                                             :refresh_token refresh-token}
-                                            {:access_token access-token})
-                                          scope)
-                                 signed-tokens (reduce-kv
-                                                 (fn [tokens token data]
-                                                   (assoc tokens token (sign-token session token data)))
-                                                 tokens
-                                                 tokens)]
-                             (def tokens tokens)
-                             (def refresh-token refresh-token)
-                             (def access-token access-token)
-                             (def scope scope)
-                             (def session session)
-                             (when refresh-token (revoke-token session audience :refresh_token))
-                             (when session (set-session-tokens session audience signed-tokens))
-                             (ac/revoke-authorization-code code)
-                             (assoc signed-tokens
-                                    :type "Bearer"
-                                    :scope (str/join " " scope)
-                                    :expires_in (access-token-expiry client)))
-                           (let [tokens (reduce
-                                          (fn [tokens scope]
-                                            (process-scope session tokens scope))
-                                          {:access_token access-token}
-                                          scope)
-                                 signed-tokens (reduce-kv
-                                                 (fn [tokens token data]
-                                                   (assoc tokens token (sign-token session token data)))
-                                                 tokens
-                                                 tokens)]
-                             (ac/revoke-authorization-code code)
-                             (assoc signed-tokens
-                                    :expires_in (access-token-expiry client)
-                                    :scope (str/join " " scope)
-                                    :type "Bearer")))]
-            {:status 200
-             :headers {"Content-Type" "application/json;charset=UTF-8"
-                       "Pragma" "no-cache"
-                       "Cache-Control" "no-store"}
-             :body (json/write-str response)}))))))
+(defn generate
+  [{{refresh? "refresh-tokens"} :settings :as client} session {:keys [audience scope client_id]}]
+  (let [access-exp (-> 
+                     (System/currentTimeMillis)
+                     (quot 1000)
+                     (+ (access-token-expiry client)))
+        {:keys [euuid]} (core/get-session-resource-owner session)
+        access-token {:session session
+                      :aud audience
+                      :exp access-exp
+                      :iss (core/domain+)
+                      :sub euuid
+                      :iat (-> (vura/date) to-timestamp)
+                      :client_id client_id
+                      :sid session
+                      :scope (str/join " " scope)}]
+    (if (pos? access-exp)
+      (let [refresh-token (when (and refresh? session
+                                     (contains? scope "offline_access"))
+                            (log/debugf "Creating refresh token: %s" session)
+                            (gen-token))
+            tokens (reduce
+                     (fn [tokens scope]
+                       (process-scope session tokens scope))
+                     (if refresh-token
+                       {:access_token access-token
+                        :refresh_token refresh-token}
+                       {:access_token access-token})
+                     scope)
+            signed-tokens (reduce-kv
+                            (fn [tokens token data]
+                              (assoc tokens token (sign-token session token data)))
+                            tokens
+                            tokens)]
+        (when refresh-token (revoke-token session audience :refresh_token))
+        (when session (set-session-tokens session audience signed-tokens))
+        (assoc signed-tokens
+               :type "Bearer"
+               :scope (str/join " " scope)
+               :expires_in (access-token-expiry client)))
+      (let [tokens (reduce
+                     (fn [tokens scope]
+                       (process-scope session tokens scope))
+                     {:access_token access-token}
+                     scope)
+            signed-tokens (reduce-kv
+                            (fn [tokens token data]
+                              (assoc tokens token (sign-token session token data)))
+                            tokens
+                            tokens)]
+        (assoc signed-tokens
+               :expires_in (access-token-expiry client)
+               :scope (str/join " " scope)
+               :type "Bearer")))))
 
 
 (defmethod grant-token "refresh_token"
-  [{:keys [refresh_token client_id scope audience]
-    cookie-session :idsrv/session}]
+  [{:keys [refresh_token scope audience]
+    cookie-session :idsrv/session
+    :as request}]
   (let [session (get-token-session :refresh_token refresh_token)
         {{refresh? "refresh-tokens"} :settings :as client} (core/get-session-client session)
-        {:keys [euuid active]} (core/get-session-resource-owner session)]
+        {:keys [active]} (core/get-session-resource-owner session)
+        scope (or
+                scope
+                (core/get-session-audience-scope session audience))
+        current-refresh-token (get-in (core/get-session session) [:tokens audience :refresh_token])]
     (when session (revoke-session-tokens session audience))
     (cond
       ;;
@@ -344,62 +272,19 @@
       (and cookie-session (not= cookie-session session))
       cookie-session-missmatch
       ;;
+      (not= refresh_token current-refresh-token)
+      (token-error
+        400
+        "invalid_request"
+        "Provided token doesn't match session refresh token"
+        "Your request will be logged and processed")
+      ;;
       :else
-      (let [access-exp (->
-                         (System/currentTimeMillis)
-                         (quot 1000)
-                         (+ (access-token-expiry client)))
-            access-token {:session session
-                          :aud audience
-                          :iss (core/domain+)
-                          :sub euuid
-                          :iat (-> (vura/date) to-timestamp)
-                          :client_id client_id
-                          :sid session
-                          :exp access-exp 
-                          :scope (str/join " " scope)}
-            response (if (pos? access-exp)
-                       (let [refresh-token (gen-token)
-                             ; refresh-token {:iss *iss*
-                             ;                :sid session}
-                             tokens (reduce
-                                      (fn [tokens scope]
-                                        (process-scope session tokens scope))
-                                      {:access_token access-token
-                                       :refresh_token refresh-token}
-                                      scope)
-                             signed-tokens (reduce-kv
-                                             (fn [tokens token data]
-                                               (if-let [payload (sign-token session token data)]
-                                                 (assoc tokens token payload)
-                                                 tokens))
-                                             tokens
-                                             tokens)]
-                         (revoke-session-tokens session audience)
-                         (when session (set-session-tokens session audience signed-tokens))
-                         (assoc signed-tokens
-                                :type "Bearer"
-                                :expires_in (access-token-expiry client)
-                                :scope (str/join " " scope)))
-                       (let [tokens (reduce
-                                      (fn [tokens scope]
-                                        (process-scope session tokens scope))
-                                      {:access_token access-token}
-                                      scope)
-                             signed-tokens (reduce-kv
-                                             (fn [tokens token data]
-                                               (assoc tokens token (sign-token session token data)))
-                                             tokens
-                                             tokens)]
-                         (assoc signed-tokens
-                                :type "Bearer"
-                                :expires_in (access-token-expiry client) 
-                                :scope (str/join " " scope))))]
-        {:status 200
-         :headers {"Content-Type" "application/json;charset=UTF-8"
-                   "Pragma" "no-cache"
-                   "Cache-Control" "no-store"}
-         :body (json/write-str response)}))))
+      {:status 200
+       :headers {"Content-Type" "application/json;charset=UTF-8"
+                 "Pragma" "no-cache"
+                 "Cache-Control" "no-store"}
+       :body (json/write-str (generate client session (assoc request :scope scope)))})))
 
 
 
