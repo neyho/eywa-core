@@ -31,9 +31,8 @@
   (let [{:keys [form-params]} (bp/form-parser request)
         data (merge params form-params)
         ;;
-        {{:keys [flow ip user-agent challenge device-code]} :state :as data}
+        {{:keys [flow ip user-agent challenge device-code]} :state}
         (update data :state (fn [x] (when x (core/decrypt x))))]
-    (def data data)
     (cond
       ;;
       (not= ip current-ip)
@@ -129,7 +128,7 @@
                    (assoc ctx ::error :unknown))))
              "device_code"
              ;; If user authenticated than do your stuff
-             (let [{:keys [session client scope]
+             (let [{:keys [session client scope expires-at]
                     {:keys [audience]} :request} (get @dc/*device-codes* device-code)
                    security-error (security-check ctx)]
                (letfn [(error [value]
@@ -143,6 +142,9 @@
                  (cond
                    (some? session)
                    (error "already_authorized")
+                   ;;
+                   (< expires-at (System/currentTimeMillis))
+                   (error "device_code_expired")
                    ;;
                    (some? security-error)
                    (error security-error)

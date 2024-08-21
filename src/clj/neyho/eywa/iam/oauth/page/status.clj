@@ -68,9 +68,10 @@
                          :select-none)}
           (str
             (case error
+              "device_code_expired" "User code that you have entered has expired."
               "already_authorized" "Somebody already authenticated using same code"
-              "ip_address" "Registered potentially malicious IP address change action. "
-              "user_agent" "Registered potentially malicious user agent change action. "
+              "ip_address" "Registered potentially malicious IP address change action."
+              "user_agent" "Registered potentially malicious user agent change action."
               "challenge" "Registered potentially malicious challenge action. ")
             "\n Please restart authentication process")]]]]
       [:script {:src "js/login.js"}]])))

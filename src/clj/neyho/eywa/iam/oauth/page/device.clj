@@ -22,8 +22,7 @@
 
 (defn authorize
   ([] (authorize nil))
-  ([{:as data
-     challenge ::device-code/challenge
+  ([{challenge ::device-code/challenge
      error ::device-code/error
      user-code ::device-code/user-code
      complete? ::device-code/complete?}]
@@ -110,7 +109,13 @@
                      :text-sm
                      {:min-height "4rem"
                       :width "100%"})}
-           (when error [:div.message error])]
+           (when error [:div.message
+                        (case error
+                          :expired "This user code has expired"
+                          :malicous-code "Entered user code doesn't exist"
+                          :malicous-ip "You are trying to enter code from wrong host"
+                          :malicious-user-agent "You are trying to enter code from wrong app"
+                          error)])]
           [:div {:class (css
                           :flex
                           :grow
@@ -132,7 +137,7 @@
 
 
 (defn status
-  ([{{{:keys [value user_code error]} :query-params} :request}]
+  ([{{{:keys [value error]} :query-params} :request}]
    (html
      [:head
       [:meta {:charset "UTF-8"}]

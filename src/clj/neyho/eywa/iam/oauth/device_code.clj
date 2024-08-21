@@ -232,9 +232,9 @@
                                challenge will be in POST processing
               ::error        - found error. One of
                                [:not-available
-                                :malicius-code
-                                :malicius-ip
-                                :malicius-user-agent
+                                :malicous-code
+                                :malicous-ip
+                                :malicous-user-agent
                                 :unknown-action
                                 :no-challenge]
               ::canceled?    - in case of validation_uri_complete, user has
@@ -310,19 +310,23 @@
                     (assoc ctx ::error :no-challenge)
                     ;; There is user code so it is verification_uri_complete
                     complete?
-                    (let [{:keys [device-code user-code ip]
+                    (let [{:keys [device-code user-code ip expires-at]
                            :as decrypted-challenge} (decrypt challenge)
-                          real-code (get-in @*device-codes* [device-code :user-code])]
+                          real-code (get-in @*device-codes* [device-code :user-code])
+                          now (System/currentTimeMillis)]
                       (cond
+                        ;;
+                        (< expires-at now)
+                        (assoc ctx ::error :expired)
                         ;; Check user code
                         (not= real-code user-code user_code)
-                        (assoc ctx ::error :malicius-code)
+                        (assoc ctx ::error :malicous-code)
                         ;; Check IP address
                         (not= remote-addr ip)
                         (assoc ctx ::erorr :malicious-ip)
                         ;; Check user agent
                         (not= user-agent (:user-agent decrypted-challenge))
-                        (assoc ctx ::error :malicius-user-agent)
+                        (assoc ctx ::error :malicous-user-agent)
                         ;; If everything was ok than and confirmed
                         ;; Than handle device session creation and remove device
                         ;; code so that it won't be used again
