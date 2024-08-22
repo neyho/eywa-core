@@ -6,6 +6,7 @@
     [clojure.data.json :as json]
     [clojure.tools.logging :as log]
     [nano-id.core :as nano-id]
+    [buddy.core.hash :as hash]
     [ring.util.codec :as codec]
     [io.pedestal.interceptor.chain :as chain]
     [neyho.eywa.iam
@@ -13,16 +14,15 @@
              validate-password]]
     [neyho.eywa.iam.oauth.core :as core
      :refer [pprint
-             publish
-             keywordize-params
-             basic-authorization-interceptor]]
+             publish]]
     [neyho.eywa.iam.oauth.token :as token
      :refer [grant-token
              token-error
+             token-interceptor
+             revoke-token-interceptor
              client-id-missmatch
              owner-not-authorized]]
-    [io.pedestal.http.ring-middlewares :as middleware]
-    [io.pedestal.http.body-params :as bp]))
+    [neyho.eywa.iam.oauth.page.status :refer [status-page]]))
 
 
 (defonce ^:dynamic *authorization-codes* (atom nil))
@@ -366,10 +366,45 @@
                          (str "Server error - " (:type params))))})))})
 
 
-(let [common [basic-authorization-interceptor
-              middleware/cookies
-              (bp/body-params)
-              keywordize-params]]
+(defn generate-code-challenge
+  ([code-verifier] (generate-code-challenge code-verifier "S256"))
+  ([code-verifier code-challenge-method]
+   (case code-challenge-method
+     "plain" code-verifier
+     "S256"
+     (let [bs (.getBytes code-verifier)
+           hashed (hash/sha256 bs)]
+       (-> hashed
+           codec/base64-encode
+           (.replace "+" "-")
+           (.replace "/" "_")
+           (.replace "=" ""))))))
+
+
+(def pkce-interceptor
+  {:enter
+   (fn [ctx]
+     (let [{{{:keys [code code_verifier grant_type]} :params} :request} ctx
+           {{:keys [code_challenge code_challenge_method]}
+            :request} (-> code
+                          get-code-session 
+                          core/get-session)
+           is-pkce? (and code_challenge code_challenge_method)]
+       (if (or (not is-pkce?) (not= "authorization_code" grant_type)) ctx
+         (let [current-challenge (generate-code-challenge code_verifier code_challenge_method)]
+           (if (= current-challenge code_challenge) ctx
+             (chain/terminate
+               (core/json-error
+                 "invalid_request"
+                 "Proof Key for Code Exchange failed")))))))})
+
+
+(let [token (conj core/oauth-common-interceptor core/scope->set pkce-interceptor token-interceptor)
+      revoke (conj core/oauth-common-interceptor core/idsrv-session-read revoke-token-interceptor)]
   (def routes
-    #{["/oauth/authorize" :get (conj common core/idsrv-session-read start-authorization-code-flow)
-       :route-name ::authorize-request]}))
+    #{["/oauth/token" :post token :route-name ::handle-token]
+      ["/oauth/revoke" :post revoke :route-name ::post-revoke]
+      ["/oauth/revoke" :get revoke :route-name ::get-revoke]
+      ["/oauth/authorize" :get (conj core/oauth-common-interceptor core/idsrv-session-read start-authorization-code-flow)
+     :route-name ::authorize-request]
+      ["/oauth/status" :get status-page :route-name ::oauth-status]}))

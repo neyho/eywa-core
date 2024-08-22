@@ -3,7 +3,8 @@
    ["neyho/eywa/iam/oauth/page/common.css"]}
   (:require
     [hiccup2.core :refer [html]]
-    [shadow.css :refer [css]]))
+    [shadow.css :refer [css]]
+    [neyho.eywa.iam.oauth.core :as core]))
 
 
 (def $confirm-container
@@ -19,8 +20,8 @@
     :flex-col))
 
 
-(defn error
-  ([{{{:keys [value error]} :query-params} :request}]
+(defn status
+  ([{{{:keys [value error user client]} :query-params} :request}]
    (html
      [:head
       [:meta {:charset "UTF-8"}]
@@ -56,6 +57,7 @@
            [:image {:src "https://www.eywaonline.com/eywa/logo/eywa.svg"}]]
           [:div
            [:h1 (case value
+                  "success" "Authentication Success"
                   "canceled" "Authentication Canceled"
                   "error" "Authentication Error" 
                   "Wrong page")]]]
@@ -66,14 +68,25 @@
                          :text-sm
                          :text-gray-700
                          :select-none)}
-          (str
-            (case error
-              "device_code_expired" "User code that you have entered has expired."
-              "already_authorized" "Somebody already authenticated using same code"
-              "ip_address" "Registered potentially malicious IP address change action."
-              "user_agent" "Registered potentially malicious user agent change action."
-              "challenge" "Registered potentially malicious challenge action. ")
-            "\n Please restart authentication process")]]]]
+          (cond
+            ;;
+            error
+            (str
+              (case error
+                "broken_flow" "Authorization flow is broken."
+                "device_code_expired" "User code that you have entered has expired."
+                "already_authorized" "Somebody already authenticated using same code"
+                "ip_address" "Registered potentially malicious IP address change action."
+                "user_agent" "Registered potentially malicious user agent change action."
+                "challenge" "Registered potentially malicious challenge action. "
+                nil)
+              "\n Please restart authentication process")
+            ;;
+            (and user client)
+            (let [client (get @core/*clients* (java.util.UUID/fromString client))]
+              [:span "Client " [:b (:name client)] " is authorized by " [:b user]])
+            ;;
+            :else nil)]]]]
       [:script {:src "js/login.js"}]])))
 
 
@@ -84,4 +97,4 @@
      (assoc ctx :response
             {:status 200
              :headers {"Content-Type" "text/html"}
-             :body (str (error ctx))}))})
+             :body (str (status ctx))}))})

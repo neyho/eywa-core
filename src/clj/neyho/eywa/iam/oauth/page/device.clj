@@ -3,8 +3,7 @@
    ["neyho/eywa/iam/oauth/page/common.css"]}
   (:require
     [hiccup2.core :refer [html]]
-    [shadow.css :refer [css]]
-    [neyho.eywa.iam.oauth.device-code :as device-code]))
+    [shadow.css :refer [css]]))
 
 
 (def $confirm-container
@@ -22,10 +21,10 @@
 
 (defn authorize
   ([] (authorize nil))
-  ([{challenge ::device-code/challenge
-     error ::device-code/error
-     user-code ::device-code/user-code
-     complete? ::device-code/complete?}]
+  ([{challenge :neyho.eywa.iam.oauth.device-code/challenge
+     error :neyho.eywa.iam.oauth.device-code/error
+     user-code :neyho.eywa.iam.oauth.device-code/user-code
+     complete? :neyho.eywa.iam.oauth.device-code/complete?}]
    (html
      [:head
       [:meta {:charset "UTF-8"}]

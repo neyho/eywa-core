@@ -321,9 +321,10 @@
                     (assoc ctx ::error :no-challenge)
                     ;; There is user code so it is verification_uri_complete
                     complete?
-                    (let [{:keys [device-code user-code ip expires-at]
+                    (let [{:keys [device-code user-code ip]
                            :as decrypted-challenge} (decrypt challenge)
-                          real-code (get-in @*device-codes* [device-code :user-code])
+                          {real-code :user-code
+                           :keys [expires-at]} (get @*device-codes* device-code)
                           now (System/currentTimeMillis)]
                       (cond
                         ;;

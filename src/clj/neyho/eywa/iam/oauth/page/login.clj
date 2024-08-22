@@ -3,8 +3,7 @@
    ["neyho/eywa/iam/oauth/page/common.css"]}
   (:require
     [hiccup2.core :refer [html]]
-    [shadow.css :refer [css]]
-    [neyho.eywa.iam.oauth.login :as login]))
+    [shadow.css :refer [css]]))
 
 
 (def $login-wrapper
@@ -99,7 +98,7 @@
 
 
 (defn login-html
-  ([{error ::login/error :as data}]
+  ([{error :neyho.eywa.iam.oauth.login/error :as data}]
    (html
      [:head
       [:meta {:charset "UTF-8"}]

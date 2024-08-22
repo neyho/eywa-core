@@ -78,12 +78,14 @@
 
 
 (defn decrypt [encrypted-data]
-  (json/read-str
-    (String.
-      (crypto/decrypt
-        (codecs/b64->bytes encrypted-data) *encryption-key* *initialization-vector*
-        {:alg :aes256-gcm}))
-    :key-fn keyword))
+  (try
+    (json/read-str
+      (String.
+        (crypto/decrypt
+          (codecs/b64->bytes encrypted-data) *encryption-key* *initialization-vector*
+          {:alg :aes256-gcm}))
+      :key-fn keyword)
+    (catch Throwable _ nil)))
 
 
 (comment
@@ -388,68 +390,6 @@
      :body (json/write-str
              {:error code
               :error_description (str/join "\n" description)})}))
-
-
-(defn validate-client [request]
-  (let [{:keys [client_id state redirect_uri]
-          request-secret :client_secret} request 
-        base-redirect-uri (get-base-uri redirect_uri)
-        {:keys [euuid secret type]
-         {redirections "redirections"} :settings
-         :as client} (get-client client_id)]
-    (log/debugf "Validating client: %s" (pprint client))
-    (cond
-      (nil? euuid)
-      (throw
-        (ex-info
-          "Client not registered"
-          {:type "client_not_registered"
-           :request request}))
-      ;;
-      (empty? redirections)
-      (throw
-        (ex-info
-          "Client missing redirections"
-          {:type "no_redirections"
-           :request request}))
-      ;;
-      (empty? redirect_uri)
-      (throw
-        (ex-info
-          "Client hasn't provided redirect URI"
-          {:type "missing_redirect"
-           :request request}))
-      ;;
-      (not-any? #(= base-redirect-uri %) redirections)
-      (throw
-        (ex-info
-          "Client provided uri doesn't match available redirect URI(s)"
-          {:type "redirect_missmatch"
-           :request request}))
-      ;;
-      (or (some? request-secret) (some? secret))
-      (if (validate-password request-secret secret)
-        client
-        (throw
-          (ex-info
-            "Client secret missmatch"
-            {:type "access_denied"
-             :request request
-             :state state})))
-      ;;
-      (and (= type "public") (nil? secret))
-      client
-      ;;
-      :else
-      (do
-        (log/errorf "Couldn't validate client\n%s" (pprint request))
-        (throw
-          (ex-info "Unknown client error"
-                   {:request request
-                    :type "server_error"}))))))
-
-
-
 
 
 (defn reset
