@@ -6,6 +6,7 @@
     [clojure.data.json :as json]
     [clojure.tools.logging :as log]
     [nano-id.core :as nano-id]
+    [vura.core :as vura]
     [buddy.core.hash :as hash]
     [ring.util.codec :as codec]
     [io.pedestal.interceptor.chain :as chain]
@@ -26,6 +27,10 @@
 
 
 (defonce ^:dynamic *authorization-codes* (atom nil))
+
+
+(defn delete [code] 
+  (swap! *authorization-codes* dissoc code))
 
 
 (let [alphabet "ACDEFGHJKLMNOPQRSTUVWXYZ"]
@@ -81,33 +86,10 @@
   (get-in @*authorization-codes* [code :request]))
 
 
-(defn mark-code-issued [code] (swap! *authorization-codes* assoc-in [code :issued?] true))
+
 
 
 (defn code-was-issued? [code] (true? (get-in @*authorization-codes* [code :issued?])))
-
-
-(defn prepare-code
-  ([session request]
-   (let [{:keys [code]} (core/get-session session)]
-     ;; Session has code bount
-     (if (and code
-              ;; and this code is valid
-              (contains? @*authorization-codes* code)
-              ;; and hasn't been shared to user
-              (not (code-was-issued? code)))
-       code
-       (let [new-code (gen-authorization-code)]
-         (swap! *authorization-codes*
-                (fn [codes]
-                  (->
-                    codes
-                    (assoc new-code {:request request
-                                     :session session
-                                     :at (System/currentTimeMillis)})
-                    (dissoc code))))
-         (swap! core/*sessions* assoc-in [session :code] new-code)
-         code)))))
 
 
 (defn validate-client [request]
@@ -149,7 +131,9 @@
       ;;
       (or (some? request-secret) (some? secret))
       (if (validate-password request-secret secret)
-        client
+        (do
+          (swap! core/*clients* assoc (:euuid client) client)
+          client)
         (throw
           (ex-info
             "Client secret missmatch"
@@ -158,7 +142,9 @@
              :state state})))
       ;;
       (and (= type "public") (nil? secret))
-      client
+      (do
+        (swap! core/*clients* assoc (:euuid client) client)
+        client)
       ;;
       :else
       (do
@@ -169,66 +155,168 @@
                     :type "server_error"}))))))
 
 
-(defn authorization-code-flow
-  [{cookie-session :idsrv/session :as request
-    :keys [prompt redirect_uri state]}]
-  (let [now (System/currentTimeMillis)
-        session (if (core/get-session cookie-session) cookie-session
-                  (let [session (core/gen-session-id)]
-                    (core/set-session session {:flow "authorization_code" :at now})
-                    session))
-        silent? (and (some? cookie-session) (= prompt "none"))]
-    (cond
-      ;; Check that cookie session and session match
-      (and silent? cookie-session (not= cookie-session session))
-      (core/handle-request-error
-        {:request request
-         :type "login_required"
-         :state state
-         :description "Your session isn't authenticated. First log in"})
-      ;; Check that there isn't some other code active
-      (and silent? (contains? (core/get-session session) :code)) 
-      (core/handle-request-error
-        {:request request
-         :type "invalid_request"
-         :description "Your session has unused access code active"})
-      ;; When silent and above checks passed, than return directly to
-      ;; requested redirect_uri, with prepared authorization code
-      silent?
-      (try
-        (validate-client request)
-        (let [code (prepare-code session request)]
-          (mark-code-issued code)
-          {:status 302
-           :headers {"Location" (str redirect_uri "?" (codec/form-encode {:state state :code code}))}})
-        (catch clojure.lang.ExceptionInfo ex
-          (core/handle-request-error (ex-data ex))))
-      ;;
-      :else
-      (try
-        (let [client (validate-client request)]
-          ;; Proper implementation
-          (core/set-session-client session client)
-          ;; Prepare session code
-          (prepare-code session request)
-          (let [{{url "login-page"} :settings} (core/get-session-client session)]
-            {:status 302
-             :headers {"Location" (str url "?" (codec/form-encode
-                                                 {:state (core/encrypt
-                                                           {:session session
-                                                            :flow "authorization_code"})}))
-                       "Cache-Control" "no-cache"}}))
-        (catch clojure.lang.ExceptionInfo ex
-          (core/handle-request-error (ex-data ex)))))))
+; (defn prepare-code
+;   ([session request]
+;    (let [{:keys [code]} (core/get-session session)]
+;      ;; Session has code bount
+;      (if (and code
+;               ;; and this code is valid
+;               (contains? @*authorization-codes* code)
+;               ;; and hasn't been shared to user
+;               (not (code-was-issued? code)))
+;        code
+;        (let [new-code (gen-authorization-code)]
+;          (swap! *authorization-codes*
+;                 (fn [codes]
+;                   (->
+;                     codes
+;                     (assoc new-code {:request request
+;                                      :session session
+;                                      :at (System/currentTimeMillis)})
+;                     (dissoc code))))
+;          (swap! core/*sessions* assoc-in [session :code] new-code)
+;          code)))))
+;
+;
+; (defn _authorization-code-flow
+;   [{cookie-session :idsrv/session :as request
+;     :keys [prompt redirect_uri state]}]
+;   (let [now (System/currentTimeMillis)
+;         session (if (core/get-session cookie-session) cookie-session
+;                   (let [session (core/gen-session-id)]
+;                     (core/set-session session {:flow "authorization_code" :at now})
+;                     session))
+;         silent? (and (some? cookie-session) (= prompt "none"))]
+;     (cond
+;       ;; Check that cookie session and session match
+;       (and silent? cookie-session (not= cookie-session session))
+;       (core/handle-request-error
+;         {:request request
+;          :type "login_required"
+;          :state state
+;          :description "Your session isn't authenticated. First log in"})
+;       ;; Check that there isn't some other code active
+;       (and silent? (contains? (core/get-session session) :code)) 
+;       (core/handle-request-error
+;         {:request request
+;          :type "invalid_request"
+;          :description "Your session has unused access code active"})
+;       ;; When silent and above checks passed, than return directly to
+;       ;; requested redirect_uri, with prepared authorization code
+;       silent?
+;       (try
+;         (validate-client request)
+;         (let [code (prepare-code session request)]
+;           (mark-code-issued code)
+;           {:status 302
+;            :headers {"Location" (str redirect_uri "?" (codec/form-encode {:state state :code code}))}})
+;         (catch clojure.lang.ExceptionInfo ex
+;           (core/handle-request-error (ex-data ex))))
+;       ;;
+;       :else
+;       (try
+;         (let [client (validate-client request)]
+;           ;; Proper implementation
+;           (core/set-session-client session client)
+;           ;; Prepare session code
+;           (prepare-code session request)
+;           (let [{{url "login-page"} :settings} (core/get-session-client session)]
+;             {:status 302
+;              :headers {"Location" (str url "?" (codec/form-encode
+;                                                  {:state (core/encrypt
+;                                                            {:session session
+;                                                             :flow "authorization_code"})}))
+;                        "Cache-Control" "no-cache"}}))
+;         (catch clojure.lang.ExceptionInfo ex
+;           (core/handle-request-error (ex-data ex)))))))
+
+
+; (defn authorization-code-flow
+;   [{cookie-session :idsrv/session :as request
+;     :keys [prompt redirect_uri state]}]
+;   (let [silent? (and (some? cookie-session) (= prompt "none"))]
+;     (letfn [(save
+;               ([code] (save code false))
+;               ([code issued?]
+;                (swap! *authorization-codes*
+;                       (fn [codes]
+;                         (assoc codes code {:request request
+;                                            :issued? issued? 
+;                                            :at (System/currentTimeMillis)})))))]
+;       (cond
+;         ;; Check that there isn't some other code active
+;         (and silent? (contains? (core/get-session cookie-session) :code)) 
+;         (core/handle-request-error
+;           {:request request
+;            :type "invalid_request"
+;            :description "Your session has unused access code active"})
+;         ;; When silent and above checks passed, than return directly to
+;         ;; requested redirect_uri, with prepared authorization code
+;         silent?
+;         (try
+;           (validate-client request)
+;           (let [code (gen-authorization-code)]
+;             (save code true)
+;             {:status 302
+;              :headers {"Location" (str redirect_uri "?" (codec/form-encode {:state state :code code}))}})
+;           (catch clojure.lang.ExceptionInfo ex
+;             (core/handle-request-error (ex-data ex))))
+;         ;;
+;         :else
+;         (try
+;           (validate-client request)
+;           (let [code (gen-authorization-code)]
+;             (save code)
+;             {:status 302
+;              :headers {"Location" (str "/oauth/login?" (codec/form-encode
+;                                                          {:state (core/encrypt
+;                                                                    {:authorization_code code
+;                                                                     :flow "authorization_code"})}))
+;                        "Cache-Control" "no-cache"}})
+;           (catch clojure.lang.ExceptionInfo ex
+;             (core/handle-request-error (ex-data ex))))))))
+
+
+; (defn authorization-request
+;   [request]
+;   (log/debugf "Authorizing request:\n%s" request)
+;   (letfn [(split-spaces [request k]
+;             (if-some [val (get request k)]
+;               (assoc request k (set (str/split val #"\s+")))
+;               request))]
+;     (let [{:keys [response_type redirect_uri]
+;            :as request}
+;           (-> request
+;               (split-spaces :scope)
+;               (split-spaces :response_type))]
+;       (cond
+;         (empty? redirect_uri)
+;         (core/handle-request-error
+;           {:type "missing_redirect"
+;            :request request})
+;         ;;
+;         (empty? response_type)
+;         (core/handle-request-error
+;           {:type "missing_response_type"
+;            :request request})
+;         ;;
+;         (contains? response_type "code")
+;         (authorization-code-flow request)
+;         ;;
+;         :else
+;         (core/handle-request-error
+;           {:type "server_error"
+;            :request request})))))
 
 
 (defmethod grant-token "authorization_code"
   [request]
   (let [{:keys [code redirect_uri client_id client_secret grant_type]} request
-        {request-redirect-uri :redirect_uri
-         :as original-request} (get-code-request code)
-        session (get-code-session code)
-        {:as client id :id} (core/get-session-client session)
+        {{request-redirect-uri :redirect_uri
+          :as original-request} :request
+         client-euuid :client
+         :keys [:session expires-at]} (get @*authorization-codes* code) 
+        {id :id :as client} (get @core/*clients* client-euuid)
         {:keys [active]} (core/get-session-resource-owner session)]
     (log/debugf
       "[%s] Processing token code grant for code: %s\n%s"
@@ -263,6 +351,12 @@
             "Client sent access token request"
             "for grant type that is outside"
             "of client configured privileges")
+          ;;
+          (< expires-at (System/currentTimeMillis))
+          (token-error
+            "invalid_request"
+            "This device code has expired. Restart"
+            "authentication process.")
           ;; If redirect uri doesn't match
           (not= request-redirect-uri redirect_uri)
           (token-error
@@ -290,6 +384,7 @@
           ;;
           (not active)
           (do
+            (delete code)
             (core/kill-session session)
             owner-not-authorized)
           ;; Issue that token
@@ -303,45 +398,104 @@
              :body response}))))))
 
 
-(defn authorization-request
-  [request]
-  (log/debugf "Authorizing request:\n%s" request)
-  (letfn [(split-spaces [request k]
-            (if-some [val (get request k)]
-              (assoc request k (set (str/split val #"\s+")))
-              request))]
-    (let [{:keys [response_type redirect_uri]
-           :as request}
-          (-> request
-              (split-spaces :scope)
-              (split-spaces :response_type))]
-      (cond
-        (empty? redirect_uri)
-        (core/handle-request-error
-          {:type "missing_redirect"
-           :request request})
-        ;;
-        (empty? response_type)
-        (core/handle-request-error
-          {:type "missing_response_type"
-           :request request})
-        ;;
-        (contains? response_type "code")
-        (authorization-code-flow request)
-        ;;
-        :else
-        (core/handle-request-error
-          {:type "server_error"
-           :request request})))))
+
+(defn mark-code-issued [session code]
+  (swap! *authorization-codes* update code
+         (fn [data]
+           (assoc data
+                  :issued? true
+                  :session session
+                  :expires-at (-> 
+                                (System/currentTimeMillis)
+                                (+ (vura/minutes 5)))))))
 
 
 (def start-authorization-code-flow
   {:name ::authorize-request
    :enter
-   (fn [{{:keys [params]} :request :as context}]
-     (chain/terminate
-       (assoc context :response
-              (authorization-request params))))})
+   (fn [{{request :params
+          :keys [remote-addr]
+          {:keys [user-agent]} :headers} :request :as ctx}]
+     (log/debugf "Authorizing request:\n%s" request)
+     (letfn [(split-spaces [request k]
+               (if-some [val (get request k)]
+                 (assoc request k (set (str/split val #"\s+")))
+                 request))
+             (error [data]
+               (chain/terminate
+                 (assoc ctx :response (core/handle-request-error data))))]
+       (let [{:keys [response_type redirect_uri]
+              :as request}
+             (-> request
+                 (split-spaces :scope)
+                 (split-spaces :response_type))]
+         (cond
+           (empty? redirect_uri)
+           (error {:type "missing_redirect"
+                   :request request})
+           ;;
+           (empty? response_type)
+           (error {:type "missing_response_type"
+                   :request request})
+           ;;
+           (contains? response_type "code")
+           (let [{cookie-session :idsrv/session :as request
+                  :keys [prompt redirect_uri state]} request
+                 ;;
+                 silent? (and (some? cookie-session) (= prompt "none"))]
+             (letfn [(save
+                       ([code data]
+                        (swap! *authorization-codes*
+                               (fn [codes]
+                                 (assoc codes code (merge data {:request request}))))))]
+               (cond
+                 ;; Check that there isn't some other code active
+                 (and silent? (contains? (core/get-session cookie-session) :code)) 
+                 (error
+                   {:request request
+                    :type "invalid_request"
+                    :description "Your session has unused access code active"})
+                 ;; When silent and above checks passed, than return directly to
+                 ;; requested redirect_uri, with prepared authorization code
+                 silent?
+                 (try
+
+                   (let [{client-euuid :euuid} (validate-client request)
+                         code (gen-authorization-code)]
+                     (save code {:issued? true
+                                 :client client-euuid
+                                 :user/agent user-agent
+                                 :user/ip remote-addr})
+                     (mark-code-issued cookie-session code)
+                     (assoc ctx
+                            ::code code
+                            :respone {:status 302
+                                      :headers {"Location" (str redirect_uri "?" (codec/form-encode {:state state :code code}))}}))
+                   (catch clojure.lang.ExceptionInfo ex
+                     (core/handle-request-error (ex-data ex))))
+                 ;;
+                 :else
+                 (try
+                   (let [code (gen-authorization-code)
+                         {client-euuid :euuid} (validate-client request)]
+                     (save code {:client client-euuid
+                                 :user/agent user-agent
+                                 :user/ip remote-addr})
+                     (assoc ctx
+                            :code code
+                            :response {:status 302
+                                       :headers {"Location" (str "/oauth/login?" (codec/form-encode
+                                                                                   {:state (core/encrypt
+                                                                                             {:authorization-code code
+                                                                                              :evo "ti kurac"
+                                                                                              :flow "authorization_code"})}))
+                                                 "Cache-Control" "no-cache"}}))
+                   (catch clojure.lang.ExceptionInfo ex
+                     (error (ex-data ex)))))))
+           ;;
+           :else
+           (error {:type "server_error"
+                   :request request})))))})
 
 
 ;; TODO - change this to point to /oauth/status
@@ -408,3 +562,9 @@
       ["/oauth/authorize" :get (conj core/oauth-common-interceptor core/idsrv-session-read start-authorization-code-flow)
      :route-name ::authorize-request]
       ["/oauth/status" :get status-page :route-name ::oauth-status]}))
+
+
+
+
+
+

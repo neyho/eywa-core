@@ -13,7 +13,10 @@
     [next.jdbc.prepare :as p]
     [neyho.eywa.transit :refer [<-transit ->transit]]
     [neyho.eywa.iam.access :as access]
-    [neyho.eywa.iam.access.context :refer [*roles* *user*]]
+    [neyho.eywa.iam.access.context
+     :refer [*roles*
+             *user*
+             *groups*]]
     [neyho.eywa.db :refer [*db*] :as db]
     [neyho.eywa.db.postgres.next :as postgres]
     [neyho.eywa.dataset.core
@@ -804,18 +807,18 @@
 ;;
 (defn- flatten-selection [s]
   (reduce
-   (fn [r [k v]]
-     (assoc r
-       (-> k name keyword)
-       (let [[{:keys [selections]}] v]
-         (case selections
-           #:Currency{:amount [nil], :currency [nil]} [nil]
-           #:CurrencyInput{:amount [nil], :currency [nil]} [nil]
-           #:TimePeriod{:start [nil], :end [nil]} [nil]
-           #:TimePeriodInput{:start [nil], :end [nil]} [nil]
-           v))))
-   nil
-   s))
+    (fn [r [k v]]
+      (assoc r
+             (-> k name keyword)
+             (let [[{:keys [selections]}] v]
+               (case selections
+                 #:Currency{:amount [nil], :currency [nil]} [nil]
+                 #:CurrencyInput{:amount [nil], :currency [nil]} [nil]
+                 #:TimePeriod{:start [nil], :end [nil]} [nil]
+                 #:TimePeriodInput{:start [nil], :end [nil]} [nil]
+                 v))))
+    nil
+    s))
 
 
 (def scalar-types
@@ -1330,13 +1333,13 @@
                               statements')
                             ")"))))
                  ;; Ignore limit distinct offset
-                (:_limit :_offset :_order_by :_distinct)
-                (do
-                  ; (log/trace
-                  ;   :query.selection :ignore/field
-                  ;   :field field
-                  ;   :constraints constraints)
-                  [statements data])
+                 (:_limit :_offset :_order_by :_distinct)
+                 (do
+                   ; (log/trace
+                   ;   :query.selection :ignore/field
+                   ;   :field field
+                   ;   :constraints constraints)
+                   [statements data])
                 ;; Default handlers
                 (if (keyword? constraints)
                   (case constraints

@@ -15,8 +15,7 @@
     [buddy.core.codecs :as codecs]
     [buddy.core.crypto :as crypto]
     [neyho.eywa.iam
-     :refer [get-client
-             validate-password
+     :refer [validate-password
              get-user-details]]
     [neyho.eywa.env :as env]
     [io.pedestal.http.body-params :as bp]
@@ -140,6 +139,14 @@
     (get @*clients* euuid)))
 
 
+(defn get-resource-owner [euuid]
+  ; (def euuid #uuid "bb3e4d1b-d3a0-434a-a60b-beb0d1bf52af")
+  (get @*resource-owners* euuid))
+
+
+
+
+
 (defn get-session-resource-owner [session]
   (let [euuid (get-in @*sessions* [session :resource-owner])]
     (get @*resource-owners* euuid)))
@@ -189,9 +196,13 @@
   (let [euuid (get-in @*sessions* [session :resource-owner])]
     (swap! *sessions* update session dissoc :resource-owner)
     (when euuid
-      (swap! *resource-owners* update euuid
-             (fn [current]
-               (update current :sessions (fnil disj #{}) session))))
+      (swap! *resource-owners*
+             (fn [resource-owners]
+               (let [{{:keys [sessions]} euuid :as resource-owners}
+                     (update-in resource-owners [euuid :sessions] (fnil disj #{}) session)]
+                 (if (empty? sessions)
+                   (dissoc resource-owners euuid)
+                   resource-owners)))))
     nil))
 
 
@@ -262,6 +273,21 @@
     nil))
 
 
+(defn get-session-tokens [session]
+  (reduce
+    (fn [r tokens]
+      (reduce
+        (fn [r [k token]] (update r k (fnil conj []) token))
+        r
+        (partition 2 (interleave (keys tokens) (vals tokens)))))
+    nil
+    (vals (:tokens (get-session session)))))
+
+
+(comment
+  (def session "YiSclFaUmCFKhSRrHNshCYDKlMjQKz"))
+
+
 (defn get-redirection-uris [session]
   (let [{{:strs [redirections]} :settings} (get-session-client session)]
     redirections))
@@ -302,12 +328,15 @@
       "of the server."]}))
 
 
+;; TODO - this is bad... Go through OAuth spec check what
+;; should be returned to client and what should be redirected
+;; to AS error page... This is the only reason this function exists
+;; It is used in authorization_code namespace
 (defn handle-request-error
   [{t :type
     session :session
     request :request
-    description :description
-    :as data}]
+    description :description}]
   (let [{:keys [state redirect_uri]} (or
                                        request
                                        (:request (get-session session)))
@@ -319,8 +348,10 @@
         "missing_redirect" "redirect_missmatch" "missing_response_type"
         "client_not_registered" "corrupt_session" "unsupported_grant_type")
       {:status 302
-       :headers {"Location" (str "/oauth2/request_error?"
-                                 (codec/form-encode (select-keys data [:type])))
+       :headers {"Location" (str "/oauth/status?"
+                                 (codec/form-encode
+                                   {:value "error"
+                                    :error t}))
                  "Cache-Control" "no-cache"}}
       ;; Otherwise
       {:status 302

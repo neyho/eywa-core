@@ -20,16 +20,12 @@
     [com.walmartlabs.lacinia.pedestal2 :as lp]
     neyho.eywa.lacinia
     [neyho.eywa.iam.oidc :as oidc]
+    [neyho.eywa.iam.access.context :refer [*user* *roles* *groups*]]
     [neyho.eywa.server.jetty :as jetty]
     [neyho.eywa.server.interceptors :refer [json-response-interceptor]]
     [neyho.eywa.server.interceptors.util :refer [coerce-body]]
     [neyho.eywa.server.interceptors.authentication :as authentication
-     :refer [app-login
-             login
-             logout
-             eywa-context
-             user-data
-             user-token
+     :refer [user-data
              authenticate
              authenticate-or-redirect
              access-tree]]
@@ -185,12 +181,7 @@
 
 
 (def default-routes
-  #{["/index.html" :post [content-neg-intc login] :route-name :login/authenticate]
-    ;; TODO - this is DEPRECATED... New IAM will use this path for serving login pages
-    ; ["/login" :get [coerce-body content-neg-intc custom-logins] :route-name :eywa.web.login/get]
-    ; ["/login" :post [coerce-body content-neg-intc append-account login] :route-name :eywa.web.login/post]
-    ;;
-    ["/app/*app"
+  #{["/app/*app"
      :get [(conneg/negotiate-content ["text/css" 
                                       "text/javascript" 
                                       "text/html" 
@@ -201,18 +192,14 @@
            authenticate-or-redirect 
            apps]
      :route-name :eywa.web.app/get]
-    ["/eywa/login" :post [content-neg-intc (body-params/body-params) keyword-params app-login]]
     ["/eywa/avatars/*avatar"
      :get [authenticate
            (conneg/negotiate-content ["application/octet-stream" "image/jpeg" "image/jpeg"])
            coerce-body
            avatars]
      :route-name :eywa.avatars/get]
-    ["/eywa/docs/*" :get [docs] :route-name :eywa.docs]
-    ["/eywa/token" :get [authenticate user-token] :route-name :eywa.token/reflector]
     ["/eywa/whoami" :get [authenticate coerce-body content-neg-intc user-data] :route-name :eywa.identity/get]
-    ["/eywa/access" :get [authenticate coerce-body content-neg-intc access-tree] :route-name :eywa.access/get]
-    ["/eywa/logout" :get [authenticate coerce-body content-neg-intc logout] :route-name :eywa.logout/get]})
+    ["/eywa/access" :get [authenticate coerce-body content-neg-intc access-tree] :route-name :eywa.access/get]})
 
 
 (def graphiql-spa
@@ -244,13 +231,30 @@
 (def graphql-routes
   (let [_schema (fn [] (deref neyho.eywa.lacinia/compiled))
         options {:api-path "/graphql"}
-        interceptors (->
-                       (lp/default-interceptors _schema nil options)
-                       (assoc 2 json-response-interceptor)
-                       (assoc 10 eywa-context))]
+        wrapped-query-executor {:enter (fn [{:eywa/keys [user roles groups]
+                                             :as ctx}]
+                                         (binding [*user* user
+                                                   *roles* roles
+                                                   *groups* groups]
+                                           ((:enter lp/query-executor-handler) ctx)))}
+        interceptors [authenticate
+                      lp/initialize-tracing-interceptor
+                      json-response-interceptor
+                      lp/error-response-interceptor
+                      lp/body-data-interceptor
+                      lp/graphql-data-interceptor
+                      lp/status-conversion-interceptor
+                      lp/missing-query-interceptor
+                      (lp/query-parser-interceptor _schema (:parsed-query-cache options))
+                      lp/disallow-subscriptions-interceptor
+                      lp/prepare-query-interceptor
+                      (lp/inject-app-context-interceptor nil)
+                      lp/enable-tracing-interceptor
+                      wrapped-query-executor]]
     (into
       #{["/graphql" :post interceptors :route-name ::graphql-api]
         ["/graphql/*path" :get graphiql :route-name ::graphql-ide]})))
+
 
 
 (defonce server (atom nil))

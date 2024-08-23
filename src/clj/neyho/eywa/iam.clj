@@ -285,6 +285,11 @@
         "login-page" "http://localhost:8080/oauth/login/index.html",
         "redirections"
         ["http://localhost:8080/eywa/"
+         "http://localhost:8080/eywa"
+         "http://localhost:8080/eywa/callback"
+         "http://localhost:8080/eywa/silent-callback"
+         "http://localhost:8000/eywa/callback"
+         "http://localhost:8000/eywa/silent-callback"
          "http://localhost:8080/app/kbdev"
          "http://localhost:5173/authentication/callback"
          "http://localhost:1234/sample.html"
@@ -303,6 +308,7 @@
         "allowed-grants" ["refresh_token" "code" "token" "id_token"],
         "logout-redirections" ["http://localhost:5173/"
                                "http://localhost:1234/"
+                               "http://localhost:8000/eywa/"
                                "http://localhost:1234/code-flow-duendesoftware/sample.html"]
         "refresh-tokens" true}}))
 

@@ -20,6 +20,7 @@
 
 (defonce ^:dynamic *tokens* (atom nil))
 
+
 (let [alphabet "ACDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]
   (def gen-token (nano-id/custom alphabet 50)))
 
@@ -84,7 +85,7 @@
         (when (= token _token)
           (reduced audience)))
       nil
-      session)))
+      (:tokens (core/get-session session)))))
 
 
 (defn get-session-access-token
@@ -252,13 +253,21 @@
   [{:keys [refresh_token scope audience]
     cookie-session :idsrv/session
     :as request}]
+  ; (comment
+  ;   (def refresh_token "rPDPDWYaoCLRdDrFIsdhiaGUMbVqvlXQslKIgoMMISSgQSSKbn")
+  ;   (def session "MbLqqFaQUJnrXfdrmsoAOOEbCMswHg"))
   (let [session (get-token-session :refresh_token refresh_token)
         {{refresh? "refresh-tokens"} :settings :as client} (core/get-session-client session)
         {:keys [active]} (core/get-session-resource-owner session)
         scope (or
                 scope
                 (core/get-session-audience-scope session audience))
-        current-refresh-token (get-in (core/get-session session) [:tokens audience :refresh_token])]
+        audience (or
+                   audience
+                   (get-token-audience :refresh_token refresh_token))
+        current-refresh-token (get-in
+                                (core/get-session session)
+                                [:tokens audience :refresh_token])]
     (when session (revoke-session-tokens session audience))
     (cond
       ;;
@@ -338,6 +347,16 @@
                              :headers {"Content-Type" "application/json"
                                        "Cache-Control" "no-store"
                                        "Pragma" "no-cache"}}))))))}))
+
+
+(defn delete [tokens]
+  (swap! *tokens*
+         (fn [state]
+           (reduce-kv
+             (fn [state token-type tokens-to-delete]
+               (update state token-type #(apply dissoc % tokens-to-delete)))
+             state
+             tokens))))
 
 
 ; (defn generate-code-challenge

@@ -65,7 +65,6 @@
       data)))
 
 
-
 (defn load-rules
   []
   (alter-var-root #'*rules* (fn [_] (transform-roles-data (get-roles-access-data)))))
@@ -95,25 +94,25 @@
        (throw ex)))))
 
 
-
 (defn relation-allows?
   ([relation direction rules] (relation-allows? relation direction rules *roles*))
   ([relation direction rules roles]
    (try
      (if (or (nil? *rules*) (superuser? roles)) true
        (letfn [(ok? [rule]
-                 (boolean (not-empty (set/intersection roles (get-in *rules* [:relation relation direction rule])))))]
+                 (boolean
+                   (not-empty
+                     (set/intersection roles (get-in *rules* [:relation relation direction rule])))))]
          ; (def relation relation)
          ; (def rules rules)
          ; (def roles roles)
          ; (def direction direction)
          ; (def rule (first rules))
-         #_(def roles #{#uuid "97b95ab8-4ca3-498d-b578-b12e6d1a2df8"})
+         ; (def roles #{#uuid "97b95ab8-4ca3-498d-b578-b12e6d1a2df8"})
          (some ok? rules)))
      (catch Throwable ex
        (log/error "[IAM] Couldn't evaluate relation-allows for roles %s" roles)
        (throw ex)))))
-
 
 
 (defn start-enforcing
@@ -163,7 +162,6 @@
       ;; and repeat process
       (recur (async/<! delta-chan)))
     (load-rules)))
-
 
 
 (comment

@@ -27,6 +27,10 @@
 (defonce ^:dynamic *device-codes* (atom nil))
 
 
+(defn delete [code]
+  (swap! *device-codes* dissoc code))
+
+
 (def gen-device-code (nano-id/custom "ACDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" 20))
 ; (def gen-user-code (nano-id/custom "0123456789" 6))
 (let [gen-par (nano-id/custom "ACDEFGHIJKLMNOPQRSTUVWXYZ" 4)]
@@ -152,7 +156,7 @@
         ;;
         (not active)
         (do
-          (swap! *device-codes* dissoc device_code)
+          (delete device_code)
           (core/kill-session session)
           owner-not-authorized)
         ;;
@@ -391,3 +395,6 @@
       ;;
       ["/oauth/device/confirm" :get [user-code-confirm-page] :route-name ::serve-confirm-page]
       ["/oauth/device/confirm" :post [user-code-confirm-page] :route-name ::confirm-device]}))
+
+
+

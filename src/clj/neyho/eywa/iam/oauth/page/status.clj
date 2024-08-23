@@ -71,20 +71,28 @@
           (cond
             ;;
             error
-            (str
+            (letfn [(with-please [x] (str "\n Please restart authentication process"))
+                    (contact-support [x] (str "\n Please contact application support"))]
               (case error
-                "broken_flow" "Authorization flow is broken."
-                "device_code_expired" "User code that you have entered has expired."
-                "already_authorized" "Somebody already authenticated using same code"
-                "ip_address" "Registered potentially malicious IP address change action."
-                "user_agent" "Registered potentially malicious user agent change action."
-                "challenge" "Registered potentially malicious challenge action. "
-                nil)
-              "\n Please restart authentication process")
+                "broken_flow" (with-please "Authorization flow is broken.")
+                "device_code_expired" (with-please "User code that you have entered has expired.")
+                "already_authorized" (with-please "Somebody already authenticated using same code")
+                "ip_address" (with-please "Registered potentially malicious IP address change action.")
+                "user_agent" (with-please "Registered potentially malicious user agent change action.")
+                "challenge" (with-please "Registered potentially malicious challenge action. ")
+                "corrupt_session" (contact-support "Session id wasn't provided by access server")
+                "missing_response_type" (contact-support "Client didn't specify response_type")
+                "client_not_registered" (contact-support "Client is not registered")
+                "missing_redirect" (contact-support "Client authorization request didn't specify response_type")
+                "redirect_missmatch" (contact-support "Couldn't match requested redirect to any of configured redirects for client")
+                "no_redirections" (contact-support "Client doesn't has 0 configured redirections")
+                ;; 
+                "unsupported_grant_type" (contact-support "Grant type specified isn't supported")
+                nil))
             ;;
             (and user client)
             (let [client (get @core/*clients* (java.util.UUID/fromString client))]
-              [:span "Client " [:b (:name client)] " is authorized by " [:b user]])
+              [:span "Client " [:b (:name client)] " is authorized by " [:b user] " user."])
             ;;
             :else nil)]]]]
       [:script {:src "js/login.js"}]])))

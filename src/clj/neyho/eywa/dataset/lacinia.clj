@@ -735,8 +735,7 @@
                       :resolve 
                       (fn getter [context data _]
                         (try
-                          (binding [access/*roles* (:roles context)]
-                            (get-entity *db* (:euuid entity) data (executor/selections-tree context)))
+                          (get-entity *db* (:euuid entity) data (executor/selections-tree context))
                           (catch Throwable e
                             (log/errorf e  "Couldn't resolve SYNC")
                             (throw e))))}
@@ -759,14 +758,13 @@
                          {:type (list 'list (entity->gql-object ename))
                           :resolve 
                           (fn search [context data _]
-                            (binding [access/*roles* (:roles context)]
-                              (try
-                                (log-query context)
-                                (lacinia.resolve/resolve-as
-                                  (search-entity *db* euuid data (executor/selections-tree context)))
-                                (catch Throwable e
-                                  (log/error e  "Couldn't search dataset")
-                                  (throw e)))))}
+                            (try
+                              (log-query context)
+                              (lacinia.resolve/resolve-as
+                                (search-entity *db* euuid data (executor/selections-tree context)))
+                              (catch Throwable e
+                                (log/error e  "Couldn't search dataset")
+                                (throw e))))}
                          args (assoc :args args)))
                      ;; AGGREGATE
                      (csk/->camelCaseKeyword (str "aggregate " ename))
@@ -782,19 +780,18 @@
                          {:type (entity->aggregate-object entity) 
                           :resolve 
                           (fn aggregate [context data _]
-                            (binding [access/*roles* (:roles context)]
-                              (try
-                                (log-query context)
-                                (let [selection (executor/selections-tree context)]
-                                  (log/debugf
-                                    "Aggregating entity\n%s"
-                                    {:entity ename 
-                                     :data data
-                                     :selection selection})
-                                  (aggregate-entity *db* euuid data selection))
-                                (catch Throwable e
-                                  (log/errorf e  "Couldn't resolve AGGREGATE")
-                                  (throw e)))))}
+                            (try
+                              (log-query context)
+                              (let [selection (executor/selections-tree context)]
+                                (log/debugf
+                                  "Aggregating entity\n%s"
+                                  {:entity ename 
+                                   :data data
+                                   :selection selection})
+                                (aggregate-entity *db* euuid data selection))
+                              (catch Throwable e
+                                (log/errorf e  "Couldn't resolve AGGREGATE")
+                                (throw e))))}
                          args (assoc :args args))))
               ;; Add recursive getters
               (not-empty recursions)
@@ -813,18 +810,17 @@
                            {:entity ename
                             :relation l
                             :data data})
-                         (binding [access/*roles* (:roles context)]
-                           (try
-                             (log-query context)
-                             (get-entity-tree 
-                               *db*
-                               euuid 
-                               (:euuid data) 
-                               (keyword l) 
-                               (executor/selections-tree context))
-                             (catch Throwable e
-                               (log/error e "Couldn't resolve GET TREE")
-                               (throw e)))))}
+                         (try
+                           (log-query context)
+                           (get-entity-tree 
+                             *db*
+                             euuid 
+                             (:euuid data) 
+                             (keyword l) 
+                             (executor/selections-tree context))
+                           (catch Throwable e
+                             (log/error e "Couldn't resolve GET TREE")
+                             (throw e))))}
                       ;;
                       (csk/->camelCaseKeyword (str "search " ename " tree by " l))
                       (let [args (reduce
@@ -843,19 +839,18 @@
                           {:type (list 'list (entity->gql-object ename))
                            :resolve 
                            (fn tree-search [context data _]
-                             (binding [access/*roles* (:roles context)]
-                               (try
-                                 (log-query context)
-                                 (let [selection (executor/selections-tree context)] 
-                                   (log/debugf
-                                     "Searching entity tree\n%s"
-                                     {:name ename 
-                                      :data data 
-                                      :selection selection})
-                                   (search-entity-tree *db* euuid (keyword (normalize-name l)) data selection))
-                                 (catch Throwable e
-                                   (log/error e "Couldn't resolve SEARCH TREE")
-                                   (throw e)))))}
+                             (try
+                               (log-query context)
+                               (let [selection (executor/selections-tree context)] 
+                                 (log/debugf
+                                   "Searching entity tree\n%s"
+                                   {:name ename 
+                                    :data data 
+                                    :selection selection})
+                                 (search-entity-tree *db* euuid (keyword (normalize-name l)) data selection))
+                               (catch Throwable e
+                                 (log/error e "Couldn't resolve SEARCH TREE")
+                                 (throw e))))}
                           args (assoc :args args)))
                       ;;
                       (csk/->camelCaseKeyword (str "aggregate " ename " tree by " l))
@@ -892,18 +887,15 @@
 
 (defn sync-mutation
   [{{euuid :euuid} :eywa/entity
-    :keys [user roles]
     :as context} data _]
-  (binding [access/*user* user
-            access/*roles* roles]
-    (log-query context)
-    (let [{row :euuid} (sync-entity *db* euuid (val (first data)))
-          selection (executor/selections-tree context)
-          ; _ (log/infof
-          ;     :message "Getting entity"
-          ;     :entity ename :row row :selection selection)
-          value (get-entity *db* euuid {:euuid row} selection)]
-      value)))
+  (log-query context)
+  (let [{row :euuid} (sync-entity *db* euuid (val (first data)))
+        selection (executor/selections-tree context)
+        ; _ (log/infof
+        ;     :message "Getting entity"
+        ;     :entity ename :row row :selection selection)
+        value (get-entity *db* euuid {:euuid row} selection)]
+    value))
 
 
 (defn sync-list-mutation
@@ -913,16 +905,14 @@
    data
    _]
   (log-query context)
-  (binding [access/*user* user
-            access/*roles* roles] 
-    (let [rows (sync-entity *db* euuid (val (first data)))
-          rows' (mapv :euuid rows)
-          selection (executor/selections-tree context)
-          value (search-entity 
-                  *db* euuid
-                  {:_where {:euuid {:_in rows'}}}
-                  selection)]
-      value)))
+  (let [rows (sync-entity *db* euuid (val (first data)))
+        rows' (mapv :euuid rows)
+        selection (executor/selections-tree context)
+        value (search-entity 
+                *db* euuid
+                {:_where {:euuid {:_in rows'}}}
+                selection)]
+    value))
 
 
 (defn stack-mutation
@@ -931,12 +921,10 @@
    data
    _]
   (log-query context)
-  (binding [access/*user* user
-            access/*roles* roles] 
-    (let [{row :euuid} (stack-entity *db* euuid (val (first data)))
-          selection (executor/selections-tree context)
-          value (get-entity *db* euuid {:euuid row} selection)]
-      value)))
+  (let [{row :euuid} (stack-entity *db* euuid (val (first data)))
+        selection (executor/selections-tree context)
+        value (get-entity *db* euuid {:euuid row} selection)]
+    value))
 
 (defn stack-list-mutation
   [{:keys [user roles]
@@ -945,16 +933,14 @@
    data
    _]
   (log-query context)
-  (binding [access/*user* user
-            access/*roles* roles]
-    (let [rows (stack-entity *db* euuid (val (first data)))
-          rows' (mapv :euuid rows)
-          selection (executor/selections-tree context)
-          value (search-entity 
-                  *db*  euuid
-                  {:_where {:euuid {:_in rows'}}}
-                  selection)]
-      value)))
+  (let [rows (stack-entity *db* euuid (val (first data)))
+        rows' (mapv :euuid rows)
+        selection (executor/selections-tree context)
+        value (search-entity 
+                *db*  euuid
+                {:_where {:euuid {:_in rows'}}}
+                selection)]
+    value))
 
 
 (defn slice-mutation
@@ -970,9 +956,7 @@
     ;   :euuid euuid :args args :selection selection
     ;   (with-out-str (pprint args)) 
     ;   (with-out-str (pprint selection)))
-    (binding [access/*user* user
-              access/*roles* roles]
-      (slice-entity *db* euuid args selection))))
+    (slice-entity *db* euuid args selection)))
 
 
 (defn delete-mutation
@@ -981,8 +965,7 @@
    _]
   (try
     (log-query context)
-    (binding [access/*roles* (:roles context)]
-      (delete-entity *db* euuid data))
+    (delete-entity *db* euuid data)
     true 
     (catch Throwable e
       (log/error
@@ -999,9 +982,7 @@
   (log-query context)
   (let [args data
         selection (executor/selections-tree context)] 
-    (binding [access/*user* user
-              access/*roles* roles]
-      (purge-entity *db* euuid args selection))))
+    (purge-entity *db* euuid args selection)))
 
 
 (defn generate-lacinia-mutations [model]

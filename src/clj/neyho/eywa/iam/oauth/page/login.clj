@@ -98,7 +98,7 @@
 
 
 (defn login-html
-  ([{error :neyho.eywa.iam.oauth.login/error :as data}]
+  ([{error :neyho.eywa.iam.oauth.login/error}]
    (html
      [:head
       [:meta {:charset "UTF-8"}]
@@ -119,10 +119,10 @@
          :x 0 :y 0 :height 1000 :width 1000
          :href "https://www.eywaonline.com/eywa/images/login_normal.png"}]]
       [:div {:class $login-wrapper}
-       [:div
-        {:class $login-greeting}
-        [:h1 "Hellow mate,"]
-        [:h4 "Welcome to EYWA authentication page"]]
+       ; [:div
+       ;  {:class $login-greeting}
+       ;  [:h1 "Hellow mate,"]
+       ;  [:h4 "Welcome to EYWA authentication page"]]
        [:form
         {:class $login-form
          :method "post"}

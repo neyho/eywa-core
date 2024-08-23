@@ -21,10 +21,8 @@
     neyho.eywa.dataset.default-model
     neyho.eywa.dataset.postgres
     neyho.eywa.dataset.postgres.query
-    neyho.eywa.iam
-    neyho.eywa.iam.uuids
-    [neyho.eywa.iam.oauth :as oauth]
-    [neyho.eywa.server.interceptors.authentication :refer [init-default-encryption]])
+    ; neyho.eywa.iam.uuids
+    [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
 
 
@@ -47,7 +45,6 @@
 (defn warmup
   []
   (neyho.eywa.transit/init)
-  (init-default-encryption)
   (neyho.eywa.db.postgres/init)
   (neyho.eywa.dataset/init))
 
@@ -262,7 +259,6 @@
                   (neyho.eywa.transit/init)
                   (neyho.eywa.iam/init-default-encryption)
                   (oauth/start-maintenance)
-                  (init-default-encryption)
                   (neyho.eywa.db.postgres/init)
                   (neyho.eywa.dataset/init)
                   (neyho.eywa.avatars.postgres/init)
