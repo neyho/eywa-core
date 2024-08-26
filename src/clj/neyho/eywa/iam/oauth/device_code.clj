@@ -100,7 +100,6 @@
 
 (defmethod grant-token "urn:ietf:params:oauth:grant-type:device_code"
   [request]
-  (def request request)
   (let [{:keys [device_code client_id client_secret]} request
         {{:keys [scope audience] :as original-request} :request
          :keys [session delivered?]} (get @*device-codes* device_code)
@@ -171,7 +170,7 @@
         (let [response (json/write-str (token/generate client session original-request))]
           ; (swap! *device-codes* assoc-in [device_code :delivered?] true)
           (swap! *device-codes* dissoc device_code)
-          (core/set-session-audience-scope session audience scope)
+          ; (core/set-session-audience-scope session audience scope)
           {:status 200
            :headers {"Content-Type" "application/json;charset=UTF-8"
                      "Pragma" "no-cache"

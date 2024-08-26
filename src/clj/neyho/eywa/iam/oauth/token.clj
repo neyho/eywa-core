@@ -51,6 +51,7 @@
 
 
 (comment
+  (keys @core/*sessions*)
   (token-error
     400
     "authorization_pending"
@@ -58,7 +59,6 @@
 
 
 (defn set-session-tokens
-  ([session tokens] (set-session-tokens session nil tokens))
   ([session audience tokens]
    (swap! core/*sessions* assoc-in [session :tokens audience] tokens)
    (swap! *tokens*
@@ -101,15 +101,16 @@
 
 
 (defn revoke-token
-  ([session token-key] (revoke-token session nil token-key))
-  ([session audience token-key]
-   (let [{{{token token-key} audience} :tokens} (core/get-session session)]
+  ([token-key token]
+   (let [session (get-token-session token-key token)
+         audience (get-token-audience token-key token)]
      (swap! core/*sessions* update-in [session :tokens audience] dissoc token-key)
      (when token
        (swap! *tokens* update token-key dissoc token)
        (core/publish :revoke/token
                      {:token/key token-key
                       :token/data token
+                      :audience audience
                       :session session})))
    nil))
 
@@ -120,8 +121,8 @@
      (revoke-session-tokens session audience)))
   ([session audience]
    (let [{{tokens audience} :tokens} (core/get-session session)]
-     (doseq [[token-key] tokens]
-       (revoke-token session audience token-key)))
+     (doseq [[token-key token] tokens]
+       (revoke-token token-key token)))
    nil))
 
 
@@ -193,6 +194,9 @@
 (defmethod grant-token :default [_] unsupported)
 
 
+(defn- issued-at? [token] (:at (meta token)))
+
+
 (defn generate
   [{{refresh? "refresh-tokens"} :settings :as client} session {:keys [audience scope client_id]}]
   (let [access-exp (-> 
@@ -227,7 +231,7 @@
                               (assoc tokens token (sign-token session token data)))
                             tokens
                             tokens)]
-        (when refresh-token (revoke-token session audience :refresh_token))
+        (when refresh-token (revoke-token :refresh_token refresh-token))
         (when session (set-session-tokens session audience signed-tokens))
         (assoc signed-tokens
                :type "Bearer"

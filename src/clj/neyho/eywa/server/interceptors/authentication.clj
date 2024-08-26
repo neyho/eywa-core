@@ -16,7 +16,7 @@
             (assoc ctx :response
                    {:status 200
                     :headers {"Content-Type" "application/json"}
-                    :body (get-resource-owner (:euuid (:eywa/user ctx)))}))})
+                    :body (dissoc (get-resource-owner (:euuid (:eywa/user ctx))) :_eid)}))})
 
 
 (defn get-token [{{:keys [headers]} :request}]

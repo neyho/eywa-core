@@ -176,7 +176,7 @@
                               {:status 302
                                :headers {"Location" (format
                                                       "/oauth/status?value=success&client=%s&user=%s"
-                                                      client (:username resource-owner))}}))))))
+                                                      client (:name resource-owner))}}))))))
              (assoc ctx :response
                     {:status 302
                      :headers {"Location" "/oauth/status?value=error&error=broken_flow"}}))))))})

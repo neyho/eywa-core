@@ -2,7 +2,7 @@
   {:shadow.css/include
    ["neyho/eywa/iam/oauth/page/common.css"]}
   (:require
-    [hiccup2.core :refer [html]]
+    [hiccup2.core :refer [html raw]]
     [shadow.css :refer [css]]))
 
 
@@ -130,7 +130,12 @@
               [:button.cancel {:type "submit" :name "action" :value "cancel"} "Cancel"]]
              [:div
               [:button.continue {:type "submit"} "Continue"]])]]]]]
-      [:script {:src "../js/login.js"}]])))
+      [:script {:src "../js/login.js"}]
+      [:script
+       (raw
+         "window.onload = function () {
+         document.getElementById(\"user_code\").focus()
+         }")]])))
 
 
 

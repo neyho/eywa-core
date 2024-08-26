@@ -144,9 +144,6 @@
   (get @*resource-owners* euuid))
 
 
-
-
-
 (defn get-session-resource-owner [session]
   (let [euuid (get-in @*sessions* [session :resource-owner])]
     (get @*resource-owners* euuid)))
@@ -500,19 +497,16 @@
   than timeout value. Default timeout is 1 minute"
   ([] (clean-sessions (vura/minutes 1)))
   ([timeout]
-   (let [now (System/currentTimeMillis)]
-     (letfn [(scan? [at]
-               (pos? (- now (+ at timeout))))]
-       (doseq [[session {:keys [code at tokens]}] @*sessions*
-               :when (scan? at)]
-         (cond
-           ;; Authorization code wasn't used
-           (and (some? code) (empty? tokens))
-           (do
-             (log/debugf "[%s] Session timed out. No code or access token was assigned to this session" session)
-             (kill-session session))
-           :else
-           nil))))))
+   (let [now (vura/time->value (vura/date))]
+     (doseq [[session {:keys [authorized-at tokens]}] @*sessions*
+             :let [authorized-at (when authorized-at (vura/time->value authorized-at))]
+             :when (or
+                     (nil? authorized-at)
+                     (and
+                       (< (+ authorized-at timeout) now)
+                       (every? empty? (vals tokens))))]
+       (log/debugf "[%s] Session timed out. No code or access token was assigned to this session" session)
+       (kill-session session)))))
 
 
 (defonce maintenance-agent (agent {:running true :period (vura/seconds 30)}))
@@ -521,10 +515,10 @@
 (defn maintenance
   [{:keys [running period] :as data}]
   (when running
-    (log/debug "OAuth2 maintenance start")
+    (log/debug "[OAuth] Maintenance start")
     (send-off *agent* maintenance)
-    (clean-sessions (vura/minutes 1))
-    (log/debug "OAuth2 maintenance finish")
+    (clean-sessions)
+    (log/debug "[OAuth] Maintenance finish")
     (Thread/sleep period)
     data))
 
