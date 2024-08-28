@@ -47,7 +47,8 @@
            token (get-token ctx)]
        (if (contains? (get @*tokens* :access_token) token)
          (let [token-context (get-token-context token)]
-           (if (nil? token-context) (chain/terminate not-authorized)
+           (if (nil? token-context)
+             (chain/terminate not-authorized)
              (merge ctx token-context)))
          (chain/terminate not-authorized))))})
 

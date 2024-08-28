@@ -21,12 +21,13 @@
     neyho.eywa.dataset.default-model
     neyho.eywa.dataset.postgres
     neyho.eywa.dataset.postgres.query
-    ; neyho.eywa.iam.uuids
+    neyho.eywa.iam
+    neyho.eywa.iam.uuids
     [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
 
 
-(def version "0.2.1")
+(def version "0.2.9")
 
 
 (defn setup

@@ -28,7 +28,8 @@
    (html
      [:head
       [:meta {:charset "UTF-8"}]
-      [:title "EYWA Login"]
+      [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0"}]
+      [:title "EYWA Code Check"]
       [:link {:rel "icon" :href "https://www.eywaonline.com/eywa/logo/eywa.svg" :crossorigin true}]
       [:link {:rel "preconnect" :href "https://fonts.googleapis.com"}]
       [:link {:rel "preconnect" :href "https://fonts.gstatic.com" :crossorigin true}]

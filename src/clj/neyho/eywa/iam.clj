@@ -243,7 +243,8 @@
 
 (comment
   (time (get-client "oauth_test_confidential"))
-  (get-client "XFYWDCONOFSZMTVAEOQHTZFHSUCTXQ")
+  (get-client "MUMADPADAKQHSDFDGFAEJZJXUSFJGFOOYTWVAUDEFVPURUOP")
+  (get-client "HJIUVTENYXXOKEMGYXEUEHIKVKCKJPCNCLSXLSKNMFVEMAWJ")
 
   (sync-entity
     neyho.eywa.iam.uuids/user
