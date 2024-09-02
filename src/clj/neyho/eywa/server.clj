@@ -4,6 +4,7 @@
     clojure.pprint
     clojure.string
     clojure.set
+    [environ.core :refer [env]]
     [clojure.tools.logging :as log]
     [ring.util.response :as response]
     [ring.middleware.head :as head]
@@ -380,6 +381,11 @@
                         context)))))})))
 
 
+(defn development-environment
+  [service-map]
+  (if-not (env :eywa-development) service-map
+    (http/dev-interceptors service-map)))
+
 
 (defn start
   ([] (start nil))
@@ -402,8 +408,11 @@
                     ::http/port port 
                     ::http/container-options {:context-configurator context-configurator}
                     ::http/interceptors
-                    [;(cors/allow-origin  {:allowed-origins (fn [origin] (contains? whitelisted-domains origin))})
-                     (cors/allow-origin  (constantly true))
+                    [;; Constantly true... If there is need for CORS protection than apply
+                     ;; CORS protection at that routes, otherwise this is necessary because
+                     ;; Access-Control-Allow-Headers have to be returned, otherwise browser
+                     ;; will report error
+                     (cors/allow-origin {:allowed-origins (constantly true)})
                      (middlewares/content-type {:mime-types {}})
                      route/query-params
                      (route/method-param)
@@ -415,7 +424,7 @@
                     ; ::http/secure-headers {:content-security-policy-settings {:object-src "none"}}
                     ; ::http/file-path "web/public"
                     }
-                   http/dev-interceptors
+                   development-environment
                    http/create-server)]
      (reset! server (http/start _server))
      (log/infof "EYWA server started @ %s:%s" host port))))

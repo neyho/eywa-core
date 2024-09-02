@@ -16,6 +16,7 @@
     [neyho.eywa.iam.oauth.token :as token]
     [io.pedestal.interceptor.chain :as chain]
     [io.pedestal.http.body-params :as bp]
+    [io.pedestal.http.cors :refer [allow-origin]]
     [io.pedestal.http.ring-middlewares :as middleware]))
 
 
@@ -272,16 +273,17 @@
          (assoc ctx :response response)))}))
 
 
-(let [logout (conj core/oauth-common-interceptor core/idsrv-session-remove core/idsrv-session-read logout-interceptor)]
+(let [logout (conj core/oauth-common-interceptor core/idsrv-session-remove core/idsrv-session-read logout-interceptor)
+      only-identity-provider (allow-origin {:allowed-origins [(core/domain+)]})]
   (def routes
-    #{["/oauth/login" :get [redirect-to-login] :route-name ::short-login]
-      ["/oauth/login/index.html" :post [middleware/cookies login-interceptor login-page] :route-name ::handle-login]
-      ["/oauth/login/index.html" :get (conj core/oauth-common-interceptor login-page) :route-name ::short-login-redirect]
+    #{["/oauth/login" :get [only-identity-provider redirect-to-login] :route-name ::short-login]
+      ["/oauth/login/index.html" :post [only-identity-provider middleware/cookies login-interceptor login-page] :route-name ::handle-login]
+      ["/oauth/login/index.html" :get (conj core/oauth-common-interceptor only-identity-provider login-page) :route-name ::short-login-redirect]
       ;; Login resources
-      ["/oauth/login/icons/*" :get [core/serve-resource] :route-name ::login-images]
-      ["/oauth/icons/*" :get [core/serve-resource] :route-name ::login-icons]
-      ["/oauth/css/*" :get [core/serve-resource] :route-name ::login-css]
-      ["/oauth/js/*" :get [core/serve-resource] :route-name ::login-js]
+      ["/oauth/login/icons/*" :get [only-identity-provider core/serve-resource] :route-name ::login-images]
+      ["/oauth/icons/*" :get [only-identity-provider core/serve-resource] :route-name ::login-icons]
+      ["/oauth/css/*" :get [only-identity-provider core/serve-resource] :route-name ::login-css]
+      ["/oauth/js/*" :get [only-identity-provider core/serve-resource] :route-name ::login-js]
       ;; Logout logic
       ["/oauth/logout" :post logout :route-name ::post-logout]
       ["/oauth/logout" :get  logout :route-name ::get-logout]}))

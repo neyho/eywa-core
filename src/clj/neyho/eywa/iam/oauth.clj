@@ -61,7 +61,7 @@
 (defn domain+
   ([] (domain+ ""))
   ([path]
-   (str env/iam-protocol "://" env/iam-domain path)))
+   (str env/iam-root-url path)))
 
 
 

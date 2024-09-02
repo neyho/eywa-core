@@ -11,5 +11,5 @@
 (def git-dir (str (fs/absolutize (env :eywa-git-dir (str home "/git")))))
 
 
-(def iam-domain (env :eywa-iam-root-url "localhost:8080"))
+(def iam-root-url (env :eywa-iam-root-url "http://localhost:8080"))
 (def iam-protocol (env :eywa-iam-protocol "http"))
