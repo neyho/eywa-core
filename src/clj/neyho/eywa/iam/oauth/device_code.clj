@@ -74,7 +74,7 @@
       (and (= type "public") (nil? secret))
       client
       ;;
-      (not (contains? grants "device_code"))
+      (not (contains? grants grant))
       (throw
         (ex-info
           "Client doesn't support device_code flow"

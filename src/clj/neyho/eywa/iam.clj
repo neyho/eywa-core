@@ -434,7 +434,8 @@
                        "login-page" "",
                        "redirections" [] ,
                        "token-expiry" {"id" 600, "access" 3600, "refresh" 129600},
-                       "allowed-grants" ["code" "device_code"],
+                       "allowed-grants" ["authorization_code"
+                                         "urn:ietf:params:oauth:grant-type:device_code"],
                        "refresh-tokens" true,
                        "logout-redirections" []}}
                      (update-in [:settings "redirections"] ensure (str domain "/eywa/callback"))

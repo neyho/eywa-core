@@ -81,7 +81,6 @@
            (empty? response_type)
            (error {:type "missing_response_type"
                    :request request})
-           ;; TODO - missing client cridentials flow
            ;;
            (contains? response_type "code")
            (let [{cookie-session :idsrv/session :as request

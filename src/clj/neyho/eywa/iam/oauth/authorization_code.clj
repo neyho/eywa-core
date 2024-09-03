@@ -136,6 +136,13 @@
              :request request
              :state state})))
       ;;
+      (not (contains? grants grant))
+      (throw
+        (ex-info
+          "Client doesn't support authorization_code flow"
+          {:type "access_denied"
+           :request request}))
+      ;;
       (and (= type "public") (nil? secret))
       (do
         (swap! core/*clients* assoc (:euuid client) client)
