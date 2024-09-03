@@ -136,11 +136,11 @@
         (not (contains? @*device-codes* device_code))
         (token-error
           "invalid_request"
-          "Provided authorization code is illegal!"
+          "Provided device code is illegal!"
           "Your request will be logged"
           "and processed")
         ;;
-        (not (contains? grants "device_code"))
+        (not (contains? grants grant))
         (token-error
           "unauthorized_grant"
           "Client sent access token request"

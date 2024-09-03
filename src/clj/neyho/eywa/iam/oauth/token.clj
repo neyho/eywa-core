@@ -181,6 +181,27 @@
     "token refresh requests."))
 
 
+(def authorization-code-not-supported
+  (token-error
+    "invalid_request"
+    "The client configuration does not support"
+    "token authorization code requests"))
+
+
+(def device-code-not-supported
+  (token-error
+    "invalid_request"
+    "The client configuration does not support"
+    "token device code requests"))
+
+
+(def client-credentials-not-supported
+  (token-error
+    "invalid_request"
+    "The client configuration does not support"
+    "token client credentials requests"))
+
+
 (def cookie-session-missmatch
   (token-error
     "invalid_request"
@@ -261,7 +282,7 @@
   ;   (def refresh_token "rPDPDWYaoCLRdDrFIsdhiaGUMbVqvlXQslKIgoMMISSgQSSKbn")
   ;   (def session "MbLqqFaQUJnrXfdrmsoAOOEbCMswHg"))
   (let [session (get-token-session :refresh_token refresh_token)
-        {{refresh? "refresh-tokens"} :settings :as client} (core/get-session-client session)
+        {{:strs [allowed-grants]} :settings :as client} (core/get-session-client session)
         {:keys [active]} (core/get-session-resource-owner session)
         scope (or
                 scope
@@ -271,17 +292,21 @@
                    (get-token-audience :refresh_token refresh_token))
         current-refresh-token (get-in
                                 (core/get-session session)
-                                [:tokens audience :refresh_token])]
+                                [:tokens audience :refresh_token])
+        grants (set allowed-grants)]
     (when session (revoke-session-tokens session audience))
     (cond
+      ;;
+      (not (contains? grants "refresh_token"))
+      (do
+        (core/kill-session session)
+        refresh-not-supported)
       ;;
       (not active)
       (do
         (core/kill-session session)
         owner-not-authorized)
       ;;
-      (not refresh?)
-      refresh-not-supported
       ;;
       (and cookie-session (not= cookie-session session))
       cookie-session-missmatch

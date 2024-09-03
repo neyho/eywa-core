@@ -184,22 +184,19 @@
             grants (set allowed-grants)]
         (cond
           ;;
+          (not (contains? grants "authorization_code"))
+          (token-error
+            "unauthorized_grant"
+            "Client sent access token request"
+            "for grant type that is outside"
+            "of client configured privileges")
+          ;;
           (not (contains? @*authorization-codes* code))
           (token-error
             "invalid_request"
             "Provided authorization code is illegal!"
             "Your request will be logged"
             "and processed")
-          ;;
-          (or
-            (and (not (contains? grants "authorization_code"))
-                 (not (contains? grants "code")))
-            (not= grant_type "authorization_code"))
-          (token-error
-            "unauthorized_grant"
-            "Client sent access token request"
-            "for grant type that is outside"
-            "of client configured privileges")
           ;;
           (< expires-at (System/currentTimeMillis))
           (token-error
