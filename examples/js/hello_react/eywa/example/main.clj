@@ -9,7 +9,7 @@
     neyho.eywa.db.postgres
     neyho.eywa.avatars.postgres
     neyho.eywa.authorization
-    neyho.eywa.administration
+    neyho.eywa.iam
     neyho.eywa.dataset
     neyho.eywa.dataset.default-model
     neyho.eywa.dataset.postgres
@@ -25,6 +25,6 @@
   (neyho.eywa.db.postgres/init)
   (neyho.eywa.dataset/init)
   (neyho.eywa.avatars.postgres/init)
-  (neyho.eywa.administration/init)
+  (neyho.eywa.iam/init)
   (neyho.eywa.server/start
     {:context-configurator neyho.eywa.server.jetty/context-configuration}))

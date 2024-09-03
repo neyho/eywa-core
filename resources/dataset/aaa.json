@@ -281,13 +281,6 @@
                 "~:unique": [
                   []
                 ]
-              },
-              "~:graphql": {
-                "~:interceptors": {
-                  "~:sync": [
-                    "~$neyho.eywa.administration/reload-schema"
-                  ]
-                }
               }
             }
           }
@@ -629,13 +622,6 @@
                     "~u56a8a49a-4125-4c96-8ab1-49e15c9b6e49"
                   ]
                 ]
-              },
-              "~:graphql": {
-                "~:interceptors": {
-                  "~:sync": [
-                    "~$neyho.eywa.administration/reload-schema"
-                  ]
-                }
               }
             }
           }

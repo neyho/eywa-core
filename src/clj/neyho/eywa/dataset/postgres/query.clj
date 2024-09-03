@@ -2057,7 +2057,7 @@
         :User/type [nil],
         :User/avatar [nil]}}]})
   (def args {:euuid #uuid "fbcf3bb9-7728-4b80-8b09-b27cca84e663"})
-  (def entity-id neyho.eywa.administration.uuids/user-group)
+  (def entity-id neyho.eywa.iam.uuids/user-group)
   (def args
     (reduce-kv
      (fn [args k v]

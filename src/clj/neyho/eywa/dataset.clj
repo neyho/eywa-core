@@ -9,7 +9,7 @@
     neyho.eywa
     [neyho.eywa.iam.access.context :as access]
     [neyho.eywa.data :refer [*ROOT*]]
-    [neyho.eywa.administration.uuids :as au]
+    [neyho.eywa.iam.uuids :as au]
     [neyho.eywa.authorization :refer [role-permissions]]
     [neyho.eywa.authorization.components :as c]
     [neyho.eywa.dataset.core :as dataset]

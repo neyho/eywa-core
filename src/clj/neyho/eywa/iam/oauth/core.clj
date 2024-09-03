@@ -510,26 +510,6 @@
        (kill-session session)))))
 
 
-(defonce maintenance-agent (agent {:running true :period (vura/seconds 30)}))
-
-
-(defn maintenance
-  [{:keys [running period] :as data}]
-  (when running
-    (log/debug "[OAuth] Maintenance start")
-    (send-off *agent* maintenance)
-    (clean-sessions)
-    (log/debug "[OAuth] Maintenance finish")
-    (Thread/sleep period)
-    data))
-
-
-(defn start-maintenance
-  []
-  (send-off maintenance-agent maintenance))
-
-
-
 (comment
   (clean-codes)
   (java.util.Date. 1720693899)

@@ -33,8 +33,7 @@
     [neyho.eywa.dataset.postgres.query :as query]
     [neyho.eywa.lacinia :as lacinia]
     [neyho.eywa.data :refer [*EYWA*]]
-    [neyho.eywa.administration :as administration]
-    ; [neyho.eywa.administration.uuids :as au]
+    [neyho.eywa.iam :as iam]
     [neyho.eywa.dataset.uuids :as du]))
 
 
@@ -1072,9 +1071,9 @@
        (as-> (<-transit (slurp (io/resource "dataset/aaa.json"))) model 
          (core/mount db model)
          (core/reload db model))
-       (dataset/stack-entity iu/permission administration/permissions)
+       (dataset/stack-entity iu/permission iam/permissions)
        (log/info "Mounted aaa.json dataset")
-       (binding [core/*return-type* :edn] 
+       (binding [core/*return-type* :edn]
          (dataset/sync-entity iu/user *EYWA*)
          (dataset/bind-service-user #'neyho.eywa.data/*EYWA*))
        (log/info "*EYWA* user created")
@@ -1087,17 +1086,24 @@
          (log/info "Mounted dataset.json dataset")
          (dataset/stack-entity iu/permission dataset/permissions)
          (dataset/load-role-schema)
+         ;;
          (log/info "Deploying AAA dataset")
          (core/deploy! db (<-transit (slurp (io/resource "dataset/aaa.json"))))
+         ;;
          (log/info "Deploying Datasets dataset")
          (core/deploy! db (<-transit (slurp (io/resource "dataset/dataset.json"))))
+         ;;
+         (log/info "Mounted oauth.json dataset")
+         (core/deploy! db (<-transit (slurp (io/resource "dataset/oauth.json"))))
+         ;;
          (log/info "Reloading")
          (core/reload db)
+         (iam/init-eywa-frontend-client)
          (log/info "Adding deployed model to history")
          (core/add-to-deploy-history db (core/get-model db)))))
     ([this options]
      (core/setup this)
-     (administration/setup options)))
+     (iam/setup options)))
   (core/tear-down
     [this]
     (let [admin (postgres/admin-from-env)]

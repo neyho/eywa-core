@@ -5,22 +5,17 @@
     [clojure.spec.alpha :as s]
     [clojure.data.json :as json]
     [vura.core :as vura]
-    [ring.util.codec :as codec]
     [buddy.core.codecs]
-    [buddy.core.hash :as hash]
     [buddy.sign.util :refer [to-timestamp]]
-    [io.pedestal.interceptor.chain :as chain]
     [neyho.eywa.iam :as iam]
-    [neyho.eywa.iam.oauth.core
+    [neyho.eywa.iam.oauth.core :as core
      :refer [process-scope
              sign-token
              domain+
              get-session
              get-session-client
-             get-session-resource-owner
-             json-error
-             *clients*]]
-    [neyho.eywa.iam.oauth.core :as core]
+             get-session-resource-owner]]
+    [neyho.eywa.iam.oauth :as oauth]
     [neyho.eywa.iam.oauth.login :as login]
     [neyho.eywa.iam.oauth.token
      :refer [get-token-session]]
@@ -311,7 +306,7 @@
   (def routes
     (reduce
       set/union
-      [ac/routes
+      [oauth/routes
        dc/routes
        login/routes
        #{["/oauth/jwks" :get [jwks-interceptor] :route-name ::get-jwks]

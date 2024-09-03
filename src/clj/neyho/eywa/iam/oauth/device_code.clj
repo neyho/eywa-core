@@ -42,11 +42,16 @@
   (get @*device-codes* device-code))
 
 
+(def grant "urn:ietf:params:oauth:grant-type:device_code")
+
+
 (defn validate-client [request]
   (let [{:keys [client_id]
          request-secret :client_secret} request 
         {:keys [euuid secret type]
-         :as client} (get-client client_id)]
+         {:strs [allowed-grants]} :settings
+         :as client} (get-client client_id)
+        grants (set allowed-grants)]
     (log/debugf "Validating client: %s" (pprint client))
     (cond
       ;;
@@ -68,6 +73,13 @@
       ;;
       (and (= type "public") (nil? secret))
       client
+      ;;
+      (not (contains? grants "device_code"))
+      (throw
+        (ex-info
+          "Client doesn't support device_code flow"
+          {:type "access_denied"
+           :request request}))
       ;;
       :else
       (do
@@ -127,6 +139,14 @@
           "Provided authorization code is illegal!"
           "Your request will be logged"
           "and processed")
+        ;;
+        (not (contains? grants "device_code"))
+        (token-error
+          "unauthorized_grant"
+          "Client sent access token request"
+          "for grant type that is outside"
+          "of client configured privileges")
+        ;;
         (nil? session)
         (token-error
           403

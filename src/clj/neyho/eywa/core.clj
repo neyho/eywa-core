@@ -15,7 +15,6 @@
     neyho.eywa.db.postgres
     neyho.eywa.avatars.postgres
     neyho.eywa.authorization
-    neyho.eywa.administration
     neyho.eywa.dataset
     neyho.eywa.dataset.core
     neyho.eywa.dataset.default-model
@@ -61,7 +60,7 @@
       (when (and user password)
         (println "Initializing user: " user)
         (warmup)
-        (neyho.eywa.administration/setup
+        (neyho.eywa.iam/setup
           {:users
            [{:name user :password password :active true
              :roles [neyho.eywa.data/*ROOT*]}]
@@ -263,7 +262,7 @@
                   (neyho.eywa.db.postgres/init)
                   (neyho.eywa.dataset/init)
                   (neyho.eywa.avatars.postgres/init)
-                  (neyho.eywa.administration/init)
+                  (neyho.eywa.iam/init)
                   (neyho.eywa.server/start
                     {:port (when-some [port (env :eywa-server-port "8080")] (if (number? port) port (Integer/parseInt port)))
                      :host (env :eywa-server-host "0.0.0.0")

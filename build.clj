@@ -15,6 +15,7 @@
     {:project "deps.edn"
      :aliases [:prod]}))
 
+
 (def version
   (let [{:keys [out err]} (sh "clj" "-M" "-m" "neyho.eywa.core" "version")
         version (some not-empty [out err])]
@@ -24,7 +25,9 @@
                  {:command "clj -M -m neyho.eywa.cli -v"})))
     (str/trim version)))
 
+
 (def uber-file (format "target/eywa.%s.jar" version))
+
 
 (defn clean [_]
   (b/delete {:path "target"}))
@@ -67,15 +70,19 @@
      :target (str class-dir "/logback.xml")}))
 
 
-
 (defn copy-frontend
   [& _]
+  (b/process
+    {:command-args ["clj" "-X:css"]})
   (b/copy-dir
     {:src-dirs ["frontend/dist/graphiql"]
      :target-dir (str class-dir "/graphiql")})
   (b/copy-dir
     {:src-dirs ["frontend/dist/eywa"]
-     :target-dir (str class-dir "/eywa")}))
+     :target-dir (str class-dir "/eywa")})
+  (b/copy-dir
+    {:src-dirs ["frontend/dist/oauth"]
+     :target-dir (str class-dir "/oauth")}))
 
 
 (defn uber [& _]
@@ -87,7 +94,6 @@
      :manifest {"Application-Name" "EYWA"}
      ;; Exclude source code
      :basis uber-basis}))
-
 
 
 (defn docs

@@ -45,7 +45,7 @@
 
  :aliases
  {:dev
-  {:extra-paths ["src/dev" "frontend/login/src/clj" "frontend/dist" "test"]
+  {:extra-paths ["src/dev" "src/css" "frontend/dist" "test"]
    :extra-deps {thheller/shadow-cljs {:mvn/version "2.20.20"}}}
   ;;
   :db
@@ -74,6 +74,11 @@
     com.cognitect.aws/endpoints     {:mvn/version "1.1.12.110"}
     com.cognitect.aws/s3            {:mvn/version "814.2.991.0"}}
    :ns-default build}
+  :css
+  {:extra-paths ["src/css"]
+   :extra-deps {thheller/shadow-cljs {:mvn/version "2.20.20"}}
+   :ns-default login.css.compile
+   :exec-fn login.css.compile/release}
   ;;
   :hr
   {:jvm-opts ["-Duser.country=HR"
