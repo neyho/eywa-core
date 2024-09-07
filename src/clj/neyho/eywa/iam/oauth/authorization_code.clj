@@ -7,10 +7,10 @@
     [nano-id.core :as nano-id]
     [vura.core :as vura]
     [neyho.eywa.iam
-     :refer [get-client
-             validate-password]]
+     :refer [validate-password]]
     [neyho.eywa.iam.oauth.core :as core
-     :refer [pprint
+     :refer [get-client
+             pprint
              publish]]
     [neyho.eywa.iam.oauth.token :as token
      :refer [grant-token
@@ -163,7 +163,7 @@
         {{request-redirect-uri :redirect_uri
           :as original-request} :request
          client-euuid :client
-         :keys [:session expires-at]} (get @*authorization-codes* code) 
+         :keys [session expires-at]} (get @*authorization-codes* code) 
         {id :id :as client} (get @core/*clients* client-euuid)
         {:keys [active]} (core/get-session-resource-owner session)]
     (log/debugf

@@ -14,9 +14,7 @@
     [clojure.data.json :as json]
     [buddy.core.codecs :as codecs]
     [buddy.core.crypto :as crypto]
-    [neyho.eywa.iam
-     :refer [validate-password
-             get-user-details]]
+    [neyho.eywa.iam :as iam]
     [neyho.eywa.env :as env]
     [io.pedestal.http.body-params :as bp]
     [io.pedestal.http.ring-middlewares :as middleware])
@@ -172,9 +170,9 @@
 (defn validate-resource-owner [username password]
   (let [{db-password :password
          active :active
-         :as resource-owner} (get-user-details username)]
+         :as resource-owner} (iam/get-user-details username)]
     (if-not active nil
-      (when (validate-password password db-password)
+      (when (iam/validate-password password db-password)
         (dissoc resource-owner :password)))))
 
 
@@ -240,6 +238,11 @@
 (def clients-doesnt-match? (complement clients-match?))
 
 
+(defn get-client
+  [id]
+  (let [client (iam/get-client id)]
+    (swap! *clients* assoc (:euuid client) client)
+    client))
 
 
 (defn remove-session-client [session]

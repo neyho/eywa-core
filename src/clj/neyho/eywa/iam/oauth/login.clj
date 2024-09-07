@@ -87,43 +87,36 @@
                    ;;
                    session (core/gen-session-id)
                    now (vura/date)]
-               (letfn [(attach-session-cookie [ctx]
-                         (assoc-in ctx [:cookies "idsrv.session"]
-                                   {:value session
-                                    :path "/"
-                                    :http-only true
-                                    :secure true
-                                    :expires "Session"}))]
-                 (cond
-                   ;; When user isn't authenticated, leave for some other interceptor
-                   ;; to return response
-                   (nil? resource-owner)
-                   (assoc ctx ::error :credentials)
-                   ;; When everything is OK
-                   (and resource-owner (set/intersection #{"code" "authorization_code"} response_type))
-                   (do
-                     (log/debugf "[%s] Binding code %s to session" session authorization-code)
-                     (core/set-session session {:flow "authorization_code"
-                                                :code  authorization-code
-                                                :client client
-                                                :last-active now})
-                     (core/set-session-audience-scope session audience scope)
-                     (core/set-session-resource-owner session resource-owner)
-                     (core/set-session-authorized-at session now) 
-                     (ac/mark-code-issued session authorization-code)
-                     (log/debugf "[%s] Validating resource owner: %s" session username)
-                     (chain/terminate
-                       (-> ctx
-                           attach-session-cookie
-                           (assoc :response
-                                  {:status 302
-                                   :headers {"Location" (str redirect-uri "?"
-                                                             (codec/form-encode
-                                                               {:state state
-                                                                :code authorization-code}))}}))))
-                   ;; Otherwise let someone after handle error
-                   :else
-                   (assoc ctx ::error :unknown))))
+               (cond
+                 ;; When user isn't authenticated, leave for some other interceptor
+                 ;; to return response
+                 (nil? resource-owner)
+                 (assoc ctx ::error :credentials)
+                 ;; When everything is OK
+                 (and resource-owner (set/intersection #{"code" "authorization_code"} response_type))
+                 (do
+                   (log/debugf "[%s] Binding code %s to session" session authorization-code)
+                   (core/set-session session {:flow "authorization_code"
+                                              :code  authorization-code
+                                              :client client
+                                              :last-active now})
+                   (core/set-session-audience-scope session audience scope)
+                   (core/set-session-resource-owner session resource-owner)
+                   (core/set-session-authorized-at session now) 
+                   (ac/mark-code-issued session authorization-code)
+                   (log/debugf "[%s] Validating resource owner: %s" session username)
+                   (chain/terminate
+                     (-> 
+                       (assoc ctx
+                              ::session session
+                              :response {:status 302
+                                         :headers {"Location" (str redirect-uri "?"
+                                                                   (codec/form-encode
+                                                                     {:state state
+                                                                      :code authorization-code}))}}))))
+                 ;; Otherwise let someone after handle error
+                 :else
+                 (assoc ctx ::error :unknown)))
              "device_code"
              ;; If user authenticated than do your stuff
              (let [{:keys [session client expires-at]
@@ -180,7 +173,15 @@
                                                       client (:name resource-owner))}}))))))
              (assoc ctx :response
                     {:status 302
-                     :headers {"Location" "/oauth/status?value=error&error=broken_flow"}}))))))})
+                     :headers {"Location" "/oauth/status?value=error&error=broken_flow"}}))))))
+   :leave (fn [{:keys [::session] :as ctx}]
+            (if-not session ctx
+              (assoc-in ctx [:response :cookies "idsrv.session"]
+                        {:value session
+                         :path "/"
+                         :http-only true
+                         :secure true
+                         :expires "Session"})))})
 
 
 (def login-page
@@ -200,7 +201,6 @@
 (let [invalid-token (request-error 400 "Token is not valid")
       session-not-found (request-error 400 "Session is not active")
       invalid-session (request-error 400 "Session is not valid")
-      invalid-issuer (request-error 400 "Issuer is not valid")
       invalid-redirect (request-error 400 "Provided 'post_logout_redirect_uri' is not valid")]
   (def logout-interceptor
     {:enter
@@ -210,23 +210,17 @@
              session (or (token/get-token-session :id_token id_token_hint)
                          idsrv-session)
              {client_id :id} (core/get-session-client session)
-             {{valid-redirections "logout-redirections"} :settings} (iam/get-client client_id)
-             {:keys [iss sid] :as token} (try
-                                           (iam/unsign-data id_token_hint)
-                                           (catch Throwable _ nil))
+             {{valid-redirections "logout-redirections"} :settings} (core/get-client client_id)
              post-redirect-ok? (some #(when (= % post_logout_redirect_uri) true) valid-redirections)
              response (cond
                         (nil? session)
                         session-not-found
                         ;; Token couldn't be unsigned
-                        (and id_token_hint (nil? token))
+                        (and (nil? id_token_hint) (nil? idsrv-session))
                         invalid-token
                         ;; Session doesn't match
-                        (and id_token_hint (not= sid session))
+                        (and id_token_hint (not= idsrv-session session))
                         invalid-session
-                        ;; Issuer is not the same
-                        (and id_token_hint (not= iss (core/domain+)))
-                        invalid-issuer
                         ;; Redirect uri isn't valid
                         (not post-redirect-ok?)
                         invalid-redirect

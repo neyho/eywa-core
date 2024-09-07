@@ -435,11 +435,15 @@
                        "redirections" [] ,
                        "token-expiry" {"id" 600, "access" 3600, "refresh" 129600},
                        "allowed-grants" ["authorization_code"
-                                         "urn:ietf:params:oauth:grant-type:device_code"],
+                                         "urn:ietf:params:oauth:grant-type:device_code"
+                                         "refresh_token"],
                        "logout-redirections" []}}
-                     (update-in [:settings "redirections"] ensure (str domain "/eywa/callback"))
-                     (update-in [:settings "logout-redirections"] ensure (str domain "/eywa/"))
-                     (update-in [:settings "logout-redirections"] ensure (str domain "/eywa"))))]
+                     ; (update-in [:settings "redirections"] ensure (str domain "/eywa/callback"))
+                     ; (update-in [:settings "logout-redirections"] ensure (str domain "/eywa/"))
+                     ; (update-in [:settings "logout-redirections"] ensure (str domain "/eywa"))
+                     (update-in [:settings "redirections"] ensure "https://my.eywaonline.com/eywa/callback")
+                     (update-in [:settings "redirections"] ensure "https://my.eywaonline.com/eywa/silent-callback")
+                     (update-in [:settings "logout-redirections"] ensure "https://my.eywaonline.com/")))]
       (when client (add-client client)))))
 
 

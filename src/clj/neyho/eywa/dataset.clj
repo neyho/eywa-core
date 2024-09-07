@@ -74,7 +74,7 @@
     :roles [*ROOT*]
     :parent {:euuid c/dataset-version}}
    {:euuid c/graphql-ui
-    :name "GraphQL UI"
+    :name "Graphql"
     :roles [*ROOT*]
     :parent {:euuid c/eywa}}])
 

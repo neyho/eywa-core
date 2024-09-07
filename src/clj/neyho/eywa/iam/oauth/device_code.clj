@@ -11,11 +11,11 @@
     [io.pedestal.interceptor.chain :as chain]
     [neyho.eywa.iam.oauth.core :as core
      :refer [pprint
+             get-client
              encrypt
              decrypt]]
     [neyho.eywa.iam
-     :refer [get-client
-             validate-password]]
+     :refer [validate-password]]
     [neyho.eywa.iam.oauth.token :as token
      :refer [grant-token
              token-error
