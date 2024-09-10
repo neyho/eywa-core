@@ -74,12 +74,12 @@
   [& _]
   (b/process
     {:command-args ["clj" "-X:css"]})
-  (b/copy-dir
-    {:src-dirs ["frontend/dist/graphiql"]
-     :target-dir (str class-dir "/graphiql")})
-  (b/copy-dir
-    {:src-dirs ["frontend/dist/eywa"]
-     :target-dir (str class-dir "/eywa")})
+  #_(b/copy-dir
+      {:src-dirs ["frontend/dist/graphiql"]
+       :target-dir (str class-dir "/graphiql")})
+  #_(b/copy-dir
+      {:src-dirs ["frontend/dist/eywa"]
+       :target-dir (str class-dir "/eywa")})
   (b/copy-dir
     {:src-dirs ["frontend/dist/oauth"]
      :target-dir (str class-dir "/oauth")}))

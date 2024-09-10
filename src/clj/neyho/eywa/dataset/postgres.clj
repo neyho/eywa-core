@@ -74,6 +74,7 @@
     "role" (str "int references \"" (role-table) "\"(_eid) on delete set null")
     t))
 
+
 (defn attribute->ddl 
   "Function converts attribute to DDL syntax"
   [entity {n :name t :type}]
@@ -536,12 +537,20 @@
 (defn transform-relation
   [tx {:keys [from to] :as relation}]
   (let [diff (core/diff relation)
-        _ (log/tracef "Transforming relation\ndiff=%s\nfrom=%s\nto=%s" diff from to)
+        _ (log/tracef "Transforming relation\ndiff=%s\nfrom=%s\nto=%s" diff (pr-str from) (pr-str to))
         from-diff (:from diff)
         to-diff (:to diff)
         old-from (core/suppress from) 
         old-to (core/suppress to)
         old-relation (core/suppress relation) 
+        _ (do
+            (def relation relation)
+            (def old-relation old-relation)
+            (def old-to old-to)
+            (def old-from old-from)
+            (def to-diff to-diff)
+            (def from-diff from-diff)
+            (:euuid old-relation))
         old-name (relation->table-name old-relation) 
         ;; Assoc old from and to entities
         ;; This will be handled latter
@@ -1088,13 +1097,13 @@
          (dataset/load-role-schema)
          ;;
          (log/info "Deploying AAA dataset")
-         (core/deploy! db (<-transit (slurp (io/resource "dataset/aaa.json"))))
+         (core/deploy! db (<-transit (slurp (io/resource "dataset/iam.json"))))
          ;;
          (log/info "Deploying Datasets dataset")
          (core/deploy! db (<-transit (slurp (io/resource "dataset/dataset.json"))))
          ;;
-         (log/info "Mounted oauth.json dataset")
-         (core/deploy! db (<-transit (slurp (io/resource "dataset/oauth.json"))))
+         ; (log/info "Mounted oauth.json dataset")
+         ; (core/deploy! db (<-transit (slurp (io/resource "dataset/oauth.json"))))
          ;;
          (log/info "Reloading")
          (core/reload db)

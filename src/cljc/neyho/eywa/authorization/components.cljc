@@ -1,5 +1,6 @@
 (ns neyho.eywa.authorization.components
   (:require  
+    [clojure.string :as str]
     [clojure.zip :as zip]))
 
 
@@ -122,6 +123,8 @@
   (def euuid)
   (def components *1))
 
+
+
 (defn components->tree 
   ([components {:keys [euuid]}]
    (when-let [node (some #(when (= euuid (:euuid %)) %) components)]
@@ -141,6 +144,7 @@
     (fn [node children] (assoc node :children (vec children)))
     root))
 
+
 (defn tree->components
   ([tree]
    (sort-by 
@@ -158,7 +162,9 @@
                          (dissoc :children)
                          (assoc :parent puuid)))))))))))
 
-(defn get-component [tree euuid]
+
+(defn get-component
+  [tree euuid]
   (let [z (component-tree-zipper tree)]
     (loop [p z]
       (if (zip/end? p) nil
@@ -232,3 +238,29 @@
               position
               (recur (zip/down position) (rest path')))
             (recur (zip/right position) path')))))))
+
+
+
+
+;; NEW COMPONENTS
+
+(comment
+  (reset! *component-tree*
+          (component-tree-zipper
+            {:id ::ROOT
+             :segment ""
+             :name nil
+             :children []}))
+
+  @*component-tree*
+  (component->location @*component-tree* ::ROOT)
+  (zip/root @*component-tree*)
+
+  (set-component {:id :eywa/iam :name :eywa.iam :segment "iam" :roles #{} :scopes #{} :parent ::ROOT})
+  (set-component {:id :eywa/robotics :name :eywa.robotics :segment "robotics" :parent ::ROOT})
+  (set-component {:id :eywa.robotics/robots :name :eywa.robotics.robots :segment "robots" :parent :eywa/robotics})
+
+  (def id :eywa.robotics/robots)
+  (component-path :eywa.robotics/robots)
+  (on-path? "roboics/robots" :eywa/robotics)
+  )

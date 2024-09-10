@@ -86,6 +86,10 @@
 (defn deployed-entity [id]
   (dataset/get-entity (deployed-model) id))
 
+
+(defn deployed-relation [id]
+  (dataset/get-relation (deployed-model) id))
+
 (defn save-model [new-model]
   (dosync (ref-set *model* new-model)))
 
@@ -96,6 +100,7 @@
       (dataset/get-entities (deployed-model)))))
 
 (comment
+  (deployed-relation #uuid "7efa7244-ae20-4248-9792-7623d12cea9e")
   (deployed-entity #uuid "5338693b-9dbc-4434-b598-b15175da04c3"))
 
 (defn account-dataset [_ _ _]

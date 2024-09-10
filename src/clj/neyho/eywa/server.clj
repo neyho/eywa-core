@@ -417,7 +417,7 @@
                      route/query-params
                      (route/method-param)
                      ; (sec-headers/secure-headers {:content-security-policy-settings {:object-src "none"}})
-                     eywa-web-interceptor
+                     ; eywa-web-interceptor
                      router
                      ; (middlewares/resource "public")
                      (interceptor/interceptor http/not-found)]

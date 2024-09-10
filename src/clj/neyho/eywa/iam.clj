@@ -290,7 +290,7 @@
   (try
     (dataset/load-role-schema)
     (log/info "Administration initialized")
-    (lacinia/add-shard ::administration (slurp (io/resource "administration.graphql")))
+    (lacinia/add-shard ::graphql (slurp (io/resource "iam.graphql")))
     (catch Throwable e
       (log/error e "Couldn't load role schema"))))
 

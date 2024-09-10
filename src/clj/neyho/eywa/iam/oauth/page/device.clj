@@ -30,7 +30,7 @@
       [:meta {:charset "UTF-8"}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0"}]
       [:title "EYWA Code Check"]
-      [:link {:rel "icon" :href "https://www.eywaonline.com/eywa/logo/eywa.svg" :crossorigin true}]
+      [:link {:rel "icon" :href "https://my.eywaonline.com/images/eywa.svg" :crossorigin true}]
       [:link {:rel "preconnect" :href "https://fonts.googleapis.com"}]
       [:link {:rel "preconnect" :href "https://fonts.gstatic.com" :crossorigin true}]
       [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;800;900&family=Roboto&display=swap"}]
@@ -44,7 +44,7 @@
        [:image
         {:id "background-image"
          :x 0 :y 0 :height 1000 :width 1000
-         :href "https://www.eywaonline.com/eywa/images/login_normal.png"}]]
+         :href "https://my.eywaonline.com/images/login_normal.png"}]]
       [:div {:class $confirm-container}
        [:div {:class (css
                        :py-8
@@ -58,7 +58,7 @@
         [:div {:class (css :p-8 :bg-white :rounded-lg)}
          [:div.header
           [:div.logo
-           [:image {:src "https://www.eywaonline.com/eywa/logo/eywa.svg"}]]
+           [:image {:src "https://my.eywaonline.com/images/eywa.svg"}]]
           [:div
            [:h1 "Device Confirmation"]]]
          [:div {:class (css
@@ -147,7 +147,7 @@
      [:head
       [:meta {:charset "UTF-8"}]
       [:title "EYWA Login"]
-      [:link {:rel "icon" :href "https://www.eywaonline.com/eywa/logo/eywa.svg" :crossorigin true}]
+      [:link {:rel "icon" :href "https://my.eywaonline.com/images/eywa.svg" :crossorigin true}]
       [:link {:rel "preconnect" :href "https://fonts.googleapis.com"}]
       [:link {:rel "preconnect" :href "https://fonts.gstatic.com" :crossorigin true}]
       [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;800;900&family=Roboto&display=swap"}]
@@ -161,7 +161,7 @@
        [:image
         {:id "background-image"
          :x 0 :y 0 :height 1000 :width 1000
-         :href "https://www.eywaonline.com/eywa/images/login_normal.png"}]]
+         :href "https://my.eywaonline.com/images/login_normal.png"}]]
       [:div {:class $confirm-container}
        [:div {:class (css
                        :py-8
@@ -175,7 +175,7 @@
         [:div {:class (css :p-8 :bg-white :rounded-lg)}
          [:div.header
           [:div.logo
-           [:image {:src "https://www.eywaonline.com/eywa/logo/eywa.svg"}]]
+           [:image {:src "https://my.eywaonline.com/images/eywa.svg"}]]
           [:div
            [:h1 (case value
                   "canceled" "Device code flow canceled"

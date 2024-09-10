@@ -194,6 +194,9 @@
                    (sort-by :metric matching-directives))
                  resolver-fn)))})))))
 
+(comment
+  (dosync (ref-set compiled (recompile))))
+
 
 (defn remove-directive [key]
   (dosync
