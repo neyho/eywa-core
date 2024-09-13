@@ -1080,7 +1080,7 @@
        (as-> (<-transit (slurp (io/resource "dataset/aaa.json"))) model 
          (core/mount db model)
          (core/reload db model))
-       (dataset/stack-entity iu/permission iam/permissions)
+       ; (dataset/stack-entity iu/permission iam/permissions)
        (log/info "Mounted aaa.json dataset")
        (binding [core/*return-type* :edn]
          (dataset/sync-entity iu/user *EYWA*)
@@ -1093,8 +1093,8 @@
            (core/mount db model)
            (core/reload db model))
          (log/info "Mounted dataset.json dataset")
-         (dataset/stack-entity iu/permission dataset/permissions)
-         (dataset/load-role-schema)
+         ; (dataset/stack-entity iu/permission dataset/permissions)
+         ; (dataset/load-role-schema)
          ;;
          (log/info "Deploying AAA dataset")
          (core/deploy! db (<-transit (slurp (io/resource "dataset/iam.json"))))

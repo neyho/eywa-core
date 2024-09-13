@@ -5,3 +5,4 @@
 (defonce ^:dynamic *roles* nil)
 (defonce ^:dynamic *groups* nil)
 (defonce ^:dynamic *rules* nil)
+(defonce ^:dynamic *scopes* nil)

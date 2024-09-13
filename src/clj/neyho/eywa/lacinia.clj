@@ -160,10 +160,9 @@
                            (map
                              (fn [s] (if (fn? s) (s) s))
                              (vals shards)))]
-        #_(clojure.pprint/pprint
-          (->
-            schema
-            bind-resolvers))
+        ; (do
+        ;   (def schema schema)
+        ;   (def directives directives))
         (schema/compile
           ; schema
           (->
@@ -229,6 +228,7 @@
                 (string? shard) (parse-schema shard)
                 (fn? shard) (shard)
                 :else shard)]
+    ; (def shard shard)
     (dosync
       (alter state assoc-in [:shards key] shard)
       (ref-set compiled (recompile)))))

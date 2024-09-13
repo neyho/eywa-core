@@ -3,8 +3,6 @@
     clojure.string
     clojure.java.io
     clojure.pprint
-    [neyho.eywa.authorization
-     :refer [get-role-schema]]
     [neyho.eywa.iam :as iam]
     [neyho.eywa.iam.oauth.core :refer [get-resource-owner]]
     [neyho.eywa.iam.oauth.token :refer [*tokens*]]
@@ -70,7 +68,7 @@
        (assoc context
               :response
               {:status 200
-               :body (get-role-schema roles)})
+               :body nil})
        (chain/terminate
          (assoc context
                 :response

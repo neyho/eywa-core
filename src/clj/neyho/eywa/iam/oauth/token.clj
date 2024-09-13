@@ -12,6 +12,8 @@
     [io.pedestal.interceptor.chain :as chain]
     [neyho.eywa.iam
      :refer [sign-data]]
+    [neyho.eywa.dataset :as dataset]
+    [neyho.eywa.iam.uuids :as iu]
     [neyho.eywa.iam.oauth.core :as core
      :refer [pprint
              process-scope
@@ -389,6 +391,26 @@
                (update state token-type #(apply dissoc % tokens-to-delete)))
              state
              tokens))))
+
+
+;; SCOPES
+
+(defmethod process-scope "roles"
+  [session tokens _]
+  (let [{:keys [roles]} (core/get-session-resource-owner session)
+        dataset-roles (dataset/search-entity
+                        iu/user-role
+                        {:euuid {:_in roles}}
+                        ; {:_where {:euuid {:_in roles}}}
+                        {:name nil})]
+    (assoc-in tokens [:access_token :roles] (map :name dataset-roles))))
+
+
+(defmethod process-scope "roles:uuid"
+  [session tokens _]
+  (let [{:keys [roles]} (core/get-session-resource-owner session)]
+    (assoc-in tokens [:access_token :roles] roles)))
+
 
 
 ; (defn generate-code-challenge

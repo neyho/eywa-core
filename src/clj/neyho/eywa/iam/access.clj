@@ -18,16 +18,16 @@
     {:euuid nil
      :name nil
      ;; Entities
-     :write_entities [{:selections {:euuid nil}}]
-     :read_entities [{:selections {:euuid nil}}]
-     :delete_entities [{:selections {:euuid nil}}]
-     :owned_entities [{:selections {:euuid nil}}]
+     :write_entities        [{:selections {:euuid nil}}]
+     :read_entities         [{:selections {:euuid nil}}]
+     :delete_entities       [{:selections {:euuid nil}}]
+     :owned_entities        [{:selections {:euuid nil}}]
      ;; Relations
-     :to_read_relations [{:selections {:euuid nil}}]
-     :to_write_relations [{:selections {:euuid nil}}]
-     :to_delete_relations [{:selections {:euuid nil}}]
-     :from_read_relations [{:selections {:euuid nil}}]
-     :from_write_relations [{:selections {:euuid nil}}]
+     :to_read_relations     [{:selections {:euuid nil}}]
+     :to_write_relations    [{:selections {:euuid nil}}]
+     :to_delete_relations   [{:selections {:euuid nil}}]
+     :from_read_relations   [{:selections {:euuid nil}}]
+     :from_write_relations  [{:selections {:euuid nil}}]
      :from_delete_relations [{:selections {:euuid nil}}]}))
 
 

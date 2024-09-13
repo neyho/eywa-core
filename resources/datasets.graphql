@@ -1,6 +1,6 @@
 type Query {
-  getAccountDataset:DatasetVersion
-  @resolve(fn: "neyho.eywa.dataset/account-dataset")
+  getDeployedModel:DatasetVersion
+  @resolve(fn: "neyho.eywa.dataset/get-deployed-model")
 }
 
 type Mutation {

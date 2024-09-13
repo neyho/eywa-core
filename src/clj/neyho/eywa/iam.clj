@@ -22,7 +22,6 @@
              delete-entity]]
     [neyho.eywa.lacinia :as lacinia]
     [neyho.eywa.env :as env]
-    [neyho.eywa.authorization.components :as c]
     [neyho.eywa.iam.gen :as gen]
     [neyho.eywa.iam.access.context :refer [*user*]]
     [neyho.eywa.dataset.core :as core])
@@ -276,109 +275,102 @@
 
 
 
-;; @hook
-(defn reload-schema
-  [ctx args v]
-  (log/info "Reloading access schema")
-  (dataset/load-role-schema)
-  [ctx args v])
-
-
 (defn init
   []
-  (log/info "Initializing Administration...")
+  (log/info "Initializing IAM...")
   (try
-    (dataset/load-role-schema)
-    (log/info "Administration initialized")
-    (lacinia/add-shard ::graphql (slurp (io/resource "iam.graphql")))
+    (log/info "IAM initialized")
+    ;; TODO - Roles and permission shema should be initialized from database
+    ;; and tracked by relations and entity changes just like in neyho.eywa.iam.access namespace
+    ; (lacinia/add-shard ::graphql (slurp (io/resource "iam.graphql")))
     (catch Throwable e
       (log/error e "Couldn't load role schema"))))
 
 
-(def permissions
-  [{:euuid c/eywa
-    :name "EYWA"}
-   {:euuid c/iam
-    :name "IAM"
-    :roles [*ROOT*]
-    :parent {:euuid c/eywa}}
-   {:euuid c/users
-    :name "Users"
-    :roles [*ROOT*]
-    :parent {:euuid c/iam}}
-   {:euuid c/user-add
-    :name "User Add"
-    :roles [*ROOT*]
-    :parent {:euuid c/users}}
-   {:euuid c/user-modify
-    :name "User Edit"
-    :roles [*ROOT*]
-    :parent {:euuid c/users}}
-   {:euuid c/user-delete
-    :name "User Delete"
-    :roles [*ROOT*]
-    :parent {:euuid c/users}}
-   {:euuid c/groups
-    :name "Groups"
-    :roles [*ROOT*]
-    :parent {:euuid c/iam}}
-   {:euuid c/group-add
-    :name "Group Add"
-    :roles [*ROOT*]
-    :parent {:euuid c/groups}}
-   {:euuid c/group-modify
-    :name "Group Edit"
-    :roles [*ROOT*]
-    :parent {:euuid c/groups}}
-   {:euuid c/group-delete
-    :name "Group Delete"
-    :roles [*ROOT*]
-    :parent {:euuid c/groups}}
-   {:euuid c/group-members
-    :name "Group Members"
-    :roles [*ROOT*]
-    :parent {:euuid c/groups}}
-   {:euuid c/roles
-    :name "Roles"
-    :roles [*ROOT*]
-    :parent {:euuid c/iam}}
-   {:euuid c/role-add
-    :name "Role Add"
-    :roles [*ROOT*]
-    :parent {:euuid c/roles}}
-   {:euuid c/role-modify
-    :name "Role Edit"
-    :roles [*ROOT*]
-    :parent {:euuid c/roles}}
-   {:euuid c/role-delete
-    :name "Role Delete"
-    :roles [*ROOT*]
-    :parent {:euuid c/roles}}
-   {:euuid c/role-members
-    :name "Role Members"
-    :roles [*ROOT*]
-    :parent {:euuid c/roles}}
-   {:euuid c/role-permissions
-    :name "Role Members"
-    :roles [*ROOT*]
-    :parent {:euuid c/roles}}
-   ;;
-   {:euuid c/apps
-    :name "Apps"
-    :roles [*ROOT*]
-    :parent {:euuid c/iam}}
-   {:euuid c/app-add
-    :name "App Add"
-    :roles [*ROOT*]
-    :parent {:euuid c/apps}}
-   {:euuid c/app-edit
-    :name "App Edit"
-    :roles [*ROOT*]
-    :parent {:euuid c/apps}}
-   {:euuid c/app-delete
-    :name "App Delete"
-    :roles [*ROOT*]
-    :parent {:euuid c/apps}}])
+; (def permissions
+;   [{:euuid c/eywa
+;     :name "EYWA"}
+;    {:euuid c/iam
+;     :name "IAM"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/eywa}}
+;    {:euuid c/users
+;     :name "Users"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/iam}}
+;    {:euuid c/user-add
+;     :name "User Add"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/users}}
+;    {:euuid c/user-modify
+;     :name "User Edit"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/users}}
+;    {:euuid c/user-delete
+;     :name "User Delete"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/users}}
+;    {:euuid c/groups
+;     :name "Groups"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/iam}}
+;    {:euuid c/group-add
+;     :name "Group Add"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/groups}}
+;    {:euuid c/group-modify
+;     :name "Group Edit"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/groups}}
+;    {:euuid c/group-delete
+;     :name "Group Delete"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/groups}}
+;    {:euuid c/group-members
+;     :name "Group Members"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/groups}}
+;    {:euuid c/roles
+;     :name "Roles"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/iam}}
+;    {:euuid c/role-add
+;     :name "Role Add"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/roles}}
+;    {:euuid c/role-modify
+;     :name "Role Edit"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/roles}}
+;    {:euuid c/role-delete
+;     :name "Role Delete"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/roles}}
+;    {:euuid c/role-members
+;     :name "Role Members"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/roles}}
+;    {:euuid c/role-permissions
+;     :name "Role Members"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/roles}}
+;    ;;
+;    {:euuid c/apps
+;     :name "Apps"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/iam}}
+;    {:euuid c/app-add
+;     :name "App Add"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/apps}}
+;    {:euuid c/app-edit
+;     :name "App Edit"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/apps}}
+;    {:euuid c/app-delete
+;     :name "App Delete"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/apps}}])
 
 
 (defn setup

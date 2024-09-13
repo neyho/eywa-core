@@ -685,6 +685,12 @@
                       :as entity}]
           (let [relations (core/focus-entity-relations model entity)
                 recursions (filter #(= "tree" (:cardinality %)) relations)
+                allowed-uniques? (set (map :euuid as))
+                uniques (keep
+                          (fn [constraints]
+                            (when-some [real-ones (filter allowed-uniques? constraints)]
+                              (vec real-ones)))
+                          uniques)
                 get-args (reduce
                            (fn [args ids]
                              (reduce
@@ -1036,7 +1042,12 @@
                           (throw e))))}
                    ;;
                    (csk/->camelCaseKeyword (str "delete " ename))
-                   (let [uniques (-> entity :configuration :constraints :unique)
+                   (let [allowed? (set (map :euuid (:attributes entity)))
+                         uniques (keep
+                                   (fn [constraints]
+                                     (when-some [real-constraints (not-empty (filter allowed? constraints))]
+                                       (vec real-constraints)))
+                                   (-> entity :configuration :constraints :unique))
                          args (reduce
                                 (fn [args ids]
                                   (reduce
@@ -1048,6 +1059,8 @@
                                     ids))
                                 {:euuid {:type 'UUID}}
                                 uniques)]
+                     (comment
+                       (csk/->camelCaseKeyword (str "delete " "OAuth Scope")))
                      ; (log/debugf "Adding delete method for %s\n%s" ename args)
                      {:type 'Boolean
                       :args args 
@@ -1084,6 +1097,7 @@
 
 (comment
   (def model (dataset/deployed-model)))
+
 
 (defn generate-lacinia-schema
   ([] (generate-lacinia-schema (dataset/deployed-model)))

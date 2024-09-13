@@ -26,9 +26,7 @@
      :refer [user-data
              authenticate
              authenticate-or-redirect
-             access-tree]]
-    [neyho.eywa.server.interceptors.avatars 
-     :refer [avatars]]))
+             access-tree]]))
 
 (def echo-integration
   {:name :eywa/transit-integration-echo
@@ -190,12 +188,6 @@
            authenticate-or-redirect 
            apps]
      :route-name :eywa.web.app/get]
-    ["/eywa/avatars/*avatar"
-     :get [authenticate
-           (conneg/negotiate-content ["application/octet-stream" "image/jpeg" "image/jpeg"])
-           coerce-body
-           avatars]
-     :route-name :eywa.avatars/get]
     ["/eywa/whoami" :get [authenticate coerce-body content-neg-intc user-data] :route-name :eywa.identity/get]
     ["/eywa/access" :get [authenticate coerce-body content-neg-intc access-tree] :route-name :eywa.access/get]})
 

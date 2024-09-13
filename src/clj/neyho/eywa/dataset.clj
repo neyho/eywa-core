@@ -7,11 +7,8 @@
     [clojure.tools.logging :as log]
     [clojure.core.async :as async]
     neyho.eywa
-    [neyho.eywa.iam.access.context :as access]
-    [neyho.eywa.data :refer [*ROOT*]]
+    [neyho.eywa.data]
     [neyho.eywa.iam.uuids :as au]
-    [neyho.eywa.authorization :refer [role-permissions]]
-    [neyho.eywa.authorization.components :as c]
     [neyho.eywa.dataset.core :as dataset]
     [neyho.eywa.db :as db :refer [*db*]]
     [neyho.eywa.dataset.uuids :as du]
@@ -21,62 +18,62 @@
     [com.walmartlabs.lacinia.executor :as executor]))
 
 
-(def permissions
-  [{:euuid c/eywa
-    :name "EYWA"
-    :roles [*ROOT*]}
-   {:euuid c/data
-    :name "Data"
-    :roles [*ROOT*]
-    :parent {:euuid c/eywa}}
-   {:euuid c/dataset-explorer
-    :name "Explore"
-    :roles [*ROOT*]
-    :parent {:euuid c/data}}
-   {:euuid c/datasets
-    :name "Datasets"
-    :roles [*ROOT*]
-    :parent {:euuid c/data}}
-   {:euuid c/dataset-add
-    :name "Add"
-    :roles [*ROOT*]
-    :parent {:euuid c/datasets}}
-   {:euuid c/dataset-modify
-    :name "Modify"
-    :roles [*ROOT*]
-    :parent {:euuid c/datasets}}
-   {:euuid c/dataset-delete
-    :name "Delete"
-    :roles [*ROOT*]
-    :parent {:euuid c/datasets}}
-   {:euuid c/dataset-deploy
-    :name "Deploy"
-    :roles [*ROOT*]
-    :parent {:euuid c/datasets}}
-   {:euuid c/dataset-version
-    :name "Dataset Version"
-    :roles [*ROOT*]
-    :parent {:euuid c/datasets}}
-   {:euuid c/dataset-version-save
-    :name "Save"
-    :roles [*ROOT*]
-    :parent {:euuid c/dataset-version}}
-   {:euuid c/dataset-version-import
-    :name "Import"
-    :roles [*ROOT*]
-    :parent {:euuid c/dataset-version}}
-   {:euuid c/dataset-version-export
-    :name "Export"
-    :roles [*ROOT*]
-    :parent {:euuid c/dataset-version}}
-   {:euuid c/dataset-version-delete
-    :name "Delete"
-    :roles [*ROOT*]
-    :parent {:euuid c/dataset-version}}
-   {:euuid c/graphql-ui
-    :name "Graphql"
-    :roles [*ROOT*]
-    :parent {:euuid c/eywa}}])
+; (def permissions
+;   [{:euuid c/eywa
+;     :name "EYWA"
+;     :roles [*ROOT*]}
+;    {:euuid c/data
+;     :name "Data"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/eywa}}
+;    {:euuid c/dataset-explorer
+;     :name "Explore"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/data}}
+;    {:euuid c/datasets
+;     :name "Datasets"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/data}}
+;    {:euuid c/dataset-add
+;     :name "Add"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/datasets}}
+;    {:euuid c/dataset-modify
+;     :name "Modify"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/datasets}}
+;    {:euuid c/dataset-delete
+;     :name "Delete"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/datasets}}
+;    {:euuid c/dataset-deploy
+;     :name "Deploy"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/datasets}}
+;    {:euuid c/dataset-version
+;     :name "Dataset Version"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/datasets}}
+;    {:euuid c/dataset-version-save
+;     :name "Save"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/dataset-version}}
+;    {:euuid c/dataset-version-import
+;     :name "Import"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/dataset-version}}
+;    {:euuid c/dataset-version-export
+;     :name "Export"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/dataset-version}}
+;    {:euuid c/dataset-version-delete
+;     :name "Delete"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/dataset-version}}
+;    {:euuid c/graphql-ui
+;     :name "Graphql"
+;     :roles [*ROOT*]
+;     :parent {:euuid c/eywa}}])
 
 
 (defonce ^:dynamic *model* (ref nil))
@@ -103,7 +100,7 @@
   (deployed-relation #uuid "7efa7244-ae20-4248-9792-7623d12cea9e")
   (deployed-entity #uuid "5338693b-9dbc-4434-b598-b15175da04c3"))
 
-(defn account-dataset [_ _ _]
+(defn get-deployed-model [_ _ _]
   {:model (deployed-model)})
 
 (defonce wc (async/chan))
@@ -187,24 +184,6 @@
 
 (defn deploy! [model] (dataset/deploy! *db* model))
 (defn reload [] (dataset/reload *db*))
-(defn load-role-schema []
-  (letfn [(get-uuids [col]
-            (set (map (fn [{e :euuid}] e) col)))] 
-    (let [permissions 
-          (map 
-            #(->
-               %
-               (update :roles get-uuids)
-               (update :parent :euuid)) 
-            (get-entity-tree
-              #uuid "6f525f5f-0504-498b-8b92-c353a0f9d141"
-              c/eywa
-              :parent
-              {:euuid nil
-               :roles [{:selections {:euuid nil :name nil}}]
-               :name nil
-               :parent [{:selections {:euuid nil :name nil}}]}))]
-      (reset! role-permissions (c/components->tree permissions {:euuid c/eywa})))))
 
 
 (defn bind-service-user
@@ -293,7 +272,6 @@
        ;; TODO - Rethink this. Should we use teard-down and setup instead
        ;; of plain deploy! recall!
        (let [{:keys [euuid]} (dataset/deploy! *db* version)]
-         (load-role-schema)
          (async/put!
            wc {:topic :refreshedGlobalDataset
                :data {:name "Global" 
@@ -396,6 +374,7 @@
 (comment
   (def db *db*)
   (def global-model (dataset/get-last-deployed db))
+  (lacinia/generate-lacinia-schema db)
   (do
     (def file "./first_ai_test.edm")
     (def model (neyho.eywa.transit/<-trasit (slurp file)))
