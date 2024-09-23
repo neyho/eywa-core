@@ -243,7 +243,7 @@
                       wrapped-query-executor]]
     (into
       #{["/graphql" :post interceptors :route-name ::graphql-api]
-        ["/graphql/*path" :get graphiql :route-name ::graphql-ide]})))
+        #_["/graphql/*path" :get graphiql :route-name ::graphql-ide]})))
 
 
 

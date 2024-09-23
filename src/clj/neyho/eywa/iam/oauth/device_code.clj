@@ -109,29 +109,23 @@
     (swap! *device-codes* (fn [codes] (apply dissoc codes expired)))))
 
 
-
 (defmethod grant-token "urn:ietf:params:oauth:grant-type:device_code"
   [request]
-  (let [{:keys [device_code client_id client_secret]} request
-        {{:keys [scope audience] :as original-request} :request
-         :keys [session delivered?]} (get @*device-codes* device_code)
-        {:as client id :id} (core/get-session-client session)
-        {:keys [active]} (core/get-session-resource-owner session)]
+  (let [{:keys [device_code client_secret]} request
+        {{:keys [client_id] :as original-request
+          id :client_id} :request
+         :keys [session]} (get @*device-codes* device_code)
+        client (core/get-client client_id)]
     (log/debugf
       "[%s] Processing token code grant for code: %s\n%s"
-      session device_code (pprint request))
+      id device_code (pprint request))
+    (def request request)
+    (def device_code (:device_code request))
+    (def client_id (:client_id request))
     (let [{_secret :secret
-           {:strs [allowed-grants]} :settings
-           session-client :id} (core/get-session-client session)
+           {:strs [allowed-grants]} :settings} (core/get-client client_id) 
           grants (set allowed-grants)]
       (cond
-        ;;
-        delivered?
-        (token-error
-          "invalid_request"
-          "Tokens have already been granted. To get"
-          "new tokens use refresh token endpoint."
-          "Your request will be logged and processed")
         ;;
         (not (contains? @*device-codes* device_code))
         (token-error
@@ -153,12 +147,6 @@
           "authorization_pending"
           "The authorization request is still pending as"
           "the end user hasn't yet completed the user-interaction steps")
-        ;; If client ids don't match
-        (not= session-client client_id)
-        (token-error
-          "invalid_client"
-          "Client ID that was provided doesn't"
-          "match client ID that was used in authorization request")
         ;;
         (and (some? _secret) (empty? client_secret))
         (token-error
@@ -173,12 +161,6 @@
         (not= id client_id)
         client-id-missmatch
         ;;
-        (not active)
-        (do
-          (delete device_code)
-          (core/kill-session session)
-          owner-not-authorized)
-        ;;
         (nil? session)
         {:status 403
          :headers {"Content-Type" "application/json"}
@@ -188,7 +170,6 @@
         ;; Issue that token
         :else
         (let [response (json/write-str (token/generate client session original-request))]
-          ; (swap! *device-codes* assoc-in [device_code :delivered?] true)
           (swap! *device-codes* dissoc device_code)
           ; (core/set-session-audience-scope session audience scope)
           {:status 200
