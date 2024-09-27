@@ -8,7 +8,6 @@ console.log(window.location)
 const fetcher: Fetcher = async graphQLParams => {
   let token = window.localStorage.getItem('eywa.token');
   let origin = window.location.origin
-  console.log(`Token: ${token}`) 
   const data = await fetch(
     `${origin}/graphql`,
     {

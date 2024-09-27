@@ -1,5 +1,7 @@
 (ns neyho.eywa.server
   (:require
+    [environ.core :refer [env]]
+    [babashka.fs :as fs]
     [clojure.java.io :as io]
     clojure.pprint
     clojure.string
@@ -20,7 +22,7 @@
     [neyho.eywa.iam.oidc :as oidc]
     [neyho.eywa.iam.access.context :refer [*user* *roles* *groups*]]
     [neyho.eywa.server.jetty :as jetty]
-    [neyho.eywa.server.interceptors :refer [json-response-interceptor]]
+    [neyho.eywa.server.interceptors :refer [json-response-interceptor make-spa-interceptor]]
     [neyho.eywa.server.interceptors.util :refer [coerce-body]]
     [neyho.eywa.server.interceptors.authentication :as authentication
      :refer [user-data
@@ -419,6 +421,7 @@
                      ; (sec-headers/secure-headers {:content-security-policy-settings {:object-src "none"}})
                      eywa-web-interceptor
                      router
+                     (make-spa-interceptor (env :eywa-serve (fs/expand-home "~/.eywa/web")))
                      ; (middlewares/resource "public")
                      (interceptor/interceptor http/not-found)]
                     ; ::http/secure-headers {:content-security-policy-settings {:object-src "none"}}
@@ -432,4 +435,6 @@
 
 
 (comment
-  (start))
+  (do
+    (stop)
+    (start)))
