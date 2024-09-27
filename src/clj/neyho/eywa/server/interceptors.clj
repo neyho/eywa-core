@@ -109,7 +109,8 @@
       :enter
       (fn [{{:keys [path-info uri] :as request} :request
             :as context}]
-        (let [extension (re-find #"(?<=\.).*?$" uri)] 
+        (if-not root context
+          (let [extension (re-find #"(?<=\.).*?$" uri)] 
           ;; If extension exists
           (if (some? extension)
             ;; Try to return that file
@@ -128,7 +129,7 @@
                            :response {:status 404
                                       :body "Not found!"})))))
             ;; Otherwise proceed
-            context)))
+            context))))
       ;; Leave will only happen when requested URI ends without extension
       ;; That is when static file isn't directly required
       :leave
@@ -139,29 +140,30 @@
           ;; If there is some kind of response
           context
           ;; Otherwise return root html
-          (loop [sections (remove empty? (str/split (or path-info uri) #"/"))]
-            (if (empty? sections)
-              ;; If there are no more sections
-              (let [target (fs/file root "/index.html")]
-                (if (fs/exists? target)
-                  (assoc context :response
-                         (-> (response/file-response target)
-                             (assoc-in [:headers "Content-Type"] "text/html")
-                             (head/head-response request)))
-                  (chain/terminate
-                    (assoc context
-                           :response {:status 404
-                                      :body "Not found!"}))))
-              ;;
-              (let [target (str
-                             (str/join "/" sections)
-                             "/index.html")]
-                (if (fs/exists? target)
-                  (assoc context :response
-                         (-> (response/file-response target)
-                             (assoc-in [:headers "Content-Type"] "text/html")
-                             (head/head-response request)))
-                  (recur (butlast sections))))))))})))
+          (if-not root context
+            (loop [sections (remove empty? (str/split (or path-info uri) #"/"))]
+              (if (empty? sections)
+                ;; If there are no more sections
+                (let [target (fs/file root "/index.html")]
+                  (if (fs/exists? target)
+                    (assoc context :response
+                           (-> (response/file-response target)
+                               (assoc-in [:headers "Content-Type"] "text/html")
+                               (head/head-response request)))
+                    (chain/terminate
+                      (assoc context
+                             :response {:status 404
+                                        :body "Not found!"}))))
+                ;;
+                (let [target (str
+                               (str/join "/" sections)
+                               "/index.html")]
+                  (if (fs/exists? target)
+                    (assoc context :response
+                           (-> (response/file-response target)
+                               (assoc-in [:headers "Content-Type"] "text/html")
+                               (head/head-response request)))
+                    (recur (butlast sections)))))))))})))
 
 
 (comment

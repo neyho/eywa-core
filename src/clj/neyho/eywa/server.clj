@@ -6,7 +6,6 @@
     clojure.pprint
     clojure.string
     clojure.set
-    [environ.core :refer [env]]
     [clojure.tools.logging :as log]
     [ring.util.response :as response]
     [ring.middleware.head :as head]
@@ -413,7 +412,7 @@
                      ; (sec-headers/secure-headers {:content-security-policy-settings {:object-src "none"}})
                      ; eywa-web-interceptor
                      router
-                     (make-spa-interceptor (env :eywa-serve (fs/expand-home "~/.eywa/web")))
+                     (make-spa-interceptor (env :eywa-serve))
                      ; (middlewares/resource "public")
                      (interceptor/interceptor http/not-found)]
                     ; ::http/secure-headers {:content-security-policy-settings {:object-src "none"}}
