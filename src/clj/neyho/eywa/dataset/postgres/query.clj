@@ -832,7 +832,7 @@
    ;   :selection->schema entity-id
    ;   :selection selection
    ;   :args args)
-   (when (access/entity-allows? entity-id #{:read :ownes})
+   (when (access/entity-allows? entity-id #{:read :owns})
      (let [{relations :relations
             recursions :recursions
             fields :fields
@@ -2015,7 +2015,9 @@
        ;   :args args
        ;   :selection selection
        ;   :schema schema)
-       (if (not= enforced-schema schema)
+       (if (and
+             (not= enforced-schema schema)
+             (not (access/superuser?)))
          (throw
            (ex-info
              "Purge not allowed. User doesn't own all entites included in purge"

@@ -1,5 +1,6 @@
 (ns neyho.eywa.server.interceptors
   (:require 
+    [babashka.fs :as fs]
     [clojure.string :as str]
     [clojure.java.io :as io]
     [clojure.tools.logging :as log]
@@ -99,6 +100,68 @@
                           (assoc-in [:headers "Content-Type"] "text/html")
                           (head/head-response request)))
                (recur (butlast sections))))))))})
+
+
+(defn make-spa-interceptor
+  ([root]
+   (interceptor
+     {:name ::spa-dynamic 
+      :enter
+      (fn [{{:keys [path-info uri] :as request} :request
+            :as context}]
+        (let [extension (re-find #"(?<=\.).*?$" uri)] 
+          ;; If extension exists
+          (if (some? extension)
+            ;; Try to return that file
+            (as-> (or path-info uri) path
+              (if (.startsWith path "/")
+                (subs path 1)
+                path)
+              (let [target (str root "/" path)]
+                (log/tracef "Returning resource file %s, for path %s" uri path-info)
+                (if (fs/exists? target)
+                  (assoc context :response
+                         (-> (response/file-response target)
+                             (head/head-response request)))
+                  (chain/terminate
+                    (assoc context
+                           :response {:status 404
+                                      :body "Not found!"})))))
+            ;; Otherwise proceed
+            context)))
+      ;; Leave will only happen when requested URI ends without extension
+      ;; That is when static file isn't directly required
+      :leave
+      (fn [{{:keys [path-info uri] :as request} :request
+            response :response
+            :as context}]
+        (if response
+          ;; If there is some kind of response
+          context
+          ;; Otherwise return root html
+          (loop [sections (remove empty? (str/split (or path-info uri) #"/"))]
+            (if (empty? sections)
+              ;; If there are no more sections
+              (let [target (fs/file root "/index.html")]
+                (if (fs/exists? target)
+                  (assoc context :response
+                         (-> (response/file-response target)
+                             (assoc-in [:headers "Content-Type"] "text/html")
+                             (head/head-response request)))
+                  (chain/terminate
+                    (assoc context
+                           :response {:status 404
+                                      :body "Not found!"}))))
+              ;;
+              (let [target (str
+                             (str/join "/" sections)
+                             "/index.html")]
+                (if (fs/exists? target)
+                  (assoc context :response
+                         (-> (response/file-response target)
+                             (assoc-in [:headers "Content-Type"] "text/html")
+                             (head/head-response request)))
+                  (recur (butlast sections))))))))})))
 
 
 (comment
