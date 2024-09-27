@@ -28,9 +28,7 @@
      :refer [user-data
              authenticate
              authenticate-or-redirect
-             access-tree]]
-    [neyho.eywa.server.interceptors.avatars 
-     :refer [avatars]]))
+             access-tree]]))
 
 (def echo-integration
   {:name :eywa/transit-integration-echo
@@ -192,12 +190,6 @@
            authenticate-or-redirect 
            apps]
      :route-name :eywa.web.app/get]
-    ["/eywa/avatars/*avatar"
-     :get [authenticate
-           (conneg/negotiate-content ["application/octet-stream" "image/jpeg" "image/jpeg"])
-           coerce-body
-           avatars]
-     :route-name :eywa.avatars/get]
     ["/eywa/whoami" :get [authenticate coerce-body content-neg-intc user-data] :route-name :eywa.identity/get]
     ["/eywa/access" :get [authenticate coerce-body content-neg-intc access-tree] :route-name :eywa.access/get]})
 
@@ -253,7 +245,7 @@
                       wrapped-query-executor]]
     (into
       #{["/graphql" :post interceptors :route-name ::graphql-api]
-        ["/graphql/*path" :get graphiql :route-name ::graphql-ide]})))
+        #_["/graphql/*path" :get graphiql :route-name ::graphql-ide]})))
 
 
 
@@ -419,7 +411,7 @@
                      route/query-params
                      (route/method-param)
                      ; (sec-headers/secure-headers {:content-security-policy-settings {:object-src "none"}})
-                     eywa-web-interceptor
+                     ; eywa-web-interceptor
                      router
                      (make-spa-interceptor (env :eywa-serve (fs/expand-home "~/.eywa/web")))
                      ; (middlewares/resource "public")

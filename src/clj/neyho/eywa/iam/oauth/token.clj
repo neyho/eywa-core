@@ -12,6 +12,9 @@
     [io.pedestal.interceptor.chain :as chain]
     [neyho.eywa.iam
      :refer [sign-data]]
+    [neyho.eywa.iam.access :as access]
+    [neyho.eywa.dataset :as dataset]
+    [neyho.eywa.iam.uuids :as iu]
     [neyho.eywa.iam.oauth.core :as core
      :refer [pprint
              process-scope
@@ -19,6 +22,7 @@
 
 
 (defonce ^:dynamic *tokens* (atom nil))
+
 
 (def token
   "eyJhbGciOiJSUzI1NiIsImtpZCI6ImxrTzFUenhab3E2dXA1bThDY2o3ZTBxZkRXZlhQRTFnUUdkNDJKajlDL0UiLCJ0eXBlIjoiSldUIn0.eyJhdWQiOm51bGwsInN1YiI6ImMwZTk2MGJjLTI1MTUtMTFlZC04MDY0LTAyYTUzNTg5NWQyZCIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODA4MCIsImV4cCI6MTcyNTQ0NDkzOSwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyBwcm9maWxlIG9wZW5pZCIsImNsaWVudF9pZCI6Ik1VTUFEUEFEQUtRSFNERkRHRkFFSlpKWFVTRkpHRk9PWVRXVkFVREVGVlBVUlVPUCIsImlhdCI6MTcyNTQ0MTMzOSwic2lkIjoidFFZRFZoV0pNRk91cnBFSnljUXhFVExNR2hqTnBYIiwic2Vzc2lvbiI6InRRWURWaFdKTUZPdXJwRUp5Y1F4RVRMTUdoak5wWCJ9.fv7gk-SHl2TnM28ihjZTD4zR6P0hDvw6or9V69GKnY2QBAkAyt9tAwGXnlGfOPIOrzThQTnuhMpTvtLV1myUDdxPu39U232ZYq2Fn2QFKO_nRzOCFQe023T33iG6r1tpVyNOhZa79f639tUFyLnt-O5Qf_Zsqx1PZyOzUFua3p_S3Rp1S5ChP81QcqVN30QX_IXtEHLnhwewtgQgeCRLcaDqxB8q2oA7iuPCgE84heAgEUkdwoKutlfe29DARyA2gUiYO0ETHFMQWeibo1bzOaMA5EDSakBmM2YdpeUjcc7Q9Qei7FUNJDL47i_2RraLmdOw1-8CRNzUk0vPeEZ-ow")
@@ -222,7 +226,7 @@
 
 
 (defn generate
-  [{{refresh? "refresh-tokens"} :settings :as client} session {:keys [audience scope client_id]}]
+  [{{allowed-grants "allowed-grants"} :settings :as client} session {:keys [audience scope client_id]}]
   (let [access-exp (-> 
                      (System/currentTimeMillis)
                      (quot 1000)
@@ -236,10 +240,10 @@
                       :iat (-> (vura/date) to-timestamp)
                       :client_id client_id
                       :sid session
-                      :scope (str/join " " scope)}]
+                      :scope (str/join " " scope)}
+        refresh? (some #(= "refresh_token" %) allowed-grants)]
     (if (pos? access-exp)
-      (let [refresh-token (when (and refresh? session
-                                     (contains? scope "offline_access"))
+      (let [refresh-token (when (and refresh? session (contains? scope "offline_access"))
                             (log/debugf "Creating refresh token: %s" session)
                             (gen-token))
             tokens (reduce
@@ -257,10 +261,13 @@
                             tokens)]
         (when refresh-token (revoke-token :refresh_token refresh-token))
         (when session (set-session-tokens session audience signed-tokens))
+        (comment
+          (def client (get @core/*clients* #uuid "34c6eea5-3c95-4de1-a547-5e1b34ea16ea")))
         (assoc signed-tokens
                :type "Bearer"
                :scope (str/join " " scope)
                :expires_in (access-token-expiry client)))
+      
       (let [tokens (reduce
                      (fn [tokens scope]
                        (process-scope session tokens scope))
@@ -390,6 +397,34 @@
              state
              tokens))))
 
+
+;; SCOPES
+(defmethod process-scope "roles"
+  [session tokens _]
+  (let [{:keys [roles]} (core/get-session-resource-owner session)
+        dataset-roles (dataset/search-entity
+                        iu/user-role
+                        {:euuid {:_in roles}}
+                        ; {:_where {:euuid {:_in roles}}}
+                        {:name nil})]
+    (assoc-in tokens [:access_token :roles] (map :name dataset-roles))))
+
+
+(defmethod process-scope "roles:uuid"
+  [session tokens _]
+  (let [{:keys [roles]} (core/get-session-resource-owner session)]
+    (assoc-in tokens [:access_token :roles] roles)))
+
+
+(defmethod process-scope "permissions"
+  [session tokens _]
+  (let [{:keys [roles]} (core/get-session-resource-owner session)]
+    (assoc-in tokens [:access_token :permissions] (access/roles-scopes roles))))
+
+(comment
+  (def tokens nil)
+  (access/roles-scopes #{#uuid "8ebc60f1-8df0-48c8-a9b6-747a140df021"})
+  (def session "RkJDHRzznXwlkatsVQnLWMmJHRWdyg"))
 
 ; (defn generate-code-challenge
 ;   ([code-verifier] (generate-code-challenge code-verifier "S256"))

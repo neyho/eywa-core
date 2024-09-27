@@ -15,7 +15,10 @@
     [buddy.core.codecs :as codecs]
     [buddy.core.crypto :as crypto]
     [neyho.eywa.iam :as iam]
+    [neyho.eywa.dataset.core :as core]
+    [neyho.eywa.iam.access :as access]
     [neyho.eywa.env :as env]
+    [neyho.eywa.iam.uuids :as iu]
     [io.pedestal.http.body-params :as bp]
     [io.pedestal.http.ring-middlewares :as middleware])
   (:import
@@ -124,18 +127,13 @@
   data)
 
 
-(defmulti process-scope (fn [_ _ scope] scope))
-
-
-(defmethod process-scope :default
-  [session tokens scope]
-  (log/errorf "[%s] Couldn't find scope resolver for scope `%s`" session scope)
-  tokens)
-
-
 (defn get-session-client [session]
   (let [euuid (get-in @*sessions* [session :client])]
     (get @*clients* euuid)))
+
+
+(comment
+  (get-session-client "nVmxJChCqySUlfPoAFdUqzGkGuXTZW"))
 
 
 (defn get-resource-owner [euuid]
@@ -146,6 +144,26 @@
 (defn get-session-resource-owner [session]
   (let [euuid (get-in @*sessions* [session :resource-owner])]
     (get @*resource-owners* euuid)))
+
+
+
+
+(defmulti process-scope (fn [_ _ scope] scope))
+
+
+; (defmethod process-scope :default
+;   [session tokens scope]
+;   (log/errorf "[%s] Couldn't find scope resolver for scope `%s`" session scope)
+;   tokens)
+
+(defmethod process-scope :default
+  [session tokens scope]
+  (let [{:keys [roles]} (get-session-resource-owner session)
+        user-scopes (access/roles-scopes roles)]
+    (if (contains? user-scopes scope)
+      (update-in tokens [:access_token :scope] (fnil conj []) scope)
+      tokens)))
+
 
 
 (defn token-error [code & description]
@@ -214,17 +232,6 @@
    (get-in @*sessions* [session :scopes audience])))
 
 
-(defn set-session-client [session {:keys [euuid] :as client}]
-  (swap! *sessions* assoc-in [session :client] euuid)
-  (swap! *clients* update euuid
-         (fn [current]
-           (->
-             current 
-             (merge client)
-             (update :sessions (fnil conj #{}) session))))
-  nil)
-
-
 (defn clients-match? [session {:keys [client_id client_secret]}]
   (let [{known-id :id
          known-secret :secret} (get-session-client session)]
@@ -241,7 +248,7 @@
 (defn get-client
   [id]
   (let [client (iam/get-client id)]
-    (swap! *clients* assoc (:euuid client) client)
+    (swap! *clients* update (:euuid client) merge client)
     client))
 
 
@@ -489,6 +496,7 @@
                        :secure true
                        :max-age 0}))})
 
+
 (def serve-resource
   {:enter (fn [{{:keys [uri]} :request :as ctx}]
             (assoc ctx :response (response/resource-response uri)))})
@@ -511,6 +519,60 @@
                        (every? empty? (vals tokens))))]
        (log/debugf "[%s] Session timed out. No code or access token was assigned to this session" session)
        (kill-session session)))))
+
+
+(defn reload-clients
+  []
+  (let [ids (remove nil? (map :id (vals @*clients*)))
+        new-clients (reduce
+                      (fn [r {:keys [euuid] :as client}]
+                        (assoc r euuid client))
+                      nil
+                      (iam/get-clients ids))]
+    (swap! *clients*
+           (fn [old-clients]
+             (merge
+               old-clients
+               (reduce
+                 (fn [r {:keys [euuid]}]
+                   (update r euuid merge (get new-clients euuid)))
+                 new-clients))))))
+
+
+(defn monitor-client-change
+  []
+  (let [delta-chan (async/chan (async/sliding-buffer 1))]
+    (async/sub core/delta-publisher iu/app delta-chan)
+    ;; Start idle service that will listen on delta changes
+    (async/go-loop
+      [_ (async/<! delta-chan)]
+      (log/debugf "[IAM] Received client delta")
+      ;; When first delta change is received start inner loop
+      (loop [[idle-value] (async/alts!
+                            [;; That will check for new delta values
+                             delta-chan
+                             ;; Or timeout
+                             (async/go
+                               (async/<! (async/timeout 5000))
+                               ::TIMEOUT)])]
+        (log/debugf "[IAM] Next idle value is: %s" idle-value)
+        ;; IF timeout is received than reload rules
+        (if (= ::TIMEOUT idle-value)
+          (do
+            (log/info "[IAM] Reloading clients!")
+            (reload-clients))
+          ;; Otherwise some other delta has been received and
+          ;; inner loop will be repeated
+          (recur (async/alts!
+                   [;; That will check for new delta values
+                    delta-chan
+                    ;; Or timeout
+                    (async/go
+                      (async/<! (async/timeout 5000))
+                      ::TIMEOUT)]))))
+      ;; when reloading is complete, wait for new delta value
+      ;; and repeat process
+      (recur (async/<! delta-chan)))))
 
 
 (comment

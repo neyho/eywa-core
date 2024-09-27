@@ -1098,6 +1098,7 @@
 (comment
   (def model (dataset/deployed-model)))
 
+
 (defn generate-lacinia-schema
   ([] (generate-lacinia-schema (dataset/deployed-model)))
   ([model]

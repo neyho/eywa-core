@@ -13,8 +13,6 @@
     neyho.eywa.server.jetty
     neyho.eywa.data
     neyho.eywa.db.postgres
-    neyho.eywa.avatars.postgres
-    neyho.eywa.authorization
     neyho.eywa.dataset
     neyho.eywa.dataset.core
     neyho.eywa.dataset.default-model
@@ -26,7 +24,7 @@
   (:gen-class :main true))
 
 
-(def version "0.2.9")
+(def version "0.2.92")
 
 
 (defn setup
@@ -68,11 +66,11 @@
       (catch Throwable ex
         (log/errorf ex "Couldn't finish EYWA setup.")
         (.println System/err
-          (str/join
-            "\n"
-            ["Couldn't finish EYWA initialization"
-             (ex-message ex)
-             (str "For more info check \"" env/log-dir "\" files")]))
+                  (str/join
+                    "\n"
+                    ["Couldn't finish EYWA initialization"
+                     (ex-message ex)
+                     (str "For more info check \"" env/log-dir "\" files")]))
         (System/exit 1)))))
 
 
@@ -261,7 +259,6 @@
                   (oauth/start-maintenance)
                   (neyho.eywa.db.postgres/init)
                   (neyho.eywa.dataset/init)
-                  (neyho.eywa.avatars.postgres/init)
                   (neyho.eywa.iam/init)
                   (neyho.eywa.server/start
                     {:port (when-some [port (env :eywa-server-port "8080")] (if (number? port) port (Integer/parseInt port)))
@@ -274,3 +271,9 @@
         (.printStackTrace ex)
         (System/exit 1))
       (finally (spit-pid)))))
+
+
+(comment
+  (str/replace "09jfiqo-123 39:foiq" #"[^\w^\d^\-^\.^_:]" "")
+  (re-find #"^[\w\d\-\._]" "09jfiqo-123 39")
+  )

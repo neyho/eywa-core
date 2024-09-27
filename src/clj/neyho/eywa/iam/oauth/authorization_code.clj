@@ -86,6 +86,9 @@
 
 
 (defn validate-client [request]
+  ; (def request request)
+  ; (comment
+  ;   (def client_id "MUMADPADAKQHSDFDGFAEJZJXUSFJGFOOYTWVAUDEFVPURUOP"))
   (let [{:keys [client_id state redirect_uri]
           request-secret :client_secret} request 
         base-redirect-uri (core/get-base-uri redirect_uri)
@@ -254,3 +257,20 @@
                   :expires-at (-> 
                                 (System/currentTimeMillis)
                                 (+ (vura/minutes 5)))))))
+
+
+(defn clean-codes
+  ([] (clean-codes (vura/minutes 8)))
+  ([timeout]
+   (let [now (System/currentTimeMillis)]
+     (swap! *authorization-codes*
+            (fn [codes]
+              (reduce-kv
+                (fn [result code {:keys [created-on] :as data}]
+                  (if (or (nil? created-on) (> (- now created-on) timeout)) result
+                    (assoc result code data)))
+                nil
+                codes))))))
+
+(comment
+  (clean-codes))

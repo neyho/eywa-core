@@ -104,7 +104,7 @@
       [:meta {:charset "UTF-8"}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0"}]
       [:title "EYWA Login"]
-      [:link {:rel "icon" :href "https://www.eywaonline.com/eywa/log/eywa.svg" :crossorigin true}]
+      [:link {:rel "icon" :href "https:/my.eywaonline.com/images/eywa.svg" :crossorigin true}]
       [:link {:rel "preconnect" :href "https://fonts.googleapis.com"}]
       [:link {:rel "preconnect" :href "https://fonts.gstatic.com" :crossorigin true}]
       [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;800;900&family=Roboto&display=swap"}]
@@ -118,7 +118,7 @@
        [:image
         {:id "background-image"
          :x 0 :y 0 :height 1000 :width 1000
-         :href "https://www.eywaonline.com/eywa/images/login_normal.png"}]]
+         :href "https://my.eywaonline.com/images/login_normal.png"}]]
       [:div {:class $login-wrapper}
        ; [:div
        ;  {:class $login-greeting}

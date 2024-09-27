@@ -13,11 +13,13 @@
      :refer [token-interceptor
              revoke-token-interceptor]]
     [neyho.eywa.iam.oauth.authorization-code
+     :as authorization-code
      :refer [*authorization-codes*
              gen-authorization-code
              get-code-session
              validate-client
              mark-code-issued]]
+    [neyho.eywa.iam.oauth.device-code :as device-code]
     [neyho.eywa.iam.oauth.page.status :refer [status-page]]))
 
 
@@ -108,6 +110,7 @@
                          code (gen-authorization-code)]
                      (save code {:issued? true
                                  :client client-euuid
+                                 :created-on (System/currentTimeMillis)
                                  :user/agent user-agent
                                  :user/ip remote-addr})
                      (mark-code-issued cookie-session code)
@@ -123,6 +126,7 @@
                    (let [code (gen-authorization-code)
                          {client-euuid :euuid} (validate-client request)]
                      (save code {:client client-euuid
+                                 :created-on (System/currentTimeMillis)
                                  :user/agent user-agent
                                  :user/ip remote-addr})
                      (assoc ctx
@@ -131,7 +135,6 @@
                                        :headers {"Location" (str "/oauth/login?" (codec/form-encode
                                                                                    {:state (core/encrypt
                                                                                              {:authorization-code code
-                                                                                              :evo "ti kurac"
                                                                                               :flow "authorization_code"})}))
                                                  "Cache-Control" "no-cache"}}))
                    (catch clojure.lang.ExceptionInfo ex
@@ -151,6 +154,9 @@
     (log/debug "[OAuth] Maintenance start")
     (send-off *agent* maintenance)
     (core/clean-sessions)
+    (authorization-code/clean-codes)
+    (device-code/clean-expired-codes)
+    (core/monitor-client-change)
     (log/debug "[OAuth] Maintenance finish")
     (Thread/sleep period)
     data))

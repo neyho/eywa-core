@@ -34,6 +34,10 @@
     [neyho.eywa.lacinia :as lacinia]
     [neyho.eywa.data :refer [*EYWA*]]
     [neyho.eywa.iam :as iam]
+    [neyho.eywa.iam.util
+     :refer [import-role
+             import-api
+             import-app]]
     [neyho.eywa.dataset.uuids :as du]))
 
 
@@ -73,6 +77,7 @@
     "group" (str "int references \"" (group-table) "\"(_eid) on delete set null")
     "role" (str "int references \"" (role-table) "\"(_eid) on delete set null")
     t))
+
 
 (defn attribute->ddl 
   "Function converts attribute to DDL syntax"
@@ -536,12 +541,20 @@
 (defn transform-relation
   [tx {:keys [from to] :as relation}]
   (let [diff (core/diff relation)
-        _ (log/tracef "Transforming relation\ndiff=%s\nfrom=%s\nto=%s" diff from to)
+        _ (log/tracef "Transforming relation\ndiff=%s\nfrom=%s\nto=%s" diff (pr-str from) (pr-str to))
         from-diff (:from diff)
         to-diff (:to diff)
         old-from (core/suppress from) 
         old-to (core/suppress to)
         old-relation (core/suppress relation) 
+        _ (do
+            (def relation relation)
+            (def old-relation old-relation)
+            (def old-to old-to)
+            (def old-from old-from)
+            (def to-diff to-diff)
+            (def from-diff from-diff)
+            (:euuid old-relation))
         old-name (relation->table-name old-relation) 
         ;; Assoc old from and to entities
         ;; This will be handled latter
@@ -1068,11 +1081,11 @@
        (log/infof "Initializing tables for host\n%s" (pr-str db))
        (core/create-deploy-history db)
        (log/info "Created __deploy_history")
-       (as-> (<-transit (slurp (io/resource "dataset/aaa.json"))) model 
+       (as-> (<-transit (slurp (io/resource "dataset/iam.json"))) model 
          (core/mount db model)
          (core/reload db model))
-       (dataset/stack-entity iu/permission iam/permissions)
-       (log/info "Mounted aaa.json dataset")
+       ; (dataset/stack-entity iu/permission iam/permissions)
+       (log/info "Mounted iam.json dataset")
        (binding [core/*return-type* :edn]
          (dataset/sync-entity iu/user *EYWA*)
          (dataset/bind-service-user #'neyho.eywa.data/*EYWA*))
@@ -1084,21 +1097,28 @@
            (core/mount db model)
            (core/reload db model))
          (log/info "Mounted dataset.json dataset")
-         (dataset/stack-entity iu/permission dataset/permissions)
-         (dataset/load-role-schema)
+         ; (dataset/stack-entity iu/permission dataset/permissions)
+         ; (dataset/load-role-schema)
          ;;
-         (log/info "Deploying AAA dataset")
-         (core/deploy! db (<-transit (slurp (io/resource "dataset/aaa.json"))))
+         (log/info "Deploying IAM dataset")
+         (core/deploy! db (<-transit (slurp (io/resource "dataset/iam.json"))))
          ;;
          (log/info "Deploying Datasets dataset")
          (core/deploy! db (<-transit (slurp (io/resource "dataset/dataset.json"))))
          ;;
-         (log/info "Mounted oauth.json dataset")
-         (core/deploy! db (<-transit (slurp (io/resource "dataset/oauth.json"))))
+         ; (log/info "Mounted oauth.json dataset")
+         ; (core/deploy! db (<-transit (slurp (io/resource "dataset/oauth.json"))))
          ;;
          (log/info "Reloading")
          (core/reload db)
-         (iam/init-eywa-frontend-client)
+         (import-app "exports/app_eywa_frontend.json")
+         (import-api "exports/api_eywa_graphql.json")
+         (doseq [role ["exports/role_dataset_developer.json"
+                       "exports/role_dataset_modeler.json"
+                       "exports/role_dataset_explorer.json"
+                       "exports/role_iam_admin.json"
+                       "exports/role_iam_user.json"]]
+           (import-role role))
          (log/info "Adding deployed model to history")
          (core/add-to-deploy-history db (core/get-model db)))))
     ([this options]

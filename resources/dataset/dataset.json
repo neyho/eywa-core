@@ -609,31 +609,6 @@
             }
           }
         }
-      },
-      "~:configuration": {
-        "~:graphql": {
-          "~:queries": {
-            "~:getAccountDataset": {
-              "~:type": "~ud922edda-f8de-486a-8407-e62ad67bf44c",
-              "~:resolve": "~$neyho.eywa.dataset/account-dataset"
-            }
-          },
-          "~:mutations": {
-            "~:deployDataset": {
-              "~:type": "~ud922edda-f8de-486a-8407-e62ad67bf44c",
-              "~:args": {
-                "~:version": "~ud922edda-f8de-486a-8407-e62ad67bf44c"
-              },
-              "~:resolve": "~$neyho.eywa.dataset/deploy-dataset"
-            }
-          },
-          "~:subscriptions": {
-            "~:refreshedGlobalDataset": {
-              "~:type": "~ud922edda-f8de-486a-8407-e62ad67bf44c",
-              "~:resolve": "~$neyho.eywa.dataset/deploy-update-subscription"
-            }
-          }
-        }
       }
     }
   }

@@ -13,3 +13,4 @@
 
 (def app #uuid "0757bd93-7abf-45b4-8437-2841283edcba")
 (def api #uuid "17b18b52-458e-4657-a827-eb1255de8f1e")
+(def scope #uuid "eb03406a-9b0c-4d61-8f96-34e8aa04f13c")

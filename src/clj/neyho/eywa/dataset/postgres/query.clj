@@ -1655,8 +1655,8 @@
           "[%s] Cursor position %s from table %s. Parents:\n%s"
           table cursor ftable (str/join ", " parents))
         (if (not-empty parents)
-          (let [{ptable :entity/table}
-                (get-cursor-schema schema (butlast cursor))
+          (let [{ptable :entity/table} (get-cursor-schema schema (butlast cursor))
+                ;;
                 query (pull-query
                         (update cursor-schema :args dissoc :_limit :_offset)
                         (get found-records (keyword as)) parents)
@@ -1749,6 +1749,8 @@
                         [root-query]
                         *return-type*))))}
     (sort (schema->cursors schema))))
+
+
 
 (defn construct-response
   [{:keys [entity/table recursions] :as schema} db found-records]
@@ -1919,7 +1921,7 @@
   ([connection schema]
    ; (log/tracef "Searching entity roots for schema:\n%s" (pprint schema))
    ;; Prepare tables target table by inner joining all required tables
-   ; (def schema schema)
+   (def schema schema)
    (let [focused-schema (focus-order schema)
          [tables from maybe-data] (search-stack-from focused-schema)
          ;; then prepare where statements and target data
