@@ -1,6 +1,6 @@
 {
-  "~:euuid": "~u2dd7c614-c8cb-495e-bf61-8e440e6cba20",
-  "~:name": "0.77",
+  "~:euuid": "~u8f556f8d-e664-493e-a57c-361c1781abb8",
+  "~:name": "0.795",
   "~:dataset": {
     "~:euuid": "~uc5c85417-0aef-4c44-9e86-8090647d6378",
     "~:name": "IAM"
@@ -115,8 +115,8 @@
           "~#neyho.eywa.dataset.core.ERDEntity": {
             "~:euuid": "~uedcab1db-ee6f-4744-bfea-447828893223",
             "~:position": {
-              "~:x": -796.7875,
-              "~:y": 878.9125
+              "~:x": -798.9875,
+              "~:y": 873.7124999999999
             },
             "~:width": 142.78125,
             "~:height": 202,
@@ -252,46 +252,6 @@
             }
           }
         },
-        "~u6f525f5f-0504-498b-8b92-c353a0f9d141": {
-          "~#neyho.eywa.dataset.core.ERDEntity": {
-            "~:euuid": "~u6f525f5f-0504-498b-8b92-c353a0f9d141",
-            "~:position": {
-              "~:x": -965,
-              "~:y": 1508.7
-            },
-            "~:width": 114.421875,
-            "~:height": 90,
-            "~:name": "Permission",
-            "~:attributes": [
-              {
-                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
-                  "~:euuid": "~u2fd2a465-29bd-4fc2-9486-1d56f082ed2f",
-                  "~:seq": 0,
-                  "~:name": "Name",
-                  "~:constraint": "optional",
-                  "~:type": "string",
-                  "~:configuration": null,
-                  "~:active": true
-                }
-              }
-            ],
-            "~:type": "WEAK",
-            "~:configuration": {
-              "~:constraints": {
-                "~:unique": [
-                  []
-                ]
-              },
-              "~:graphql": {
-                "~:interceptors": {
-                  "~:sync": [
-                    "~$neyho.eywa.administration/reload-schema"
-                  ]
-                }
-              }
-            }
-          }
-        },
         "~u17b18b52-458e-4657-a827-eb1255de8f1e": {
           "~#neyho.eywa.dataset.core.ERDEntity": {
             "~:euuid": "~u17b18b52-458e-4657-a827-eb1255de8f1e",
@@ -316,9 +276,9 @@
               },
               {
                 "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
-                  "~:euuid": "~u97432c59-d6fa-4ad1-9379-90ec91014d9a",
+                  "~:euuid": "~u9c56208f-240e-475b-a30b-41e15dd77632",
                   "~:seq": 1,
-                  "~:name": "Identifier",
+                  "~:name": "Description",
                   "~:constraint": "optional",
                   "~:type": "string",
                   "~:configuration": null,
@@ -327,9 +287,20 @@
               },
               {
                 "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
-                  "~:euuid": "~u285ed3e6-01e3-4171-9548-d7a42dfadfae",
+                  "~:euuid": "~ucc801b1a-72a0-421f-9eaf-472385bb77c0",
                   "~:seq": 2,
-                  "~:name": "String",
+                  "~:name": "Avatar",
+                  "~:constraint": "optional",
+                  "~:type": "json",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u285ed3e6-01e3-4171-9548-d7a42dfadfae",
+                  "~:seq": 3,
+                  "~:name": "Audience",
                   "~:constraint": "optional",
                   "~:type": "string",
                   "~:configuration": null,
@@ -339,33 +310,20 @@
               {
                 "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
                   "~:euuid": "~u520fb7f9-30b7-4bdf-8be5-e4cebc4e389f",
-                  "~:seq": 3,
+                  "~:seq": 4,
                   "~:name": "Configuration",
                   "~:constraint": "optional",
                   "~:type": "json",
                   "~:configuration": null,
                   "~:active": true
                 }
-              },
-              {
-                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
-                  "~:euuid": "~ud71a1fdc-ceb8-4cfe-bb7b-da6c3508a561",
-                  "~:seq": 4,
-                  "~:name": "ID",
-                  "~:constraint": "unique",
-                  "~:type": "string",
-                  "~:configuration": null,
-                  "~:active": true
-                }
               }
             ],
-            "~:type": "STRONG",
+            "~:type": "WEAK",
             "~:configuration": {
               "~:constraints": {
                 "~:unique": [
-                  [
-                    "~ud71a1fdc-ceb8-4cfe-bb7b-da6c3508a561"
-                  ]
+                  []
                 ]
               }
             }
@@ -549,8 +507,8 @@
           "~#neyho.eywa.dataset.core.ERDEntity": {
             "~:euuid": "~u95afb558-3d28-45e5-9fbf-a2625afc5675",
             "~:position": {
-              "~:x": -458.8,
-              "~:y": 873.8375000000001
+              "~:x": -464.425,
+              "~:y": 873.7750000000001
             },
             "~:width": 138.71875,
             "~:height": 154,
@@ -721,8 +679,8 @@
           "~#neyho.eywa.dataset.core.ERDEntity": {
             "~:euuid": "~ub2ccded3-9f8e-49aa-b610-8902ad7330e9",
             "~:position": {
-              "~:x": -585.4,
-              "~:y": 483.4
+              "~:x": -567.9,
+              "~:y": 484
             },
             "~:width": 205.953125,
             "~:height": 346,
@@ -1228,8 +1186,8 @@
           "~#neyho.eywa.dataset.core.ERDEntity": {
             "~:euuid": "~ueb03406a-9b0c-4d61-8f96-34e8aa04f13c",
             "~:position": {
-              "~:x": -806.1750000000001,
-              "~:y": 1356
+              "~:x": -797.4750000000001,
+              "~:y": 1342.75
             },
             "~:width": 138.71875,
             "~:height": 106,
@@ -1239,8 +1197,8 @@
                 "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
                   "~:euuid": "~uee8d7258-ef0c-4964-a106-82f444bd5928",
                   "~:seq": 0,
-                  "~:name": "ID",
-                  "~:constraint": "unique",
+                  "~:name": "Name",
+                  "~:constraint": "optional",
                   "~:type": "string",
                   "~:configuration": null,
                   "~:active": true
@@ -1251,20 +1209,18 @@
                   "~:euuid": "~u31011857-40b6-4f57-b4ca-0b2031e9c1ae",
                   "~:seq": 1,
                   "~:name": "Description",
-                  "~:constraint": "mandatory",
+                  "~:constraint": "optional",
                   "~:type": "string",
                   "~:configuration": null,
                   "~:active": true
                 }
               }
             ],
-            "~:type": "STRONG",
+            "~:type": "WEAK",
             "~:configuration": {
               "~:constraints": {
                 "~:unique": [
-                  [
-                    "~uee8d7258-ef0c-4964-a106-82f444bd5928"
-                  ]
+                  []
                 ]
               }
             }
@@ -1364,36 +1320,6 @@
             }
           }
         },
-        "~ucf0ddc08-b399-4e40-a327-a912d12d26a7": {
-          "~#neyho.eywa.dataset.core.ERDRelation": {
-            "~:euuid": "~ucf0ddc08-b399-4e40-a327-a912d12d26a7",
-            "~:from": "~ueb03406a-9b0c-4d61-8f96-34e8aa04f13c",
-            "~:to": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
-            "~:from-label": "scopes",
-            "~:to-label": "roles",
-            "~:cardinality": "m2m",
-            "~:path": {
-              "~#neyho.eywa.modeling.core.Path": {
-                "~:coordinates": {
-                  "~#list": [
-                    {
-                      "~#neyho.eywa.modeling.core.Coordinate": {
-                        "~:x": -940,
-                        "~:y": 1360
-                      }
-                    },
-                    {
-                      "~#neyho.eywa.modeling.core.Coordinate": {
-                        "~:x": -940,
-                        "~:y": 910
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
         "~u5658e47b-51a6-4795-a5b7-d546a8f01fe4": {
           "~#neyho.eywa.dataset.core.ERDRelation": {
             "~:euuid": "~u5658e47b-51a6-4795-a5b7-d546a8f01fe4",
@@ -1408,7 +1334,7 @@
                   "~#list": [
                     {
                       "~#neyho.eywa.modeling.core.Coordinate": {
-                        "~:x": -590,
+                        "~:x": -570,
                         "~:y": 820
                       }
                     }
@@ -1462,28 +1388,6 @@
             }
           }
         },
-        "~u7efa7244-ae20-4248-9792-7623d12cea9e": {
-          "~#neyho.eywa.dataset.core.ERDRelation": {
-            "~:euuid": "~u7efa7244-ae20-4248-9792-7623d12cea9e",
-            "~:from": "~u17b18b52-458e-4657-a827-eb1255de8f1e",
-            "~:to": "~ueb03406a-9b0c-4d61-8f96-34e8aa04f13c",
-            "~:from-label": "apis",
-            "~:to-label": "scopes",
-            "~:cardinality": "m2m",
-            "~:path": {
-              "~#neyho.eywa.modeling.core.Path": {
-                "~:coordinates": [
-                  {
-                    "~#neyho.eywa.modeling.core.Coordinate": {
-                      "~:x": -800,
-                      "~:y": 1270
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        },
         "~u1deeb442-5bd2-45e3-8ba0-5cbb1d8d5389": {
           "~#neyho.eywa.dataset.core.ERDRelation": {
             "~:euuid": "~u1deeb442-5bd2-45e3-8ba0-5cbb1d8d5389",
@@ -1528,46 +1432,6 @@
             }
           }
         },
-        "~u247ac70e-460b-40a1-9886-dfc992cfe921": {
-          "~#neyho.eywa.dataset.core.ERDRelation": {
-            "~:euuid": "~u247ac70e-460b-40a1-9886-dfc992cfe921",
-            "~:from": "~u6f525f5f-0504-498b-8b92-c353a0f9d141",
-            "~:to": "~u6f525f5f-0504-498b-8b92-c353a0f9d141",
-            "~:from-label": "children",
-            "~:to-label": "parent",
-            "~:cardinality": "tree",
-            "~:path": {
-              "~#neyho.eywa.modeling.core.Path": {
-                "~:coordinates": [
-                  {
-                    "~#neyho.eywa.modeling.core.Coordinate": {
-                      "~:x": 37.2109375,
-                      "~:y": -45
-                    }
-                  },
-                  {
-                    "~#neyho.eywa.modeling.core.Coordinate": {
-                      "~:x": 55,
-                      "~:y": -118.70000000000005
-                    }
-                  },
-                  {
-                    "~#neyho.eywa.modeling.core.Coordinate": {
-                      "~:x": 137.2109375,
-                      "~:y": -45
-                    }
-                  },
-                  {
-                    "~#neyho.eywa.modeling.core.Coordinate": {
-                      "~:x": 57.2109375,
-                      "~:y": -25
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        },
         "~u85dac0f6-3cb2-4054-88a5-0f2cfe63a792": {
           "~#neyho.eywa.dataset.core.ERDRelation": {
             "~:euuid": "~u85dac0f6-3cb2-4054-88a5-0f2cfe63a792",
@@ -1597,30 +1461,6 @@
                     }
                   }
                 ]
-              }
-            }
-          }
-        },
-        "~u16ca53f4-0fe3-4122-93dd-1e86fd1b58db": {
-          "~#neyho.eywa.dataset.core.ERDRelation": {
-            "~:euuid": "~u16ca53f4-0fe3-4122-93dd-1e86fd1b58db",
-            "~:from": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
-            "~:to": "~u6f525f5f-0504-498b-8b92-c353a0f9d141",
-            "~:from-label": "roles",
-            "~:to-label": "permissions",
-            "~:cardinality": "m2m",
-            "~:path": {
-              "~#neyho.eywa.modeling.core.Path": {
-                "~:coordinates": {
-                  "~#list": [
-                    {
-                      "~#neyho.eywa.modeling.core.Coordinate": {
-                        "~:x": -970,
-                        "~:y": 940
-                      }
-                    }
-                  ]
-                }
               }
             }
           }
@@ -1670,6 +1510,28 @@
                     "~#neyho.eywa.modeling.core.Coordinate": {
                       "~:x": -1170,
                       "~:y": 700
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "~u9c5c9386-0e04-4849-b414-f189a083e5e8": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u9c5c9386-0e04-4849-b414-f189a083e5e8",
+            "~:from": "~u17b18b52-458e-4657-a827-eb1255de8f1e",
+            "~:to": "~ueb03406a-9b0c-4d61-8f96-34e8aa04f13c",
+            "~:from-label": "api",
+            "~:to-label": "scopes",
+            "~:cardinality": "o2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": [
+                  {
+                    "~#neyho.eywa.modeling.core.Coordinate": {
+                      "~:x": -800,
+                      "~:y": 1250
                     }
                   }
                 ]
@@ -1770,21 +1632,57 @@
         "~u9aaef2f8-9db2-43c5-9821-3fad88ed5b33": {
           "~#neyho.eywa.dataset.core.ERDRelation": {
             "~:euuid": "~u9aaef2f8-9db2-43c5-9821-3fad88ed5b33",
-            "~:from": "~u17b18b52-458e-4657-a827-eb1255de8f1e",
-            "~:to": "~u0757bd93-7abf-45b4-8437-2841283edcba",
-            "~:from-label": "apis",
-            "~:to-label": "clients",
+            "~:from": "~u0757bd93-7abf-45b4-8437-2841283edcba",
+            "~:to": "~u17b18b52-458e-4657-a827-eb1255de8f1e",
+            "~:from-label": "clients",
+            "~:to-label": "apis",
             "~:cardinality": "m2m",
             "~:path": {
               "~#neyho.eywa.modeling.core.Path": {
                 "~:coordinates": [
                   {
                     "~#neyho.eywa.modeling.core.Coordinate": {
-                      "~:x": -670,
+                      "~:x": -680,
                       "~:y": 1130
                     }
                   }
                 ]
+              }
+            }
+          }
+        },
+        "~u2c11b4c1-0033-4f4b-a113-bcf84d18d99a": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u2c11b4c1-0033-4f4b-a113-bcf84d18d99a",
+            "~:from": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:to": "~ueb03406a-9b0c-4d61-8f96-34e8aa04f13c",
+            "~:from-label": "roles",
+            "~:to-label": "scopes",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": {
+                  "~#list": [
+                    {
+                      "~#neyho.eywa.modeling.core.Coordinate": {
+                        "~:x": -940,
+                        "~:y": 920
+                      }
+                    },
+                    {
+                      "~#neyho.eywa.modeling.core.Coordinate": {
+                        "~:x": -940,
+                        "~:y": 1130
+                      }
+                    },
+                    {
+                      "~#neyho.eywa.modeling.core.Coordinate": {
+                        "~:x": -940,
+                        "~:y": 1340
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
@@ -1798,5 +1696,5 @@
       }
     }
   },
-  "~:deployed": false
+  "~:deployed": true
 }

@@ -7,8 +7,11 @@
     [neyho.eywa.dataset :as dataset]
     [neyho.eywa.dataset.core :as core]
     [neyho.eywa.iam.uuids :as iu]
-    [neyho.eywa.iam.access.context :refer [*rules* *roles* *user*]]))
+    [neyho.eywa.iam.access.context :refer [*rules* *roles* *user* *scopes*]]))
 
+
+
+;; RULES
 
 (defn get-roles-access-data
   []
@@ -60,6 +63,7 @@
             (x-relation euuid :from :delete (map :euuid from_delete_relations))
             (x-relation euuid :to :read (map :euuid to_read_relations))
             (x-relation euuid :to :write (map :euuid to_write_relations))
+            (x-relation euuid :to :delete (map :euuid to_delete_relations))
             (x-relation euuid :to :delete (map :euuid to_delete_relations))))
       nil
       data)))
@@ -115,6 +119,44 @@
        (throw ex)))))
 
 
+;; SCOPES
+(defn get-roles-scope-data
+  []
+  (dataset/search-entity
+    iu/user-role
+    nil
+    {:euuid nil
+     :name nil
+     :scopes [{:selections {:euuid nil
+                            :name nil}}]}))
+
+
+(defn transform-scope-data
+  [roles]
+  (reduce
+    (fn [r {role :euuid scopes :scopes}]
+      (assoc r role (set (map :name scopes))))
+    {}
+    roles))
+
+
+(defn load-scopes
+  []
+  (alter-var-root #'*scopes* (fn [_] (transform-scope-data (get-roles-scope-data)))))
+
+
+(defn roles-scopes
+  [roles]
+  (reduce set/union (vals (select-keys *scopes* roles))))
+
+
+(comment
+  (def roles
+    [#uuid "0a757182-9a8e-11ee-87ee-02a535895d2d"
+     #uuid "228df5f6-86c7-4308-8a9e-4a578c5e4af7"
+     #uuid "7fc035e2-812e-4861-a25c-eb172b39577f"]))
+
+
 (defn start-enforcing
   []
   (let [model (dataset/deployed-model)
@@ -148,7 +190,8 @@
         (if (= ::TIMEOUT idle-value)
           (do
             (log/info "[IAM] Reloading role access!")
-            (load-rules))
+            (load-rules)
+            (load-scopes))
           ;; Otherwise some other delta has been received and
           ;; inner loop will be repeated
           (recur (async/alts!
@@ -161,7 +204,8 @@
       ;; when reloading is complete, wait for new delta value
       ;; and repeat process
       (recur (async/<! delta-chan)))
-    (load-rules)))
+    (load-rules)
+    (load-scopes)))
 
 
 (comment

@@ -21,7 +21,7 @@
 
 
 (defn status
-  ([{{{:keys [value error user client]} :query-params} :request}]
+  ([{{{:keys [value error error_description user client]} :query-params} :request}]
    (html
      [:head
       [:meta {:charset "UTF-8"}]
@@ -72,8 +72,8 @@
           (cond
             ;;
             error
-            (letfn [(with-please [x] (str "\n Please restart authentication process"))
-                    (contact-support [x] (str "\n Please contact application support"))]
+            (letfn [(with-please [x] (str x "\n Please restart authentication process"))
+                    (contact-support [x] (str x "\n Please contact application support"))]
               (case error
                 "broken_flow" (with-please "Authorization flow is broken.")
                 "device_code_expired" (with-please "User code that you have entered has expired.")
@@ -89,7 +89,7 @@
                 "no_redirections" (contact-support "Client doesn't has 0 configured redirections")
                 ;; 
                 "unsupported_grant_type" (contact-support "Grant type specified isn't supported")
-                nil))
+                error_description))
             ;;
             (and user client)
             (let [client (get @core/*clients* (java.util.UUID/fromString client))]

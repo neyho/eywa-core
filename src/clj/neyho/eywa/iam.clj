@@ -231,6 +231,20 @@
      :settings nil}))
 
 
+(defn get-clients
+  [ids]
+  (search-entity
+    iu/app
+    {:id {:_in ids}}
+    {:euuid nil
+     :id nil
+     :name nil
+     :type nil
+     :active nil
+     :secret nil
+     :settings nil}))
+
+
 
 (defn add-client [{:keys [id name secret settings type]
                    :or {id (gen/client-id)
@@ -274,7 +288,6 @@
      :settings nil}))
 
 
-
 (defn init
   []
   (log/info "Initializing IAM...")
@@ -285,92 +298,6 @@
     ; (lacinia/add-shard ::graphql (slurp (io/resource "iam.graphql")))
     (catch Throwable e
       (log/error e "Couldn't load role schema"))))
-
-
-; (def permissions
-;   [{:euuid c/eywa
-;     :name "EYWA"}
-;    {:euuid c/iam
-;     :name "IAM"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/eywa}}
-;    {:euuid c/users
-;     :name "Users"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/iam}}
-;    {:euuid c/user-add
-;     :name "User Add"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/users}}
-;    {:euuid c/user-modify
-;     :name "User Edit"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/users}}
-;    {:euuid c/user-delete
-;     :name "User Delete"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/users}}
-;    {:euuid c/groups
-;     :name "Groups"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/iam}}
-;    {:euuid c/group-add
-;     :name "Group Add"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/groups}}
-;    {:euuid c/group-modify
-;     :name "Group Edit"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/groups}}
-;    {:euuid c/group-delete
-;     :name "Group Delete"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/groups}}
-;    {:euuid c/group-members
-;     :name "Group Members"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/groups}}
-;    {:euuid c/roles
-;     :name "Roles"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/iam}}
-;    {:euuid c/role-add
-;     :name "Role Add"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/roles}}
-;    {:euuid c/role-modify
-;     :name "Role Edit"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/roles}}
-;    {:euuid c/role-delete
-;     :name "Role Delete"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/roles}}
-;    {:euuid c/role-members
-;     :name "Role Members"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/roles}}
-;    {:euuid c/role-permissions
-;     :name "Role Members"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/roles}}
-;    ;;
-;    {:euuid c/apps
-;     :name "Apps"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/iam}}
-;    {:euuid c/app-add
-;     :name "App Add"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/apps}}
-;    {:euuid c/app-edit
-;     :name "App Edit"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/apps}}
-;    {:euuid c/app-delete
-;     :name "App Delete"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/apps}}])
 
 
 (defn setup
@@ -437,126 +364,3 @@
                      (update-in [:settings "redirections"] ensure "https://my.eywaonline.com/eywa/silent-callback")
                      (update-in [:settings "logout-redirections"] ensure "https://my.eywaonline.com/")))]
       (when client (add-client client)))))
-
-
-
-(comment
-  (time (get-client "oauth_test_confidential"))
-  
-  (get-client "MUMADPADAKQHSDFDGFAEJZJXUSFJGFOOYTWVAUDEFVPURUOP")
-  (get-client "HJIUVTENYXXOKEMGYXEUEHIKVKCKJPCNCLSXLSKNMFVEMAWJ")
-
-
-  (sync-entity
-    neyho.eywa.iam.uuids/user
-    {:name "oauth_test"
-     :password "change-me"
-     :person_info {:name "Bosko Buha"
-                   :given_name "Bosko"
-                   :family_name "Buha"
-                   :prefered_username "bbuha"
-                   :nickname "partizaner"
-                   :profile "https://bbuha.partizani.yu"
-                   :picture "https://bbuha.partizani.yu/slika1"
-                   :website "https://bbuha.partizani.yu/omeni"
-                   :email_verified true
-                   :gender nil
-                   :birthdate "1984-01-00"
-                   :zoneinfo nil
-                   :phone_number "+38533333333"
-                   :phone_number_verified nil
-                   :address "Ulica Gora i Planina 44"}})
-
-
-  (unsign-data
-    (sign-data
-      {:name "oauth_test"
-       :password "change-me"}
-      {:alg :rs256
-       :exp (vura/date 2024 3 26 10 53)}))
-
-
-  (def client
-    (add-client
-      {:euuid #uuid "7f30e780-37a1-11ef-a949-02a535895d2d",
-       :id "HJIUVTENYXXOKEMGYXEUEHIKVKCKJPCNCLSXLSKNMFVEMAWJ",
-       :name "oidc-client-test",
-       :type :public,
-       :active true,
-       :secret nil
-       :settings
-       {"version" 0,
-        "login-page" "http://localhost:8080/oauth/login/index.html",
-        "redirections"
-        ["http://localhost:8080/eywa/"
-         "http://localhost:8080/eywa"
-         "http://localhost:8080/eywa/callback"
-         "http://localhost:8080/eywa/silent-callback"
-         "http://localhost:8000/eywa/callback"
-         "http://localhost:8000/eywa/silent-callback"
-         "http://localhost:8080/app/kbdev"
-         "http://localhost:5173/authentication/callback"
-         "http://localhost:1234/sample.html"
-         "http://localhost:1234/code-flow-duendesoftware/sample.html"
-         "http://localhost:1234/code-flow-duendesoftware/sample-silent.html"
-         "http://localhost:1234/code-flow-duendesoftware/sample-popup-signin.html"
-         "http://localhost:1234/code-flow-duendesoftware/sample-popup-signout.html"
-         "http://localhost:1234/oidc-client/sample.html"
-         "http://localhost:1234/user-manager/sample.html"
-         "http://localhost:1234/user-manager/sample.html"
-         "http://localhost:1234/auth/callback"
-         "http://localhost:1234/auth/silent-callback"
-         "http://localhost:1234/"
-         ],
-        "token-expiry" {"access" 600, "refresh" 129600},
-        "allowed-grants" ["refresh_token" "code" "token" "id_token"],
-        "logout-redirections" ["http://localhost:5173/"
-                               "http://localhost:1234/"
-                               "http://localhost:8000/eywa/"
-                               "http://localhost:1234/code-flow-duendesoftware/sample.html"]
-        "refresh-tokens" true}}))
-
-
-  (get-client (:id client))
-  (remove-client client)
-
-  
-  ;;
-  (add-client
-    {:id "XFYWDCONOFSZMTVAEOQHTZFHSUCTXQ",
-     :password "e9w7BwGDTLBgaHYxMpctUrOy_aVA4tiZHlgfb2GrotWiBhr_u0",
-     :euuid #uuid "3349f1ff-2118-4b3e-babf-a8b68b7e98df",
-     :name "oauth_test_confidential",
-     :type :confidential,
-     :settings
-     {:version 0,
-      :allowed-grants
-      ["refresh_token" "client_credentials" "password" "code"],
-      :token-expiry {:access (vura/minutes 5)
-                     :refresh (vura/days 1.5)}
-      :refresh-tokens true,
-      :login-page "http://localhost:8080/login/kbdev/",
-      :redirections
-      ["http://localhost:8080/eywa/" "http://localhost:8080/app/kbdev"]}})
-
-  ;;
-  (add-client
-    {:id "ZHXGGUGLQVOSJZHZCETLFTUZWSSRWG",
-     :password nil,
-     :euuid #uuid "62972fcf-3cfe-4d34-baea-055308612a0d",
-     :name "oauth_test_public",
-     :type :public,
-     :settings
-     {:version 0,
-      :logo-url nil
-      :login-page "http://localhost:8080/login/kbdev",
-      :token-expiry {"access" (vura/minutes 5)
-                     "refresh" (vura/days 1.5)}
-      :allowed-grants
-      ["refresh_token" "client_credentials" "password" "code"],
-      :redirections
-      ["http://localhost:8080/eywa/" "http://localhost:8080/app/kbdev"]}})
-
-
-  (remove-client #uuid "62972fcf-3cfe-4d34-baea-055308612a0d")
-  (remove-client #uuid "3349f1ff-2118-4b3e-babf-a8b68b7e98df"))

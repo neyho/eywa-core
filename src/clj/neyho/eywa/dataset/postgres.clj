@@ -34,6 +34,10 @@
     [neyho.eywa.lacinia :as lacinia]
     [neyho.eywa.data :refer [*EYWA*]]
     [neyho.eywa.iam :as iam]
+    [neyho.eywa.iam.util
+     :refer [import-role
+             import-api
+             import-app]]
     [neyho.eywa.dataset.uuids :as du]))
 
 
@@ -1077,11 +1081,11 @@
        (log/infof "Initializing tables for host\n%s" (pr-str db))
        (core/create-deploy-history db)
        (log/info "Created __deploy_history")
-       (as-> (<-transit (slurp (io/resource "dataset/aaa.json"))) model 
+       (as-> (<-transit (slurp (io/resource "dataset/iam.json"))) model 
          (core/mount db model)
          (core/reload db model))
        ; (dataset/stack-entity iu/permission iam/permissions)
-       (log/info "Mounted aaa.json dataset")
+       (log/info "Mounted iam.json dataset")
        (binding [core/*return-type* :edn]
          (dataset/sync-entity iu/user *EYWA*)
          (dataset/bind-service-user #'neyho.eywa.data/*EYWA*))
@@ -1096,7 +1100,7 @@
          ; (dataset/stack-entity iu/permission dataset/permissions)
          ; (dataset/load-role-schema)
          ;;
-         (log/info "Deploying AAA dataset")
+         (log/info "Deploying IAM dataset")
          (core/deploy! db (<-transit (slurp (io/resource "dataset/iam.json"))))
          ;;
          (log/info "Deploying Datasets dataset")
@@ -1107,7 +1111,14 @@
          ;;
          (log/info "Reloading")
          (core/reload db)
-         (iam/init-eywa-frontend-client)
+         (import-app "exports/app_eywa_frontend.json")
+         (import-api "exports/api_eywa_graphql.json")
+         (doseq [role ["exports/role_dataset_developer.json"
+                       "exports/role_dataset_modeler.json"
+                       "exports/role_dataset_explorer.json"
+                       "exports/role_iam_admin.json"
+                       "exports/role_iam_user.json"]]
+           (import-role role))
          (log/info "Adding deployed model to history")
          (core/add-to-deploy-history db (core/get-model db)))))
     ([this options]

@@ -24,7 +24,7 @@
   (:gen-class :main true))
 
 
-(def version "0.2.91")
+(def version "0.2.92")
 
 
 (defn setup
@@ -66,11 +66,11 @@
       (catch Throwable ex
         (log/errorf ex "Couldn't finish EYWA setup.")
         (.println System/err
-          (str/join
-            "\n"
-            ["Couldn't finish EYWA initialization"
-             (ex-message ex)
-             (str "For more info check \"" env/log-dir "\" files")]))
+                  (str/join
+                    "\n"
+                    ["Couldn't finish EYWA initialization"
+                     (ex-message ex)
+                     (str "For more info check \"" env/log-dir "\" files")]))
         (System/exit 1)))))
 
 

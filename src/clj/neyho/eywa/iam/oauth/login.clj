@@ -82,12 +82,21 @@
              (let [{{response_type :response_type
                      redirect-uri :redirect_uri
                      :keys [state audience scope]} :request
-                    :keys [client]}
+                    :keys [client] :as prepared-code}
                    (get @ac/*authorization-codes* authorization-code)
                    ;;
                    session (core/gen-session-id)
                    now (vura/date)]
                (cond
+                 (nil? prepared-code)
+                 (chain/terminate
+                   (assoc ctx :response
+                          {:status 302
+                           :headers {"Location" (str "/oauth/status" "?" (codec/form-encode
+                                                                           {:value "error"
+                                                                            :flow "authorization_code"
+                                                                            :error "expired_code"
+                                                                            :error_description "Your login grace period has expired. Return to your client application and retry login procedure"}))}}))
                  ;; When user isn't authenticated, leave for some other interceptor
                  ;; to return response
                  (nil? resource-owner)

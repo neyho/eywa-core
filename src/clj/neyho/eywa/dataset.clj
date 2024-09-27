@@ -18,64 +18,6 @@
     [com.walmartlabs.lacinia.executor :as executor]))
 
 
-; (def permissions
-;   [{:euuid c/eywa
-;     :name "EYWA"
-;     :roles [*ROOT*]}
-;    {:euuid c/data
-;     :name "Data"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/eywa}}
-;    {:euuid c/dataset-explorer
-;     :name "Explore"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/data}}
-;    {:euuid c/datasets
-;     :name "Datasets"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/data}}
-;    {:euuid c/dataset-add
-;     :name "Add"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/datasets}}
-;    {:euuid c/dataset-modify
-;     :name "Modify"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/datasets}}
-;    {:euuid c/dataset-delete
-;     :name "Delete"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/datasets}}
-;    {:euuid c/dataset-deploy
-;     :name "Deploy"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/datasets}}
-;    {:euuid c/dataset-version
-;     :name "Dataset Version"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/datasets}}
-;    {:euuid c/dataset-version-save
-;     :name "Save"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/dataset-version}}
-;    {:euuid c/dataset-version-import
-;     :name "Import"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/dataset-version}}
-;    {:euuid c/dataset-version-export
-;     :name "Export"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/dataset-version}}
-;    {:euuid c/dataset-version-delete
-;     :name "Delete"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/dataset-version}}
-;    {:euuid c/graphql-ui
-;     :name "Graphql"
-;     :roles [*ROOT*]
-;     :parent {:euuid c/eywa}}])
-
-
 (defonce ^:dynamic *model* (ref nil))
 
 (defn deployed-model [] @*model*)
