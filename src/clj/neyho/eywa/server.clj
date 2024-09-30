@@ -192,17 +192,17 @@
     ; ["/login" :get [coerce-body content-neg-intc custom-logins] :route-name :eywa.web.login/get]
     ; ["/login" :post [coerce-body content-neg-intc append-account login] :route-name :eywa.web.login/post]
     ;;
-    ["/app/*app"
-     :get [(conneg/negotiate-content ["text/css" 
-                                      "text/javascript" 
-                                      "text/html" 
-                                      "image/jpeg" 
-                                      "image/png"
-                                      "image/svg"]) 
-           (middlewares/content-type)
-           authenticate-or-redirect 
-           apps]
-     :route-name :eywa.web.app/get]
+    ; ["/app/*app"
+    ;  :get [(conneg/negotiate-content ["text/css" 
+    ;                                   "text/javascript" 
+    ;                                   "text/html" 
+    ;                                   "image/jpeg" 
+    ;                                   "image/png"
+    ;                                   "image/svg"]) 
+    ;        (middlewares/content-type)
+    ;        authenticate-or-redirect 
+    ;        apps]
+    ;  :route-name :eywa.web.app/get]
     ["/eywa/login" :post [content-neg-intc (body-params/body-params) keyword-params app-login]]
     ["/eywa/avatars/*avatar"
      :get [authenticate
@@ -422,11 +422,12 @@
                      router
                      (make-spa-interceptor (env :eywa-serve (fs/expand-home "~/.eywa/web")))
                      ; (middlewares/resource "public")
-                     (interceptor/interceptor http/not-found)]
+                     ; (interceptor/interceptor http/not-found)
+                     ]
                     ; ::http/secure-headers {:content-security-policy-settings {:object-src "none"}}
                     ; ::http/file-path "web/public"
                     }
-                   http/dev-interceptors
+                   ; http/dev-interceptors
                    http/create-server)]
      (reset! server (http/start _server))
      (log/infof "EYWA server started @ %s:%s" host port))))

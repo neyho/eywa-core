@@ -154,6 +154,7 @@
                                       :body "Not found!"}))))
               ;;
               (let [target (str
+                             root "/"
                              (str/join "/" sections)
                              "/index.html")]
                 (if (fs/exists? target)
