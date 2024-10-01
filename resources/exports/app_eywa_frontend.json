@@ -1,0 +1,31 @@
+{
+  "euuid": "34c6eea5-3c95-4de1-a547-5e1b34ea16ea",
+  "name": "EYWA Frontend",
+  "id": "MUMADPADAKQHSDFDGFAEJZJXUSFJGFOOYTWVAUDEFVPURUOP",
+  "secret": null,
+  "description": null,
+  "type":"public",
+  "active": true,
+  "settings": {
+    "logo-url": "https://www.eywaonline.com/eywa/logo/eywa.svg",
+    "login-page": "",
+    "redirections": [
+      "https://my.eywaonline.com/eywa/callback",
+      "https://my.eywaonline.com/eywa/silent-callback"
+    ],
+    "token-expiry": {
+      "id": 600,
+      "access": 3600,
+      "refresh": 129600
+    },
+    "allowed-grants": [
+      "urn:ietf:params:oauth:grant-type:device_code",
+      "authorization_code",
+      "refresh_token"
+    ],
+    "logout-redirections": [
+      "https://my.eywaonline.com/eywa/",
+      "https://my.eywaonline.com/eywa/"
+    ]
+  }
+}

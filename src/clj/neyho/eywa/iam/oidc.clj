@@ -193,11 +193,12 @@
   [session tokens _]
   (let [{:keys [euuid]} (get-session-resource-owner session)
         {:keys [authorized-at code]} (get-session session)
-        {:keys [nonce]} (ac/get-code-request code)
+        {:keys [nonce audience]} (ac/get-code-request code)
         client (get-session-client session)]
     (update tokens :id_token
             merge
             {:iss (domain+)
+             :aud (or audience (:id client))
              :sub euuid
              :iat (to-timestamp (vura/date))
              :exp (-> (vura/date)
@@ -223,6 +224,7 @@
       {:alg :rs256})))
 
 
+(defmethod process-scope "name" [session tokens _] (add-standard-claim tokens session :name))
 (defmethod process-scope "family_name" [session tokens _] (add-standard-claim tokens session :family_name))
 (defmethod process-scope "middle_name" [session tokens _] (add-standard-claim tokens session :middle_name))
 (defmethod process-scope "given_name" [session tokens _] (add-standard-claim tokens session :given_name))

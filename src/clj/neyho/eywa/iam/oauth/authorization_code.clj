@@ -85,12 +85,81 @@
 (defn code-was-issued? [code] (true? (get-in @*authorization-codes* [code :issued?])))
 
 
+; (defn validate-client [request]
+;   (let [{:keys [client_id state redirect_uri]
+;           request-secret :client_secret} request 
+;         base-redirect-uri (core/get-base-uri redirect_uri)
+;         {:keys [euuid secret type]
+;          {redirections "redirections"
+;           allowed-grants "allowed-grants"} :settings
+;          :as client} (get-client client_id)
+;         grants (set allowed-grants)]
+;     (log/debugf "Validating client: %s" (pprint client))
+;     (cond
+;       (nil? euuid)
+;       (throw
+;         (ex-info
+;           "Client not registered"
+;           {:type "client_not_registered"
+;            :request request}))
+;       ;;
+;       (empty? redirections)
+;       (throw
+;         (ex-info
+;           "Client missing redirections"
+;           {:type "no_redirections"
+;            :request request}))
+;       ;;
+;       (empty? redirect_uri)
+;       (throw
+;         (ex-info
+;           "Client hasn't provided redirect URI"
+;           {:type "missing_redirect"
+;            :request request}))
+;       ;;
+;       (not-any? #(= base-redirect-uri %) redirections)
+;       (throw
+;         (ex-info
+;           "Client provided uri doesn't match available redirect URI(s)"
+;           {:type "redirect_missmatch"
+;            :request request}))
+;       ;;
+;       (or (some? request-secret) (some? secret))
+;       (if (validate-password request-secret secret)
+;         (do
+;           (swap! core/*clients* assoc (:euuid client) client)
+;           client)
+;         (throw
+;           (ex-info
+;             "Client secret missmatch"
+;             {:type "access_denied"
+;              :request request
+;              :state state})))
+;       ;;
+;       (not (contains? grants grant))
+;       (throw
+;         (ex-info
+;           "Client doesn't support authorization_code flow"
+;           {:type "access_denied"
+;            :request request}))
+;       ;;
+;       (and (= type "public") (nil? secret))
+;       (do
+;         (swap! core/*clients* assoc (:euuid client) client)
+;         client)
+;       ;;
+;       :else
+;       (do
+;         (log/errorf "Couldn't validate client\n%s" (pprint request))
+;         (throw
+;           (ex-info "Unknown client error"
+;                    {:request request
+;                     :type "server_error"}))))))
+
+
 (defn validate-client [request]
-  ; (def request request)
-  ; (comment
-  ;   (def client_id "MUMADPADAKQHSDFDGFAEJZJXUSFJGFOOYTWVAUDEFVPURUOP"))
   (let [{:keys [client_id state redirect_uri]
-          request-secret :client_secret} request 
+         request-secret :client_secret} request 
         base-redirect-uri (core/get-base-uri redirect_uri)
         {:keys [euuid secret type]
          {redirections "redirections"
@@ -127,18 +196,6 @@
           {:type "redirect_missmatch"
            :request request}))
       ;;
-      (or (some? request-secret) (some? secret))
-      (if (validate-password request-secret secret)
-        (do
-          (swap! core/*clients* assoc (:euuid client) client)
-          client)
-        (throw
-          (ex-info
-            "Client secret missmatch"
-            {:type "access_denied"
-             :request request
-             :state state})))
-      ;;
       (not (contains? grants grant))
       (throw
         (ex-info
@@ -146,32 +203,30 @@
           {:type "access_denied"
            :request request}))
       ;;
-      (and (= type "public") (nil? secret))
-      (do
-        (swap! core/*clients* assoc (:euuid client) client)
-        client)
-      ;;
       :else
       (do
-        (log/errorf "Couldn't validate client\n%s" (pprint request))
-        (throw
-          (ex-info "Unknown client error"
-                   {:request request
-                    :type "server_error"}))))))
+        (swap! core/*clients* assoc (:euuid client) client)
+        client))))
 
 
 (defmethod grant-token "authorization_code"
   [request]
-  (let [{:keys [code redirect_uri client_id client_secret grant_type]} request
+  (let [{:keys [code redirect_uri client_id client_secret]} request
         {{request-redirect-uri :redirect_uri
           :as original-request} :request
          client-euuid :client
          :keys [session expires-at]} (get @*authorization-codes* code) 
-        {id :id :as client} (get @core/*clients* client-euuid)
+        {id :id :as client
+         _secret :secret
+         {:strs [allowed-grants]} :settings
+         session-client :id} (get @core/*clients* client-euuid)
+        grants (set allowed-grants)
         {:keys [active]} (core/get-session-resource-owner session)]
     (log/debugf
       "[%s] Processing token code grant for code: %s\n%s"
       session code (pprint request))
+    ; (def code code)
+    ; (def session session)
     (if-not session
       ;; If session isn't available, that is if somebody
       ;; is trying to hack in
@@ -181,70 +236,70 @@
         "doesn't exsist or has expired. Further actions"
         "will be logged and processed")
       ;; If there is some session than check other requirements
-      (let [{_secret :secret
-             {:strs [allowed-grants]} :settings
-             session-client :id} (core/get-session-client session)
-            grants (set allowed-grants)]
-        (cond
-          ;;
-          (not (contains? grants "authorization_code"))
-          (token-error
-            "unauthorized_grant"
-            "Client sent access token request"
-            "for grant type that is outside"
-            "of client configured privileges")
-          ;;
-          (not (contains? @*authorization-codes* code))
-          (token-error
-            "invalid_request"
-            "Provided authorization code is illegal!"
-            "Your request will be logged"
-            "and processed")
-          ;;
-          (< expires-at (System/currentTimeMillis))
-          (token-error
-            "invalid_request"
-            "This device code has expired. Restart"
-            "authentication process.")
-          ;; If redirect uri doesn't match
-          (not= request-redirect-uri redirect_uri)
-          (token-error
-            "invalid_request"
-            "Redirect URI that you provided doesn't"
-            "match URI that was issued to provided authorization code")
-          ;; If client ids don't match
-          (not= session-client client_id)
-          (token-error
-            "invalid_client"
-            "Client ID that was provided doesn't"
-            "match client ID that was used in authorization request")
-          ;;
-          (and (some? _secret) (empty? client_secret))
-          (token-error
-            "invalid_client"
-            "Client secret wasn't provided")
-          ;; If client has secret, than
-          (and (some? _secret) (not (validate-password client_secret _secret)))
-          (token-error
-            "invalid_client"
-            "Provided client secret is wrong")
-          (not= id client_id)
-          client-id-missmatch
-          ;;
-          (not active)
-          (do
-            (delete code)
-            (core/kill-session session)
-            owner-not-authorized)
-          ;; Issue that token
-          :else
-          (let [response (json/write-str (token/generate client session original-request))]
-            (revoke-authorization-code code)
-            {:status 200
-             :headers {"Content-Type" "application/json;charset=UTF-8"
-                       "Pragma" "no-cache"
-                       "Cache-Control" "no-store"}
-             :body response}))))))
+      (cond
+        ;;
+        (not (contains? grants "authorization_code"))
+        (token-error
+          "unauthorized_grant"
+          "Client sent access token request"
+          "for grant type that is outside"
+          "of client configured privileges")
+        ;;
+        (not (contains? @*authorization-codes* code))
+        (token-error
+          "invalid_request"
+          "Provided authorization code is illegal!"
+          "Your request will be logged"
+          "and processed")
+        ;;
+        (< expires-at (System/currentTimeMillis))
+        (token-error
+          "invalid_request"
+          "This authorization code has expired. Restart"
+          "authentication process.")
+        ;; If redirect uri doesn't match
+        (not= request-redirect-uri redirect_uri)
+        (token-error
+          "invalid_request"
+          "Redirect URI that you provided doesn't"
+          "match URI that was issued to provided authorization code")
+        ;; If client ids don't match
+        (not= session-client client_id)
+        (token-error
+          "invalid_client"
+          "Client ID that was provided doesn't"
+        :w  "match client ID that was used in authorization request")
+        ;;
+        (and (some? _secret) (empty? client_secret))
+        (token-error
+          "invalid_client"
+          "Client secret wasn't provided")
+        ;; If client has secret, than
+        (and (some? _secret) (not= client_secret _secret))
+        (token-error
+          "invalid_client"
+          "Provided client secret is wrong")
+        (not= id client_id)
+        (do
+          (log/debugf "[%s] Client don't match client from authorization request" code)
+          client-id-missmatch)
+        ;;
+        (not active)
+        (do
+          (log/debugf "[%s] Resource owner is not active." code)
+          (delete code)
+          (core/kill-session session)
+          owner-not-authorized)
+        ;; Issue that token
+        :else
+        (let [response (json/write-str (token/generate client session original-request))]
+          (log/debugf "[%s]Returning token response:\n%s" code response)
+          (revoke-authorization-code code)
+          {:status 200
+           :headers {"Content-Type" "application/json;charset=UTF-8"
+                     "Pragma" "no-cache"
+                     "Cache-Control" "no-store"}
+           :body response})))))
 
 
 

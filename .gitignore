@@ -13,6 +13,7 @@ dumps/
 tmp/
 assets/
 eywa.properties
+.venv/
 
 resources/app/eywa/js/*
 ws/robotics/dev/css/ui.css
@@ -31,6 +32,7 @@ tags
 conjure-log*
 module-loader.edn
 module-loader.json
+.clj-kondo/
 cljs-runtime/
 .calva/
 *.DS_Store 

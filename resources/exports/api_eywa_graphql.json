@@ -1,0 +1,35 @@
+{
+  "euuid": "c981312c-ed55-46dd-9513-69ff6866ee75",
+  "description": "This API is used to store and read data on EYWA hosted database. Usually this includes sync, stack, slice, search, get, delete, purge operations on modeled and deployed Datasets.",
+  "name": "EYWA GraphQL",
+  "avatar": {
+    "type": "icons",
+    "options": {
+      "icon": [
+        "boombox"
+      ],
+      "backgroundColor": [
+        "545352"
+      ]
+    }
+  },
+  "audience": "https://www.eywaonline.com/graphql",
+  "configuration": null,
+  "scopes": [
+    {
+      "euuid": "6d167826-2548-444c-8578-8a8a7732d772",
+      "name": "dataset:deploy",
+      "description": "Allows user to deploy dataset models"
+    },
+    {
+      "euuid": "660b2e57-a73b-4603-9e67-d756542a4a54",
+      "name": "dataset:delete",
+      "description": "Allows user to delete dataset, and all tables that are specific only to that dataset"
+    },
+    {
+      "euuid": "2875edd3-50bc-4e0c-b732-ebe0d7686bbd",
+      "name": "dataset:subscription",
+      "description": "User can subscribe to dataset changes by using GraphQL \"refreshedGlobalDataset\" subscription endpoint"
+    }
+  ]
+}

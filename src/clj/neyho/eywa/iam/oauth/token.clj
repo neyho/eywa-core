@@ -4,6 +4,7 @@
     clojure.java.io
     clojure.pprint
     [clojure.tools.logging :as log]
+    [camel-snake-kebab.core :as csk]
     [nano-id.core :as nano-id]
     [vura.core :as vura]
     [clojure.data.json :as json]
@@ -25,7 +26,7 @@
 
 
 (def token
-  "eyJhbGciOiJSUzI1NiIsImtpZCI6ImxrTzFUenhab3E2dXA1bThDY2o3ZTBxZkRXZlhQRTFnUUdkNDJKajlDL0UiLCJ0eXBlIjoiSldUIn0.eyJhdWQiOm51bGwsInN1YiI6ImMwZTk2MGJjLTI1MTUtMTFlZC04MDY0LTAyYTUzNTg5NWQyZCIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODA4MCIsImV4cCI6MTcyNTQ0NDkzOSwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyBwcm9maWxlIG9wZW5pZCIsImNsaWVudF9pZCI6Ik1VTUFEUEFEQUtRSFNERkRHRkFFSlpKWFVTRkpHRk9PWVRXVkFVREVGVlBVUlVPUCIsImlhdCI6MTcyNTQ0MTMzOSwic2lkIjoidFFZRFZoV0pNRk91cnBFSnljUXhFVExNR2hqTnBYIiwic2Vzc2lvbiI6InRRWURWaFdKTUZPdXJwRUp5Y1F4RVRMTUdoak5wWCJ9.fv7gk-SHl2TnM28ihjZTD4zR6P0hDvw6or9V69GKnY2QBAkAyt9tAwGXnlGfOPIOrzThQTnuhMpTvtLV1myUDdxPu39U232ZYq2Fn2QFKO_nRzOCFQe023T33iG6r1tpVyNOhZa79f639tUFyLnt-O5Qf_Zsqx1PZyOzUFua3p_S3Rp1S5ChP81QcqVN30QX_IXtEHLnhwewtgQgeCRLcaDqxB8q2oA7iuPCgE84heAgEUkdwoKutlfe29DARyA2gUiYO0ETHFMQWeibo1bzOaMA5EDSakBmM2YdpeUjcc7Q9Qei7FUNJDL47i_2RraLmdOw1-8CRNzUk0vPeEZ-ow")
+  "eyJhbGciOiJSUzI1NiIsImtpZCI6Imc0MU9yWkVUbVhndmZDTTAvRVo4eGpMSm9KdFlMYlRGeG5YSGhSMUtVNUEiLCJ0eXBlIjoiSldUIn0.eyJhdWQiOiJJUElRS1lZR1RQUlRNWE5ZSUtXS1VETFpaVkxKVFZZVFNKQVlQUFVaVlZGSVBFR1AiLCJzdWIiOiJhNjQzYzIxMS01MWQxLTRjNzktYmRiMS05NDQwZTNjYzYwNGIiLCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjgwODAiLCJleHAiOjE3Mjc3MTc1MDIsInNjb3BlIjoic3ViIGVtYWlsIG9wZW5pZCIsImNsaWVudF9pZCI6IklQSVFLWVlHVFBSVE1YTllJS1dLVURMWlpWTEpUVllUU0pBWVBQVVpWVkZJUEVHUCIsImlhdCI6MTcyNzcxMzkwMiwic2lkIjoiU0NLdExRcGtVbFlzYnZPamdPaUx0bHd6RGV4WE5ZIiwic2Vzc2lvbiI6IlNDS3RMUXBrVWxZc2J2T2pnT2lMdGx3ekRleFhOWSJ9.Q-K7O-vA9rymat6-YBK5B5KZL_rraDrLSROC--XW-EYNyWOdsMK9YRweld5nVrenmEp-UNzTAOFiestxTA_DD-Atd1R0PI_wMFaCEgVQWjrBofn5UMiUU6hL4BjXGd7nKUwrb4_G37A0wnz1Ud3ptV0gOjVR832IUZ32qy2H-migt_6zRJazQCv9uMji3dztFJOwL1KSgzrzj4pyKddSy87K59tRaX7MQFuk_10eyV25wx5w3kpMJc1f1vnJ2JtGyYAGSvT_ckyN2PFnDl6lZLxDptkKiFr_dLe8X8MUZMGyvAsNIRO7I5OsaaA01gP88sgMeCsOTGvjxU3MtGNRQw")
 
 
 (let [alphabet "ACDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]
@@ -45,7 +46,7 @@
 
 
 (defn token-error [status code & description]
-  ; (log/debugf "Returning error: %s\n%s" code (str/join "\n" description))
+  (log/debugf "Returning error: %s\n%s" code (str/join "\n" description))
   {:status (if (number? status) status 400)
    :headers {"Content-Type" "application/json;charset=UTF-8"
              "Pragma" "no-cache"
@@ -227,13 +228,13 @@
 
 (defn generate
   [{{allowed-grants "allowed-grants"} :settings :as client} session {:keys [audience scope client_id]}]
-  (let [access-exp (-> 
+  (let [access-exp (->
                      (System/currentTimeMillis)
                      (quot 1000)
                      (+ (access-token-expiry client)))
-        {:keys [euuid]} (core/get-session-resource-owner session)
+        {euuid :euuid} (core/get-session-resource-owner session)
         access-token {:session session
-                      :aud audience
+                      :aud (or audience client_id)
                       :exp access-exp
                       :iss (core/domain+)
                       :sub euuid
@@ -242,6 +243,7 @@
                       :sid session
                       :scope (str/join " " scope)}
         refresh? (some #(= "refresh_token" %) allowed-grants)]
+    (log/debugf "Generated access token\n%s" (pprint access-token))
     (if (pos? access-exp)
       (let [refresh-token (when (and refresh? session (contains? scope "offline_access"))
                             (log/debugf "Creating refresh token: %s" session)
@@ -267,7 +269,7 @@
                :type "Bearer"
                :scope (str/join " " scope)
                :expires_in (access-token-expiry client)))
-      
+
       (let [tokens (reduce
                      (fn [tokens scope]
                        (process-scope session tokens scope))
@@ -336,6 +338,14 @@
        :body (json/write-str (generate client session (assoc request :scope scope)))})))
 
 
+(comment
+  (def request
+    {:grant_type "authorization_code"
+     :redirect_uri "http://localhost:3000/auth/callback",
+     :client_id "GMTXXCLYXPIJHCLYHPVZDWWARYPMVLGIKFXKFAZNIGKLIDNJ"
+     :client_secret "3yaUy6VkEYPxaAzHjJcLmWUVlRUGU89qpU6m07f-CWZZC1c8"
+     :code "PEMECARHWZOMRAPYZMASEFGLFFRVZV"
+     :scope nil}))
 
 (defn token-endpoint
   [{:keys [grant_type] :as request}]
@@ -407,7 +417,7 @@
                         {:euuid {:_in roles}}
                         ; {:_where {:euuid {:_in roles}}}
                         {:name nil})]
-    (assoc-in tokens [:access_token :roles] (map :name dataset-roles))))
+    (assoc-in tokens [:access_token :roles] (map (comp csk/->snake_case_keyword :name) dataset-roles))))
 
 
 (defmethod process-scope "roles:uuid"

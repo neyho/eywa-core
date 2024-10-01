@@ -42,11 +42,13 @@
   {:enter
    (fn [ctx]
      (let [{{{:keys [code code_verifier grant_type]} :params} :request} ctx
-           {{:keys [code_challenge code_challenge_method]}
+           {{:keys [code_challenge code_challenge_method] :as request}
             :request} (-> code
                           get-code-session 
                           core/get-session)
            is-pkce? (and code_challenge code_challenge_method)]
+       (when is-pkce?
+         (log/debug "Noticed PKCE in requst: %s" request))
        (if (or (not is-pkce?) (not= "authorization_code" grant_type)) ctx
          (let [current-challenge (generate-code-challenge code_verifier code_challenge_method)]
            (if (= current-challenge code_challenge) ctx
@@ -117,7 +119,11 @@
                      (assoc ctx
                             ::code code
                             :respone {:status 302
-                                      :headers {"Location" (str redirect_uri "?" (codec/form-encode {:state state :code code}))}}))
+                                      :headers {"Location" (str redirect_uri "?"
+                                                                (codec/form-encode
+                                                                  (cond->
+                                                                    {:code code}
+                                                                    (not-empty state) (assoc :state state))))}}))
                    (catch clojure.lang.ExceptionInfo ex
                      (core/handle-request-error (ex-data ex))))
                  ;;

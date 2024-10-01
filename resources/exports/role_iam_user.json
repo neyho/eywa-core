@@ -1,0 +1,130 @@
+{
+  "scopes": null,
+  "delete_entities": null,
+  "from_read_relations": [
+    {
+      "euuid": "ae3e0f7f-dd0a-468c-9885-caac4141a5c3"
+    },
+    {
+      "euuid": "7efa7244-ae20-4248-9792-7623d12cea9e"
+    },
+    {
+      "euuid": "5658e47b-51a6-4795-a5b7-d546a8f01fe4"
+    },
+    {
+      "euuid": "cf0ddc08-b399-4e40-a327-a912d12d26a7"
+    },
+    {
+      "euuid": "4f4cd8f9-e76a-45c0-8bcd-33b13a20e5fe"
+    },
+    {
+      "euuid": "25c97af4-4ddb-48e1-9fe9-4778999de49c"
+    },
+    {
+      "euuid": "9c5c9386-0e04-4849-b414-f189a083e5e8"
+    },
+    {
+      "euuid": "2c11b4c1-0033-4f4b-a113-bcf84d18d99a"
+    },
+    {
+      "euuid": "1deeb442-5bd2-45e3-8ba0-5cbb1d8d5389"
+    },
+    {
+      "euuid": "9c8ebcd4-5b23-4619-8fe8-cd3f474e7f72"
+    },
+    {
+      "euuid": "9fd134da-ac87-4f48-aa7a-d94ae6ba18be"
+    },
+    {
+      "euuid": "1c7b9658-aaae-409a-821a-f0bf31dd44d6"
+    },
+    {
+      "euuid": "9aaef2f8-9db2-43c5-9821-3fad88ed5b33"
+    },
+    {
+      "euuid": "466b811e-0ec5-4871-a24d-5b2990e6db3d"
+    }
+  ],
+  "to_read_relations": [
+    {
+      "euuid": "ae3e0f7f-dd0a-468c-9885-caac4141a5c3"
+    },
+    {
+      "euuid": "7efa7244-ae20-4248-9792-7623d12cea9e"
+    },
+    {
+      "euuid": "5658e47b-51a6-4795-a5b7-d546a8f01fe4"
+    },
+    {
+      "euuid": "cf0ddc08-b399-4e40-a327-a912d12d26a7"
+    },
+    {
+      "euuid": "4f4cd8f9-e76a-45c0-8bcd-33b13a20e5fe"
+    },
+    {
+      "euuid": "25c97af4-4ddb-48e1-9fe9-4778999de49c"
+    },
+    {
+      "euuid": "9c5c9386-0e04-4849-b414-f189a083e5e8"
+    },
+    {
+      "euuid": "2c11b4c1-0033-4f4b-a113-bcf84d18d99a"
+    },
+    {
+      "euuid": "1deeb442-5bd2-45e3-8ba0-5cbb1d8d5389"
+    },
+    {
+      "euuid": "9c8ebcd4-5b23-4619-8fe8-cd3f474e7f72"
+    },
+    {
+      "euuid": "9fd134da-ac87-4f48-aa7a-d94ae6ba18be"
+    },
+    {
+      "euuid": "1c7b9658-aaae-409a-821a-f0bf31dd44d6"
+    },
+    {
+      "euuid": "9aaef2f8-9db2-43c5-9821-3fad88ed5b33"
+    },
+    {
+      "euuid": "466b811e-0ec5-4871-a24d-5b2990e6db3d"
+    },
+    {
+      "euuid": "d6f368d2-f8d4-4aff-a061-a40f6aa711e2"
+    }
+  ],
+  "name": "IAM User",
+  "owned_entities": null,
+  "from_write_relations": null,
+  "read_entities": [
+    {
+      "euuid": "6f525f5f-0504-498b-8b92-c353a0f9d141"
+    },
+    {
+      "euuid": "4778f7b1-f946-4cb2-b356-b9cb336b4087"
+    },
+    {
+      "euuid": "eb03406a-9b0c-4d61-8f96-34e8aa04f13c"
+    },
+    {
+      "euuid": "edcab1db-ee6f-4744-bfea-447828893223"
+    },
+    {
+      "euuid": "95afb558-3d28-45e5-9fbf-a2625afc5675"
+    },
+    {
+      "euuid": "b2ccded3-9f8e-49aa-b610-8902ad7330e9"
+    },
+    {
+      "euuid": "0757bd93-7abf-45b4-8437-2841283edcba"
+    },
+    {
+      "euuid": "17b18b52-458e-4657-a827-eb1255de8f1e"
+    }
+  ],
+  "to_write_relations": null,
+  "to_delete_relations": null,
+  "euuid": "228df5f6-86c7-4308-8a9e-4a578c5e4af7",
+  "avatar": null,
+  "write_entities": null,
+  "from_delete_relations": null
+}
