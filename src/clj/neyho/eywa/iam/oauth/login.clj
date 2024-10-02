@@ -121,8 +121,9 @@
                               :response {:status 302
                                          :headers {"Location" (str redirect-uri "?"
                                                                    (codec/form-encode
-                                                                     {:state state
-                                                                      :code authorization-code}))}}))))
+                                                                     (if (empty? state) {:code authorization-code}
+                                                                       {:state state
+                                                                        :code authorization-code})))}}))))
                  ;; Otherwise let someone after handle error
                  :else
                  (assoc ctx ::error :unknown)))

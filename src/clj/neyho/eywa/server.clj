@@ -417,7 +417,6 @@
      (log/infof "EYWA server started @ %s:%s" host port))))
 
 
-
 (comment
   (do
     (stop)

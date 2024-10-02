@@ -137,7 +137,6 @@
 
 
 (defn get-resource-owner [euuid]
-  ; (def euuid #uuid "bb3e4d1b-d3a0-434a-a60b-beb0d1bf52af")
   (get @*resource-owners* euuid))
 
 
@@ -524,18 +523,15 @@
 (defn reload-clients
   []
   (let [ids (remove nil? (map :id (vals @*clients*)))
-        new-clients (reduce
-                      (fn [r {:keys [euuid] :as client}]
-                        (assoc r euuid client))
-                      nil
-                      (iam/get-clients ids))]
+        new-clients (iam/get-clients ids)]
     (swap! *clients*
            (fn [old-clients]
-             (merge
-               old-clients
+             (merge-with
+               merge old-clients
                (reduce
                  (fn [r {:keys [euuid]}]
-                   (update r euuid merge (get new-clients euuid)))
+                   (assoc r euuid (get new-clients euuid)))
+                 nil
                  new-clients))))))
 
 
