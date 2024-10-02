@@ -6,8 +6,6 @@
     [clojure.tools.logging :as log]
     [nano-id.core :as nano-id]
     [vura.core :as vura]
-    [neyho.eywa.iam
-     :refer [validate-password]]
     [neyho.eywa.iam.oauth.core :as core
      :refer [get-client
              pprint
@@ -158,10 +156,9 @@
 
 
 (defn validate-client [request]
-  (let [{:keys [client_id state redirect_uri]
-         request-secret :client_secret} request 
+  (let [{:keys [client_id redirect_uri]} request 
         base-redirect-uri (core/get-base-uri redirect_uri)
-        {:keys [euuid secret type]
+        {:keys [euuid]
          {redirections "redirections"
           allowed-grants "allowed-grants"} :settings
          :as client} (get-client client_id)

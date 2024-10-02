@@ -119,9 +119,9 @@
     (log/debugf
       "[%s] Processing token code grant for code: %s\n%s"
       id device_code (pprint request))
-    (def request request)
-    (def device_code (:device_code request))
-    (def client_id (:client_id request))
+    ; (def request request)
+    ; (def device_code (:device_code request))
+    ; (def client_id (:client_id request))
     (let [{_secret :secret
            {:strs [allowed-grants]} :settings} (core/get-client client_id) 
           grants (set allowed-grants)]
@@ -200,8 +200,7 @@
      (fn [{{:keys [params remote-addr]
             {:strs [user-agent]} :headers
             :as request} :request :as context}]
-       (let [{:keys [client_id]} params
-             params (-> params (split-spaces :scope))
+       (let [params (-> params (split-spaces :scope))
              device-code (gen-device-code)
              user-code (gen-user-code)]
          (log/debugf "Device code request:\n%s" request)

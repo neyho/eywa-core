@@ -115,11 +115,12 @@
      (swap! core/*sessions* update-in [session :tokens audience] dissoc token-key)
      (when token
        (swap! *tokens* update token-key dissoc token)
-       (core/publish :revoke/token
-                     {:token/key token-key
-                      :token/data token
-                      :audience audience
-                      :session session})))
+       (core/publish
+         :revoke/token
+         {:token/key token-key
+          :token/data token
+          :audience audience
+          :session session})))
    nil))
 
 
@@ -280,6 +281,10 @@
                               (assoc tokens token (sign-token session token data)))
                             tokens
                             tokens)]
+        (core/publish
+          :grant/tokens
+          {:tokens signed-tokens
+           :session session})
         (assoc signed-tokens
                :expires_in (access-token-expiry client)
                :scope (str/join " " scope)
