@@ -425,6 +425,4 @@
 
 
 (comment
-  (do
-    (stop)
-    (start)))
+  (start))

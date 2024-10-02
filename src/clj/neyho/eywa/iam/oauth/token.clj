@@ -232,12 +232,12 @@
                      (System/currentTimeMillis)
                      (quot 1000)
                      (+ (access-token-expiry client)))
-        {euuid :euuid} (core/get-session-resource-owner session)
+        {user-name :name} (core/get-session-resource-owner session)
         access-token {:session session
-                      :aud (or audience client_id)
+                      :aud audience 
                       :exp access-exp
                       :iss (core/domain+)
-                      :sub euuid
+                      :sub user-name
                       :iat (-> (vura/date) to-timestamp)
                       :client_id client_id
                       :sid session
@@ -418,6 +418,11 @@
                         ; {:_where {:euuid {:_in roles}}}
                         {:name nil})]
     (assoc-in tokens [:access_token :roles] (map (comp csk/->snake_case_keyword :name) dataset-roles))))
+
+(defmethod process-scope "sub:uuid"
+  [session tokens _]
+  (let [{:keys [euuid]} (core/get-session-resource-owner session)]
+    (assoc-in tokens [:access_token "sub:uuid"] (str euuid))))
 
 
 (defmethod process-scope "roles:uuid"

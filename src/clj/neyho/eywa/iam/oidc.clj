@@ -165,10 +165,12 @@
   (def open-id-configuration-interceptor
     {:enter
      (fn [ctx]
-       (assoc ctx :response
-              {:status 200
-               :headers {"Content-Type" "application/json"}
-               :body (json/write-str config :escape-slash false)}))}))
+       (let [config (assoc config :scopes_supported
+                           (remove #{:default} (keys (methods process-scope))))]
+         (assoc ctx :response
+                {:status 200
+                 :headers {"Content-Type" "application/json"}
+                 :body (json/write-str config :escape-slash false)})))}))
 
 
 (defn standard-claim
@@ -198,7 +200,7 @@
     (update tokens :id_token
             merge
             {:iss (domain+)
-             :aud (or audience (:id client))
+             :aud (:id client)
              :sub euuid
              :iat (to-timestamp (vura/date))
              :exp (-> (vura/date)
