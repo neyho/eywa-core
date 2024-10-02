@@ -178,19 +178,7 @@
 
 
 (def default-routes
-  #{["/app/*app"
-     :get [(conneg/negotiate-content ["text/css" 
-                                      "text/javascript" 
-                                      "text/html" 
-                                      "image/jpeg" 
-                                      "image/png"
-                                      "image/svg"]) 
-           (middlewares/content-type)
-           authenticate-or-redirect 
-           apps]
-     :route-name :eywa.web.app/get]
-    ["/eywa/whoami" :get [authenticate coerce-body content-neg-intc user-data] :route-name :eywa.identity/get]
-    ["/eywa/access" :get [authenticate coerce-body content-neg-intc access-tree] :route-name :eywa.access/get]})
+  #{["/eywa/whoami" :get [authenticate coerce-body content-neg-intc user-data] :route-name :eywa.identity/get]})
 
 
 (def graphiql-spa
@@ -414,11 +402,16 @@
                      router
                      (make-spa-interceptor (env :eywa-serve))
                      ; (middlewares/resource "public")
-                     (interceptor/interceptor http/not-found)]
+                     ; (interceptor/interceptor http/not-found)
+                     ]
                     ; ::http/secure-headers {:content-security-policy-settings {:object-src "none"}}
                     ; ::http/file-path "web/public"
                     }
+<<<<<<< HEAD
                    development-environment
+=======
+                   ; http/dev-interceptors
+>>>>>>> feature/eywa_serve
                    http/create-server)]
      (reset! server (http/start _server))
      (log/infof "EYWA server started @ %s:%s" host port))))
