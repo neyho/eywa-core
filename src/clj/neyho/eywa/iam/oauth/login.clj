@@ -184,14 +184,17 @@
              (assoc ctx :response
                     {:status 302
                      :headers {"Location" "/oauth/status?value=error&error=broken_flow"}}))))))
-   :leave (fn [{:keys [::session] :as ctx}]
-            (if-not session ctx
-              (assoc-in ctx [:response :cookies "idsrv.session"]
-                        {:value session
-                         :path "/"
-                         :http-only true
-                         :secure true
-                         :expires "Session"})))})
+   ;; TODO - decide about this idsrv.session in cookie
+   ;; If user has multiple sessions in same browser this doesn't make any sense
+   ; :leave (fn [{:keys [::session] :as ctx}]
+   ;          (if-not session ctx
+   ;            (assoc-in ctx [:response :cookies "idsrv.session"]
+   ;                      {:value session
+   ;                       :path "/"
+   ;                       :http-only true
+   ;                       :secure true
+   ;                       :expires "Session"})))
+   })
 
 
 (def login-page
@@ -210,7 +213,7 @@
 
 (let [invalid-token (request-error 400 "Token is not valid")
       session-not-found (request-error 400 "Session is not active")
-      invalid-session (request-error 400 "Session is not valid")
+      ; invalid-session (request-error 400 "Session is not valid")
       invalid-redirect (request-error 400 "Provided 'post_logout_redirect_uri' is not valid")]
   (def logout-interceptor
     {:enter
@@ -229,8 +232,8 @@
                         (and (nil? id_token_hint) (nil? idsrv-session))
                         invalid-token
                         ;; Session doesn't match
-                        (and id_token_hint (not= idsrv-session session))
-                        invalid-session
+                        ; (and id_token_hint (not= idsrv-session session))
+                        ; invalid-session
                         ;; Redirect uri isn't valid
                         (not post-redirect-ok?)
                         invalid-redirect
