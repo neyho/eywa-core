@@ -132,12 +132,24 @@
     (get @*clients* euuid)))
 
 
-(comment
-  (get-session-client "nVmxJChCqySUlfPoAFdUqzGkGuXTZW"))
+(defprotocol LazyOAuth
+  (get-resource-owner [this]))
 
 
-(defn get-resource-owner [euuid]
-  (get @*resource-owners* euuid))
+(extend-protocol LazyOAuth
+  java.util.UUID
+  (get-resource-owner [this] (get @*resource-owners* this))
+  java.lang.String
+  (get-resource-owner [this]
+    (if-some [euuid (get-in @*resource-owners* [::name-mapping this])]
+      (get-resource-owner euuid)
+      (let [{:keys [euuid name] :as resource-owner} (iam/get-user-details this)]
+        (swap! *resource-owners*
+               (fn [resource-owners]
+                 (->
+                   resource-owners 
+                   (assoc euuid resource-owner)
+                   (update ::name-mapping assoc name euuid))))))))
 
 
 (defn get-session-resource-owner [session]
@@ -145,15 +157,8 @@
     (get @*resource-owners* euuid)))
 
 
-
-
 (defmulti process-scope (fn [_ _ scope] scope))
 
-
-; (defmethod process-scope :default
-;   [session tokens scope]
-;   (log/errorf "[%s] Couldn't find scope resolver for scope `%s`" session scope)
-;   tokens)
 
 (defmethod process-scope :default
   [session tokens scope]
@@ -194,14 +199,18 @@
 
 
 (defn set-session-resource-owner
-  [session {:keys [euuid] :as resource-owner}]
+  [session {:keys [euuid] username :name :as resource-owner}]
   (swap! *sessions* assoc-in [session :resource-owner] euuid)
-  (swap! *resource-owners* update euuid
-         (fn [current]
+  (swap! *resource-owners*
+         (fn [resource-owners]
            (->
-             current 
-             (merge resource-owner)
-             (update :sessions (fnil conj #{}) session))))
+             resource-owners
+             (update euuid (fn [current]
+                             (->
+                               current 
+                               (merge resource-owner)
+                               (update :sessions (fnil conj #{}) session))))
+             (update ::name-mapping assoc username euuid))))
   nil)
 
 

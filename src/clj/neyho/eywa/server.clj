@@ -1,7 +1,6 @@
 (ns neyho.eywa.server
   (:require
     [environ.core :refer [env]]
-    [babashka.fs :as fs]
     [clojure.java.io :as io]
     clojure.pprint
     clojure.string
@@ -25,9 +24,7 @@
     [neyho.eywa.server.interceptors.util :refer [coerce-body]]
     [neyho.eywa.server.interceptors.authentication :as authentication
      :refer [user-data
-             authenticate
-             authenticate-or-redirect
-             access-tree]]))
+             authenticate]]))
 
 (def echo-integration
   {:name :eywa/transit-integration-echo
@@ -407,11 +404,7 @@
                     ; ::http/secure-headers {:content-security-policy-settings {:object-src "none"}}
                     ; ::http/file-path "web/public"
                     }
-<<<<<<< HEAD
                    development-environment
-=======
-                   ; http/dev-interceptors
->>>>>>> feature/eywa_serve
                    http/create-server)]
      (reset! server (http/start _server))
      (log/infof "EYWA server started @ %s:%s" host port))))

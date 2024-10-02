@@ -62,7 +62,7 @@
       :serialize identity}
      :Hash
      {:parse identity
-      :serialize (constantly "")}
+      :serialize identity}
      :Transit
      {:parse <-transit
       :serialize ->transit}

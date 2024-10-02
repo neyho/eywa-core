@@ -954,8 +954,8 @@
                         (let [t (get field->type field)]
                           (case t
                             ;; Shortcircuit defaults
-                            ("boolean" "string" "int" "float" "json" "timestamp" "timeperiod" "currency" "uuid" "avatar" nil) result
-                            "hashed" (update result field hashers/derive)
+                            ("boolean" "string" "int" "float" "json" "timestamp" "timeperiod" "currency" "uuid" "avatar" "hashed" nil) result
+                            ; "hashed" (update result field hashers/derive)
                             "transit" (update result field freeze)
                             (assoc result field
                                    (fn [v]
@@ -2103,6 +2103,9 @@
    (log/debugf
     "[%s] Getting entity\nArgs:\n%s\nSelection:\n%s"
     entity-id (pprint args) (pprint selection))
+   ; (def entity-id entity-id)
+   ; (def args args)
+   ; (def selection selection)
    (let [args (reduce-kv
                (fn [args k v]
                  (assoc args k {:_eq v}))
@@ -2552,9 +2555,6 @@
   (db/aggregate-entity-tree
     [_ entity-id on args selection]
     (aggregate-entity-tree entity-id on args selection))
-  (db/verify-hashed
-    [_ _ _]
-    nil)
   (db/delete-entity
     [_ entity-id data]
     (delete-entity entity-id data)))

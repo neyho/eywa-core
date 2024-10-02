@@ -24,12 +24,15 @@
 
 (defn get-token-context
   [token]
-  (let [{:keys [sub]} (when token
-                        (try
-                          (iam/unsign-data token)
-                          (catch Throwable _ nil)))]
+  (let [{:keys [sub]
+         sub-uuid "sub:uuid"} (when token
+                                (try
+                                  (iam/unsign-data token)
+                                  (catch Throwable _ nil)))]
     (when (some? sub)
-      (let [{:keys [groups roles] :as user} (get-resource-owner (java.util.UUID/fromString sub))]
+      (let [{:keys [groups roles] :as user} (get-resource-owner (or
+                                                                  (when sub-uuid (java.util.UUID/fromString sub-uuid))
+                                                                  sub))]
         #:eywa {:user (select-keys user [:_eid :euuid :name :active])
                 :roles roles
                 :groups groups}))))
@@ -49,29 +52,3 @@
              (chain/terminate not-authorized)
              (merge ctx token-context)))
          (chain/terminate not-authorized))))})
-
-
-(def authenticate-or-redirect
-  {:name :authenticate-or-redirect
-   :enter
-   (fn [context]
-     )})
-
-
-(def access-tree
-  {:name :eywa/props
-   :enter
-   (fn [{user :eywa/user
-         roles :eywa/roles
-         :as context}]
-     (if (:name user)
-       (assoc context
-              :response
-              {:status 200
-               :body nil})
-       (chain/terminate
-         (assoc context
-                :response
-                {:status 403
-                 :headers {"WWW-Authenticate" "Bearer"}
-                 :body "Not authorized"}))))})

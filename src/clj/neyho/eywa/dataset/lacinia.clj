@@ -4,7 +4,6 @@
     [neyho.eywa.dataset :as dataset]
     [neyho.eywa.dataset.core :as core]
     [neyho.eywa.iam.uuids :as iu]
-    [neyho.eywa.iam.access.context :as access]
     [neyho.eywa.db
      :refer [*db*
              sync-entity
@@ -41,7 +40,7 @@
 
 (defn scalar-attribute? [{t :type}]
   (contains? 
-    #{"int" "float" "boolean" "string" "avatar"
+    #{"int" "float" "boolean" "string" "avatar" "hashed"
       "encrypted" "timestamp" "timeperiod" "currency"
       "transit" "json" "uuid" "enum"}
     t))
