@@ -193,15 +193,15 @@
 
 (defmethod process-scope "openid"
   [session tokens _]
-  (let [{:keys [euuid]} (get-session-resource-owner session)
+  (let [{:keys [name]} (get-session-resource-owner session)
         {:keys [authorized-at code]} (get-session session)
-        {:keys [nonce audience]} (ac/get-code-request code)
+        {:keys [nonce]} (ac/get-code-request code)
         client (get-session-client session)]
     (update tokens :id_token
             merge
             {:iss (domain+)
              :aud (:id client)
-             :sub euuid
+             :sub name
              :iat (to-timestamp (vura/date))
              :exp (-> (vura/date)
                       vura/date->value
@@ -267,10 +267,10 @@
               (let [access-token (get-access-token ctx)
                     session (get-token-session :access_token access-token)
                     {info :person_info
-                     :keys [euuid]} (get-session-resource-owner session)]
+                     :keys [name]} (get-session-resource-owner session)]
                 {:status 200
                  :headers {"Content-Type" "application/json"}
-                 :body (json/write-str (assoc info :sub euuid))})
+                 :body (json/write-str (assoc info :sub name))})
               (catch Throwable _
                 {:status 403
                  :body "Not authorized"}))))})
