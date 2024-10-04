@@ -23,7 +23,7 @@ function getKey(header, callback) {
       return callback(err);
     }
     const signingKey = key.getPublicKey();
-    callback(null, signingKey);
+    callback(null, signingKey)
   });
 }
 

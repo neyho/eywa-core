@@ -58,13 +58,17 @@
             (x-entity euuid :write (map :euuid write_entities))
             (x-entity euuid :delete (map :euuid delete_entities))
             (x-entity euuid :owners (map :euuid owned_entities))
-            (x-relation euuid :from :read (map :euuid from_read_relations))
-            (x-relation euuid :from :write (map :euuid from_write_relations))
-            (x-relation euuid :from :delete (map :euuid from_delete_relations))
-            (x-relation euuid :to :read (map :euuid to_read_relations))
-            (x-relation euuid :to :write (map :euuid to_write_relations))
-            (x-relation euuid :to :delete (map :euuid to_delete_relations))
-            (x-relation euuid :to :delete (map :euuid to_delete_relations))))
+            ;; From and to refer to entities. There is no from and to, both are
+            ;; from. Because of modeling and how relations are stored, users
+            ;; that read model, read it in inverted... This is why at this point
+            ;; we have to invert back rules, so that they follow first mindfuck
+            ;; logic... donno
+            (x-relation euuid :to :read (map :euuid from_read_relations))
+            (x-relation euuid :to :write (map :euuid from_write_relations))
+            (x-relation euuid :to :delete (map :euuid from_delete_relations))
+            (x-relation euuid :from :read (map :euuid to_read_relations))
+            (x-relation euuid :from :write (map :euuid to_write_relations))
+            (x-relation euuid :from :delete (map :euuid to_delete_relations))))
       nil
       data)))
 
@@ -107,6 +111,11 @@
                  (boolean
                    (not-empty
                      (set/intersection roles (get-in *rules* [:relation relation direction rule])))))]
+         (comment
+           (def relation #uuid "466b811e-0ec5-4871-a24d-5b2990e6db3d")
+           (def direction :to)
+           (def rule :read)
+           )
          ; (def relation relation)
          ; (def rules rules)
          ; (def roles roles)

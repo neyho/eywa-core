@@ -42,166 +42,8 @@
 (def content-neg-intc (conneg/negotiate-content supported-types))
 
 
-(def assets
-  {:name :extension.asset/service
-   :enter
-   (fn [{{:keys [eywa/account]} :eywa.user/context 
-         {:keys [path-info uri]} :request
-         :as context}]
-     (let [path' (str \/ account "/assets" (subs (or path-info uri) 7))
-           context' (update context :request merge {:path-info path' :uri path'})]
-       context'))})
-
-
-(def apps
-  (let [root "app"]
-    {:name :extension.app/service
-     :enter
-     (fn [{{:keys [path-info uri] :as request} :request
-           :as context}]
-       (log/trace "Looking for web resource")
-       (let [extension (re-find #"(?<=\.).*?$" uri)] 
-         ;; If extension exists
-         (if (some? extension)
-           ;; Try to return that file
-           (let [path (str root (subs (or path-info uri) 4))] 
-             (log/tracef
-               "Returning resource file %s, for path %s" uri path-info)
-             (if (io/resource path)
-               (assoc context :response
-                      (-> (response/resource-response path)
-                          (head/head-response request)))
-               (chain/terminate
-                 (assoc context
-                        :response {:status 404
-                                   :body "Not found!"}))))
-           ;; Otherwise proceed
-           context)))
-     :leave
-     (fn [{{{app :app} :path-params
-            :as request} :request
-           response :response
-           :as context}]
-       (if response
-         ;; If there is some kind of response
-         context
-         ;; Otherwise return root html
-         (let [app-root (or
-                          (re-find #"^\w.*?(?=[\./\?])" app)
-                          app)
-               html (str root \/ app-root "/index.html")] 
-           (if (io/resource html)
-             (assoc context :response
-                    (-> (response/resource-response html)
-                        (assoc-in [:headers "Content-Type"] "text/html")
-                        (head/head-response request)))
-             (chain/terminate
-               (assoc context
-                      :response {:status 404
-                                 :body "Not found!"}))))))}))
-
-
-(def docs
-  {:name :extension.app/service
-   :enter
-   (fn [{{:keys [path-info uri] :as request} :request
-         :as context}]
-     (log/info "Looking for web resource: ")
-     (let [path (subs (or path-info uri) 1)] 
-       (log/tracef
-         "Returning resource file %s, for path %s" uri path-info)
-       (if (io/resource path)
-         (assoc context :response
-                (-> (response/resource-response path)
-                    (head/head-response request)))
-         (let [html "eywa/docs/index.html"] 
-           (log/trace "Couldn't find resource returning index.html")
-           (if (io/resource html)
-             (assoc context :response
-                    (-> (response/resource-response html)
-                        (assoc-in [:headers "Content-Type"] "text/html")
-                        (head/head-response request)))
-             (chain/terminate
-               (assoc context
-                      :response {:status 404
-                                 :body "Not found!"})))))))})
-
-
-(def pages
-  {:name :extension.page/service
-   :enter
-   (fn [{{:keys [eywa/account]} :eywa.user/context 
-         {:keys [path-info uri]} :request
-         :as context}]
-     (let [path' (str "/accounts" \/ account "/page" (subs (or path-info uri) 5))
-           context' (update context :request merge {:path-info path' :uri path'})]
-       context'))})
-
-
-(def custom-logins
-  {:name :extension.login/service
-   :enter
-   (fn [{{{:keys [account]} :path-params
-          :as request} :request
-         :as context}]
-     (let [[account' ext] (clojure.string/split account #"\.+")
-           path' (str "accounts/" account' "/login." (or ext "html"))
-           options {:root "./" 
-                    :index-files? true
-                    :allow-symlinks? false}]
-       (assoc context :response
-              (-> (response/file-response path' options)
-                  (head/head-response request)))))})
-
-
-(def append-account
-  {:name :extension.login/append-account
-   :enter
-   (fn [{{{:keys [account]} :path-params} :request
-         :as context}]
-     (let [[account' _] (clojure.string/split account #"\.+")]
-       (assoc-in context [:eywa.user/context :eywa/account] account')))})
-
-
-(def redirect-to-login
-  {:name :eywa/default-redirect 
-   :enter
-   (fn [context]
-     (log/trace "Redirecting to login page")
-     (chain/terminate
-       (assoc context :response
-              {:status 301
-               :headers {"Location" "/index.html"}})))})
-
-
 (def default-routes
   #{["/eywa/whoami" :get [authenticate coerce-body content-neg-intc user-data] :route-name :eywa.identity/get]})
-
-
-(def graphiql-spa
-  (try
-    {:status 200
-     :headers {"Content-Type" "text/html"}
-     :body (slurp (io/resource "graphiql/index.html"))}
-    (catch Throwable _ "GraphiQL N/A")))
-
-
-(def graphiql
-  {:enter
-   (fn [{:keys [request] :as context}]
-     (let [path (:uri request)]
-       (letfn [(resource-response []
-                 (let [path (try
-                              (str "graphiql/" (subs path 12))
-                              (catch Throwable _ nil))]
-                   (if (and
-                         path
-                         (clojure.string/starts-with? path "graphiql/static")) 
-                     (assoc context :response
-                            (-> (response/resource-response path)
-                                (head/head-response request)))
-                     (assoc context :response graphiql-spa))))]
-         (chain/terminate (resource-response)))))})
 
 
 (def graphql-routes
@@ -228,8 +70,7 @@
                       lp/enable-tracing-interceptor
                       wrapped-query-executor]]
     (into
-      #{["/graphql" :post interceptors :route-name ::graphql-api]
-        #_["/graphql/*path" :get graphiql :route-name ::graphql-ide]})))
+      #{["/graphql" :post interceptors :route-name ::graphql-api]})))
 
 
 
@@ -262,43 +103,6 @@
   {"s1" "service1"
    "s2" "service2"
    "ring" "ring"})
-
-
-;; redirect when missing trailing slash:
-;; * relative links don't work when slash is missing
-;; * assists with content-type determination - assumes text/html
-(def sites-redirect
-  (interceptor/interceptor
-    {:name :sites-redirect
-     :enter
-     (fn [{{:keys [uri]} :request :as context}]
-       (if ((into #{} (keys sites-map)) (subs uri 1))
-         (chain/terminate (assoc context :response (response/redirect (str uri "/"))))
-         context))}))
-
-
-(letfn [(get-first-uri [uri sites]
-          (some
-            (fn [[site dest]]
-              (when (clojure.string/starts-with? uri site)
-                (clojure.string/replace-first uri site dest)))
-            sites))
-        (add-content-type [uri resp]
-          (if (clojure.string/ends-with? uri "/")
-            (response/content-type resp "text/html")
-            resp))]
-  (def sites
-    (interceptor/interceptor
-      {:name :sites
-       :enter
-       (fn [{{:keys [uri]} :request :as context}]
-
-         (if-let [resource (io/resource (get-first-uri (subs uri 1) sites-map))]
-           (chain/terminate (assoc context :response
-                                   (add-content-type
-                                     uri
-                                     (response/file-response (.getPath resource)))))
-           context))})))
 
 
 (def eywa-web-interceptor
@@ -398,6 +202,7 @@
                      ; eywa-web-interceptor
                      router
                      (make-spa-interceptor (env :eywa-serve))
+                     http/not-found
                      ; (middlewares/resource "public")
                      ; (interceptor/interceptor http/not-found)
                      ]

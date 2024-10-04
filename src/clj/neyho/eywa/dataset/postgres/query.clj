@@ -906,6 +906,11 @@
                                (if (contains? recursions field) result
                                  (let [{:keys [relation to]} (get relations field)
                                        direction (if (= to entity-id) :from :to)]
+                                   (comment
+                                     (access/relation-allows?
+                                       #uuid "466b811e-0ec5-4871-a24d-5b2990e6db3d"
+                                       :to
+                                       #{:read}))
                                    (if-not relation result
                                      (let [allowed? (access/relation-allows? relation direction *operation-rules*)]
                                        (if allowed? result
@@ -1082,28 +1087,30 @@
     []
     (vec (concat (interleave (repeat :relations) cursor)))))
 
+
 (defn schema->cursors
   "Given selection schema produces cursors that point
   to all connected entity tables. This is a way point to
   pull linked data from db with single query"
   ([{:keys [relations] :as schema}]
    (schema->cursors
-    (when-let [cursors (keys relations)]
-      (mapv vector cursors))
-    schema))
+     (when-let [cursors (keys relations)]
+       (mapv vector cursors))
+     schema))
   ([cursors schema]
    (reduce
-    (fn [cursors cursor]
-      (let [{:keys [relations fields counted?]} (get-in schema (relations-cursor cursor))]
-        (if (not-empty relations)
-          (into
-           (conj cursors cursor)
-           (mapcat #(schema->cursors [(conj cursor %)] schema) (keys relations)))
-          (if (or counted? (some? fields))
-            (conj cursors cursor)
-            cursors))))
-    []
-    cursors)))
+     (fn [cursors cursor]
+       (let [{:keys [relations fields counted?]} (get-in schema (relations-cursor cursor))]
+         (if (not-empty relations)
+           (into
+             (conj cursors cursor)
+             (mapcat #(schema->cursors [(conj cursor %)] schema) (keys relations)))
+           (if (or counted? (some? fields))
+             (conj cursors cursor)
+             cursors))))
+     []
+     cursors)))
+
 
 ; (defn unique-cursors 
 ;   "Removes cursor subsets and leaves only unique cursors"
@@ -1119,6 +1126,7 @@
 ;           (if (some #(subvector? c %) others)
 ;             uniques
 ;             (conj uniques c)))))))
+
 
 (defn get-cursor-schema
   ([schema cursor]
@@ -1921,7 +1929,7 @@
   ([connection schema]
    ; (log/tracef "Searching entity roots for schema:\n%s" (pprint schema))
    ;; Prepare tables target table by inner joining all required tables
-   (def schema schema)
+   ; (def schema schema)
    (let [focused-schema (focus-order schema)
          [tables from maybe-data] (search-stack-from focused-schema)
          ;; then prepare where statements and target data
@@ -2000,8 +2008,53 @@
 
 (defn search-entity
   ([entity-id args selection]
+   (when-not (access/entity-allows? entity-id #{:read})
+     (throw
+       (ex-info
+         "You don't have sufficent privilages to read this entity"
+         {:type ::enforce-purge
+          :roles *roles*})))
+   ; (def selection
+   ;   #:User{:modified_on [nil],
+   ;          :installations [{:selections #:ServiceLocation{:id [nil]}}],
+   ;          :name [nil],
+   ;          :priority [nil],
+   ;          :type [nil],
+   ;          :active [nil],
+   ;          :out_of_office [nil],
+   ;          :password [nil],
+   ;          :euuid [nil],
+   ;          :roles
+   ;          [{:selections
+   ;            #:UserRole{:active [nil],
+   ;                       :avatar [nil],
+   ;                       :description [nil],
+   ;                       :euuid [nil],
+   ;                       :modified_on [nil],
+   ;                       :name [nil]}}],
+   ;          :avatar [nil],
+   ;          :settings [nil]})
+   ; (def entity-id #uuid "edcab1db-ee6f-4744-bfea-447828893223")
+   (comment
+     (binding [*operation-rules* #{:read}
+               *user* {:_eid 12,
+                       :euuid #uuid "e029a8b7-4da7-4bf1-8e6e-8f63f733aaca",
+                       :name "robot_developer",
+                       :active true}
+               *roles* #{#uuid "30ff068f-cdaa-4cbb-9cce-69361b295714"}]
+       (selection->schema entity-id selection args)
+       #_(with-open [connection (jdbc/get-connection (:datasource *db*))]
+         (let [schema (binding [*operation-rules* #{:read}]
+                        (selection->schema entity-id selection args))
+               _ (log/tracef "Searching for entity\n%s" schema)
+               roots (search-entity-roots connection schema)]
+           (def schema schema)
+           (when (some? roots)
+             (log/tracef "[%s] Found roots: %s" entity-id (str/join ", " roots))
+             (pull-roots connection schema roots))))))
    (with-open [connection (jdbc/get-connection (:datasource *db*))]
-     (let [schema (selection->schema entity-id selection args)
+     (let [schema (binding [*operation-rules* #{:read}]
+                    (selection->schema entity-id selection args))
            _ (log/tracef "Searching for entity\n%s" schema)
            roots (search-entity-roots connection schema)]
        (when (some? roots)
@@ -2100,6 +2153,12 @@
 (defn get-entity
   ([entity-id args selection]
    (assert (some? args) "No arguments to get entity for...")
+   (when-not (access/entity-allows? entity-id #{:read})
+     (throw
+       (ex-info
+         "You don't have sufficent privilages to read this entity"
+         {:type ::enforce-purge
+          :roles *roles*})))
    (log/debugf
     "[%s] Getting entity\nArgs:\n%s\nSelection:\n%s"
     entity-id (pprint args) (pprint selection))
@@ -2126,6 +2185,12 @@
 
 (defn get-entity-tree
   [entity-id root on selection]
+  (when-not (access/entity-allows? entity-id #{:read})
+    (throw
+      (ex-info
+        "You don't have sufficent privilages to read this entity"
+        {:type ::enforce-purge
+         :roles *roles*})))
   (let [{:keys [entity/table entity/as]
          :as schema} (binding [*operation-rules* #{:read}]
                        (selection->schema entity-id selection))
@@ -2161,6 +2226,12 @@
 (defn search-entity-tree
   "Function searches entity tree and returns results by requested selection."
   [entity-id on {order-by :_order_by :as args} selection]
+  (when-not (access/entity-allows? entity-id #{:read})
+    (throw
+      (ex-info
+        "You don't have sufficent privilages to read this entity"
+        {:type ::enforce-purge
+         :roles *roles*})))
   (let [{:keys [entity/table entity/as]
          :as schema}
         (binding [*operation-rules* #{:read}]

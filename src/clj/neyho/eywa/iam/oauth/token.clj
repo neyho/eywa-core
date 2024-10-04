@@ -46,7 +46,7 @@
 
 
 (defn token-error [status code & description]
-  (log/debugf "Returning error: %s\n%s" code (str/join "\n" description))
+  ; (log/debugf "Returning error: %s\n%s" code (str/join "\n" description))
   {:status (if (number? status) status 400)
    :headers {"Content-Type" "application/json;charset=UTF-8"
              "Pragma" "no-cache"

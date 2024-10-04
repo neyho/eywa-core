@@ -1,3 +1,5 @@
+;; DEPRECATED namespace... toddler.graphql
+
 (ns neyho.eywa.graphql.core
   #?(:cljs
      (:require-macros [neyho.eywa.graphql.core]))
