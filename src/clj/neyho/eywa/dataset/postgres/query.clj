@@ -15,8 +15,7 @@
     [neyho.eywa.iam.access :as access]
     [neyho.eywa.iam.access.context
      :refer [*roles*
-             *user*
-             *groups*]]
+             *user*]]
     [neyho.eywa.db :refer [*db*] :as db]
     [neyho.eywa.db.postgres.next :as postgres]
     [neyho.eywa.dataset.core
@@ -27,7 +26,7 @@
     [java.sql PreparedStatement]))
 
 
-(defonce ^:private -deployed-schema- (atom nil))
+(defonce ^:private _deployed-schema (atom nil))
 (defonce ^:dynamic *operation-rules* nil)
 
 
@@ -64,9 +63,9 @@
 ;     schema))
 
 
-(defn deploy-schema [schema] (reset! -deployed-schema- schema))
+(defn deploy-schema [schema] (reset! _deployed-schema schema))
 
-(defn deployed-schema [] @-deployed-schema-)
+(defn deployed-schema [] @_deployed-schema)
 
 
 (defn deployed-schema-entity [entity-id]
@@ -1637,9 +1636,7 @@
      ((fnil into []) maybe-data data))))
 
 
-;; TODO - this can be optimized
-;; When using where statements and/or limit all roots per table are already known
-;; so pulling cursors can be  done in parallel
+
 (defn pull-cursors
   [con {:keys [entity/table fields decoders recursions entity/as args] :as schema} found-records]
   (reduce
@@ -1984,74 +1981,54 @@
   (def selection
     {:euuid nil
      :name nil
-     :locators nil
-     :constraints nil
-     :height nil
-     :width nil
-     :configuration nil
-     :attributes [{:selections
+     :groups [{:selections
+               {:euuid nil
+                :name nil}}]
+     :person_inf [{:selection
                    {:euuid nil
-                    :seq nil
-                    :name nil
-                    :type nil
-                    :constraint nil
-                    :configuration nil
-                    :active nil}}]})
+                    :given_name nil
+                    :middle_name nil
+                    :nickname nil
+                    :name nil}}]
+     :roles [{:selections
+              {:euuid nil
+               :name nil
+               :scopes nil
+               :write_entities [{:selections {:euuid nil
+                                              :name nil
+                                              :configuration nil}}]
+               :read_entities [{:selection {:euuid nil
+                                            :name nil
+                                            :configuration nil}}]}}]})
   (def args nil)
-  (def entity-id #uuid "a0d304a7-afe3-4d9f-a2e1-35e174bb5d5b")
-  (def schema (selection->schema entity-id selection args))
+  (def entity-id #uuid "edcab1db-ee6f-4744-bfea-447828893223")
+  (def schema (time (selection->schema entity-id selection args)))
   (def connection (jdbc/get-connection (:datasource *db*)))
   (def con connection)
+  (schema->cursors schema)
   (def roots (search-entity-roots connection schema))
+  (time (search-entity entity-id args selection))
+
+
+  (def entity-id #uuid "a800516e-9cfa-4414-9874-60f2285ec330")
+  (binding [*user* user
+            *roles* roles]
+    (access/entity-allows? entity-id #{:read}))
+  (core/get-entity (neyho.eywa.dataset/deployed-model) entity-id)
   )
 
 
 (defn search-entity
   ([entity-id args selection]
+   ; (def user *user*)
+   ; (def roles *roles*)
+   ; (def entity-id entity-id)
    (when-not (access/entity-allows? entity-id #{:read})
      (throw
        (ex-info
          "You don't have sufficent privilages to read this entity"
-         {:type ::enforce-purge
+         {:type ::enforce-search-access
           :roles *roles*})))
-   ; (def selection
-   ;   #:User{:modified_on [nil],
-   ;          :installations [{:selections #:ServiceLocation{:id [nil]}}],
-   ;          :name [nil],
-   ;          :priority [nil],
-   ;          :type [nil],
-   ;          :active [nil],
-   ;          :out_of_office [nil],
-   ;          :password [nil],
-   ;          :euuid [nil],
-   ;          :roles
-   ;          [{:selections
-   ;            #:UserRole{:active [nil],
-   ;                       :avatar [nil],
-   ;                       :description [nil],
-   ;                       :euuid [nil],
-   ;                       :modified_on [nil],
-   ;                       :name [nil]}}],
-   ;          :avatar [nil],
-   ;          :settings [nil]})
-   ; (def entity-id #uuid "edcab1db-ee6f-4744-bfea-447828893223")
-   (comment
-     (binding [*operation-rules* #{:read}
-               *user* {:_eid 12,
-                       :euuid #uuid "e029a8b7-4da7-4bf1-8e6e-8f63f733aaca",
-                       :name "robot_developer",
-                       :active true}
-               *roles* #{#uuid "30ff068f-cdaa-4cbb-9cce-69361b295714"}]
-       (selection->schema entity-id selection args)
-       #_(with-open [connection (jdbc/get-connection (:datasource *db*))]
-         (let [schema (binding [*operation-rules* #{:read}]
-                        (selection->schema entity-id selection args))
-               _ (log/tracef "Searching for entity\n%s" schema)
-               roots (search-entity-roots connection schema)]
-           (def schema schema)
-           (when (some? roots)
-             (log/tracef "[%s] Found roots: %s" entity-id (str/join ", " roots))
-             (pull-roots connection schema roots))))))
    (with-open [connection (jdbc/get-connection (:datasource *db*))]
      (let [schema (binding [*operation-rules* #{:read}]
                     (selection->schema entity-id selection args))
@@ -2165,6 +2142,9 @@
    ; (def entity-id entity-id)
    ; (def args args)
    ; (def selection selection)
+   ; (def selection selection)
+   ; (def args args)
+   ; (def entity-id entity-id)
    (let [args (reduce-kv
                (fn [args k v]
                  (assoc args k {:_eq v}))

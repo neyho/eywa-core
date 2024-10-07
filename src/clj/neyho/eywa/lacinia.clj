@@ -220,6 +220,7 @@
   (def _shard (slurp (clojure.java.io/resource "tasks.graphql")))
   (-> state deref :directives keys)
   (parse-schema _shard)
+  (def shard *1)
   (add-shard :neyho.eywa.tasks/tasks _shard))
 
 (defn add-shard [key shard]
