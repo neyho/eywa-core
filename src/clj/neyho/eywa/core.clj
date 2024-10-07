@@ -13,9 +13,6 @@
     neyho.eywa.server.jetty
     neyho.eywa.data
     neyho.eywa.db.postgres
-    neyho.eywa.avatars.postgres
-    neyho.eywa.authorization
-    neyho.eywa.administration
     neyho.eywa.dataset
     neyho.eywa.dataset.core
     neyho.eywa.dataset.default-model
@@ -23,12 +20,11 @@
     neyho.eywa.dataset.postgres.query
     neyho.eywa.iam
     neyho.eywa.iam.uuids
-    [neyho.eywa.iam.oauth2 :as oauth2]
-    [neyho.eywa.server.interceptors.authentication :refer [init-default-encryption]])
+    [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
 
 
-(def version "0.1.7")
+(def version "0.2.92")
 
 
 (defn setup
@@ -47,7 +43,6 @@
 (defn warmup
   []
   (neyho.eywa.transit/init)
-  (init-default-encryption)
   (neyho.eywa.db.postgres/init)
   (neyho.eywa.dataset/init))
 
@@ -63,7 +58,7 @@
       (when (and user password)
         (println "Initializing user: " user)
         (warmup)
-        (neyho.eywa.administration/setup
+        (neyho.eywa.iam/setup
           {:users
            [{:name user :password password :active true
              :roles [neyho.eywa.data/*ROOT*]}]
@@ -71,11 +66,11 @@
       (catch Throwable ex
         (log/errorf ex "Couldn't finish EYWA setup.")
         (.println System/err
-          (str/join
-            "\n"
-            ["Couldn't finish EYWA initialization"
-             (ex-message ex)
-             (str "For more info check \"" env/log-dir "\" files")]))
+                  (str/join
+                    "\n"
+                    ["Couldn't finish EYWA initialization"
+                     (ex-message ex)
+                     (str "For more info check \"" env/log-dir "\" files")]))
         (System/exit 1)))))
 
 
@@ -215,7 +210,6 @@
           (conj lines (str "  DATASETS " (str "ERROR: Postgres not available"))))))))
 
 
-
 (defn doctor []
   (->
     []
@@ -262,12 +256,10 @@
         "start" (do
                   (neyho.eywa.transit/init)
                   (neyho.eywa.iam/init-default-encryption)
-                  (oauth2/start-maintenance)
-                  (init-default-encryption)
+                  (oauth/start-maintenance)
                   (neyho.eywa.db.postgres/init)
                   (neyho.eywa.dataset/init)
-                  (neyho.eywa.avatars.postgres/init)
-                  (neyho.eywa.administration/init)
+                  (neyho.eywa.iam/init)
                   (neyho.eywa.server/start
                     {:port (when-some [port (env :eywa-server-port "8080")] (if (number? port) port (Integer/parseInt port)))
                      :host (env :eywa-server-host "0.0.0.0")
@@ -279,3 +271,9 @@
         (.printStackTrace ex)
         (System/exit 1))
       (finally (spit-pid)))))
+
+
+(comment
+  (str/replace "09jfiqo-123 39:foiq" #"[^\w^\d^\-^\.^_:]" "")
+  (re-find #"^[\w\d\-\._]" "09jfiqo-123 39")
+  )

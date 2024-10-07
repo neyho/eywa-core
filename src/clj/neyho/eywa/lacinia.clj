@@ -62,7 +62,7 @@
       :serialize identity}
      :Hash
      {:parse identity
-      :serialize (constantly "")}
+      :serialize identity}
      :Transit
      {:parse <-transit
       :serialize ->transit}
@@ -160,10 +160,9 @@
                            (map
                              (fn [s] (if (fn? s) (s) s))
                              (vals shards)))]
-        #_(clojure.pprint/pprint
-          (->
-            schema
-            bind-resolvers))
+        ; (do
+        ;   (def schema schema)
+        ;   (def directives directives))
         (schema/compile
           ; schema
           (->
@@ -194,7 +193,6 @@
                    (sort-by :metric matching-directives))
                  resolver-fn)))})))))
 
-
 (comment
   (dosync (ref-set compiled (recompile))))
 
@@ -222,6 +220,7 @@
   (def _shard (slurp (clojure.java.io/resource "tasks.graphql")))
   (-> state deref :directives keys)
   (parse-schema _shard)
+  (def shard *1)
   (add-shard :neyho.eywa.tasks/tasks _shard))
 
 (defn add-shard [key shard]
@@ -230,6 +229,7 @@
                 (string? shard) (parse-schema shard)
                 (fn? shard) (shard)
                 :else shard)]
+    ; (def shard shard)
     (dosync
       (alter state assoc-in [:shards key] shard)
       (ref-set compiled (recompile)))))

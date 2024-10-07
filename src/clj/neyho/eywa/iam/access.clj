@@ -7,8 +7,11 @@
     [neyho.eywa.dataset :as dataset]
     [neyho.eywa.dataset.core :as core]
     [neyho.eywa.iam.uuids :as iu]
-    [neyho.eywa.iam.access.context :refer [*rules* *roles* *user*]]))
+    [neyho.eywa.iam.access.context :refer [*rules* *roles* *user* *scopes*]]))
 
+
+
+;; RULES
 
 (defn get-roles-access-data
   []
@@ -18,16 +21,16 @@
     {:euuid nil
      :name nil
      ;; Entities
-     :write_entities [{:selections {:euuid nil}}]
-     :read_entities [{:selections {:euuid nil}}]
-     :delete_entities [{:selections {:euuid nil}}]
-     :owned_entities [{:selections {:euuid nil}}]
+     :write_entities        [{:selections {:euuid nil}}]
+     :read_entities         [{:selections {:euuid nil}}]
+     :delete_entities       [{:selections {:euuid nil}}]
+     :owned_entities        [{:selections {:euuid nil}}]
      ;; Relations
-     :to_read_relations [{:selections {:euuid nil}}]
-     :to_write_relations [{:selections {:euuid nil}}]
-     :to_delete_relations [{:selections {:euuid nil}}]
-     :from_read_relations [{:selections {:euuid nil}}]
-     :from_write_relations [{:selections {:euuid nil}}]
+     :to_read_relations     [{:selections {:euuid nil}}]
+     :to_write_relations    [{:selections {:euuid nil}}]
+     :to_delete_relations   [{:selections {:euuid nil}}]
+     :from_read_relations   [{:selections {:euuid nil}}]
+     :from_write_relations  [{:selections {:euuid nil}}]
      :from_delete_relations [{:selections {:euuid nil}}]}))
 
 
@@ -55,15 +58,19 @@
             (x-entity euuid :write (map :euuid write_entities))
             (x-entity euuid :delete (map :euuid delete_entities))
             (x-entity euuid :owners (map :euuid owned_entities))
-            (x-relation euuid :from :read (map :euuid from_read_relations))
-            (x-relation euuid :from :write (map :euuid from_write_relations))
-            (x-relation euuid :from :delete (map :euuid from_delete_relations))
-            (x-relation euuid :to :read (map :euuid to_read_relations))
-            (x-relation euuid :to :write (map :euuid to_write_relations))
-            (x-relation euuid :to :delete (map :euuid to_delete_relations))))
+            ;; From and to refer to entities. There is no from and to, both are
+            ;; from. Because of modeling and how relations are stored, users
+            ;; that read model, read it in inverted... This is why at this point
+            ;; we have to invert back rules, so that they follow first mindfuck
+            ;; logic... donno
+            (x-relation euuid :to :read (map :euuid from_read_relations))
+            (x-relation euuid :to :write (map :euuid from_write_relations))
+            (x-relation euuid :to :delete (map :euuid from_delete_relations))
+            (x-relation euuid :from :read (map :euuid to_read_relations))
+            (x-relation euuid :from :write (map :euuid to_write_relations))
+            (x-relation euuid :from :delete (map :euuid to_delete_relations))))
       nil
       data)))
-
 
 
 (defn load-rules
@@ -95,25 +102,68 @@
        (throw ex)))))
 
 
-
 (defn relation-allows?
   ([relation direction rules] (relation-allows? relation direction rules *roles*))
   ([relation direction rules roles]
    (try
      (if (or (nil? *rules*) (superuser? roles)) true
        (letfn [(ok? [rule]
-                 (boolean (not-empty (set/intersection roles (get-in *rules* [:relation relation direction rule])))))]
+                 (boolean
+                   (not-empty
+                     (set/intersection roles (get-in *rules* [:relation relation direction rule])))))]
+         (comment
+           (def relation #uuid "466b811e-0ec5-4871-a24d-5b2990e6db3d")
+           (def direction :to)
+           (def rule :read)
+           )
          ; (def relation relation)
          ; (def rules rules)
          ; (def roles roles)
          ; (def direction direction)
          ; (def rule (first rules))
-         #_(def roles #{#uuid "97b95ab8-4ca3-498d-b578-b12e6d1a2df8"})
+         ; (def roles #{#uuid "97b95ab8-4ca3-498d-b578-b12e6d1a2df8"})
          (some ok? rules)))
      (catch Throwable ex
        (log/error "[IAM] Couldn't evaluate relation-allows for roles %s" roles)
        (throw ex)))))
 
+
+;; SCOPES
+(defn get-roles-scope-data
+  []
+  (dataset/search-entity
+    iu/user-role
+    nil
+    {:euuid nil
+     :name nil
+     :scopes [{:selections {:euuid nil
+                            :name nil}}]}))
+
+
+(defn transform-scope-data
+  [roles]
+  (reduce
+    (fn [r {role :euuid scopes :scopes}]
+      (assoc r role (set (map :name scopes))))
+    {}
+    roles))
+
+
+(defn load-scopes
+  []
+  (alter-var-root #'*scopes* (fn [_] (transform-scope-data (get-roles-scope-data)))))
+
+
+(defn roles-scopes
+  [roles]
+  (reduce set/union (vals (select-keys *scopes* roles))))
+
+
+(comment
+  (def roles
+    [#uuid "0a757182-9a8e-11ee-87ee-02a535895d2d"
+     #uuid "228df5f6-86c7-4308-8a9e-4a578c5e4af7"
+     #uuid "7fc035e2-812e-4861-a25c-eb172b39577f"]))
 
 
 (defn start-enforcing
@@ -149,7 +199,8 @@
         (if (= ::TIMEOUT idle-value)
           (do
             (log/info "[IAM] Reloading role access!")
-            (load-rules))
+            (load-rules)
+            (load-scopes))
           ;; Otherwise some other delta has been received and
           ;; inner loop will be repeated
           (recur (async/alts!
@@ -162,8 +213,8 @@
       ;; when reloading is complete, wait for new delta value
       ;; and repeat process
       (recur (async/<! delta-chan)))
-    (load-rules)))
-
+    (load-rules)
+    (load-scopes)))
 
 
 (comment

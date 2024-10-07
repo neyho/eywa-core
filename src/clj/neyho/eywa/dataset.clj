@@ -7,11 +7,8 @@
     [clojure.tools.logging :as log]
     [clojure.core.async :as async]
     neyho.eywa
-    [neyho.eywa.iam.access.context :as access]
-    [neyho.eywa.data :refer [*ROOT*]]
-    [neyho.eywa.administration.uuids :as au]
-    [neyho.eywa.authorization :refer [role-permissions]]
-    [neyho.eywa.authorization.components :as c]
+    [neyho.eywa.data]
+    [neyho.eywa.iam.uuids :as au]
     [neyho.eywa.dataset.core :as dataset]
     [neyho.eywa.db :as db :refer [*db*]]
     [neyho.eywa.dataset.uuids :as du]
@@ -21,66 +18,16 @@
     [com.walmartlabs.lacinia.executor :as executor]))
 
 
-(def permissions
-  [{:euuid c/eywa
-    :name "EYWA"
-    :roles [*ROOT*]}
-   {:euuid c/data
-    :name "Data"
-    :roles [*ROOT*]
-    :parent {:euuid c/eywa}}
-   {:euuid c/dataset-explorer
-    :name "Explore"
-    :roles [*ROOT*]
-    :parent {:euuid c/data}}
-   {:euuid c/datasets
-    :name "Datasets"
-    :roles [*ROOT*]
-    :parent {:euuid c/data}}
-   {:euuid c/dataset-add
-    :name "Add"
-    :roles [*ROOT*]
-    :parent {:euuid c/datasets}}
-   {:euuid c/dataset-modify
-    :name "Modify"
-    :roles [*ROOT*]
-    :parent {:euuid c/datasets}}
-   {:euuid c/dataset-delete
-    :name "Delete"
-    :roles [*ROOT*]
-    :parent {:euuid c/datasets}}
-   {:euuid c/dataset-deploy
-    :name "Deploy"
-    :roles [*ROOT*]
-    :parent {:euuid c/datasets}}
-   {:euuid c/dataset-version
-    :name "Dataset Version"
-    :roles [*ROOT*]
-    :parent {:euuid c/datasets}}
-   {:euuid c/dataset-version-save
-    :name "Save"
-    :roles [*ROOT*]
-    :parent {:euuid c/dataset-version}}
-   {:euuid c/dataset-version-import
-    :name "Import"
-    :roles [*ROOT*]
-    :parent {:euuid c/dataset-version}}
-   {:euuid c/dataset-version-export
-    :name "Export"
-    :roles [*ROOT*]
-    :parent {:euuid c/dataset-version}}
-   {:euuid c/dataset-version-delete
-    :name "Delete"
-    :roles [*ROOT*]
-    :parent {:euuid c/dataset-version}}])
-
-
 (defonce ^:dynamic *model* (ref nil))
 
 (defn deployed-model [] @*model*)
 
 (defn deployed-entity [id]
   (dataset/get-entity (deployed-model) id))
+
+
+(defn deployed-relation [id]
+  (dataset/get-relation (deployed-model) id))
 
 (defn save-model [new-model]
   (dosync (ref-set *model* new-model)))
@@ -92,9 +39,10 @@
       (dataset/get-entities (deployed-model)))))
 
 (comment
+  (deployed-relation #uuid "7efa7244-ae20-4248-9792-7623d12cea9e")
   (deployed-entity #uuid "5338693b-9dbc-4434-b598-b15175da04c3"))
 
-(defn account-dataset [_ _ _]
+(defn get-deployed-model [_ _ _]
   {:model (deployed-model)})
 
 (defonce wc (async/chan))
@@ -178,24 +126,6 @@
 
 (defn deploy! [model] (dataset/deploy! *db* model))
 (defn reload [] (dataset/reload *db*))
-(defn load-role-schema []
-  (letfn [(get-uuids [col]
-            (set (map (fn [{e :euuid}] e) col)))] 
-    (let [permissions 
-          (map 
-            #(->
-               %
-               (update :roles get-uuids)
-               (update :parent :euuid)) 
-            (get-entity-tree
-              #uuid "6f525f5f-0504-498b-8b92-c353a0f9d141"
-              c/eywa
-              :parent
-              {:euuid nil
-               :roles [{:selections {:euuid nil :name nil}}]
-               :name nil
-               :parent [{:selections {:euuid nil :name nil}}]}))]
-      (reset! role-permissions (c/components->tree permissions {:euuid c/eywa})))))
 
 
 (defn bind-service-user
@@ -227,6 +157,24 @@
       (async/close! sub))))
 
 
+(defn get-version
+  [euuid]
+  (get-entity
+    du/dataset-version
+    {:euuid euuid}
+    {:euuid nil
+     :dataset [{:selections
+                {:euuid nil
+                 :name nil}}]
+     :model nil
+     :name nil}))
+
+
+(defn get-version-model
+  [euuid]
+  (:model (get-version euuid)))
+
+
 (comment
   (def entity-uuid #uuid "5338693b-9dbc-4434-b598-b15175da04c3")
   (def entity (dataset/get-entity (deployed-model) entity-uuid))
@@ -245,15 +193,7 @@
        :model nil
        :name nil}))
   (def version
-    (get-entity
-      du/dataset-version
-      {:euuid #uuid "d8b61ef4-7815-4463-999c-8567f2d3eef5"}
-      {:euuid nil
-       :dataset [{:selections
-                  {:euuid nil
-                   :name nil}}]
-       :model nil
-       :name nil}))
+    )
   (def username "rgersak")
   (def user nil))
 
@@ -261,64 +201,61 @@
 (defn deploy-dataset
   ([model] (deploy-dataset nil model nil))
   ([context model] (deploy-dataset context model nil))
-  ([{:keys [user username roles]
+  ([{:keys [username]
      :as context}
     {version :version}
     _]
-   (binding [access/*user* user
-             access/*roles* roles]
-     (let [selection (executor/selections-tree context)] 
-       (log/infof
-         "User %s deploying dataset %s@%s"
-         username (-> version :dataset :name) (:name version))
-       (try
-         ; (let [{:keys [euuid]} (dataset/deploy! connector version)]
-         ;; TODO - Rethink this. Should we use teard-down and setup instead
-         ;; of plain deploy! recall!
-         (let [{:keys [euuid]} (dataset/deploy! *db* version)]
-           (load-role-schema)
-           (async/put!
-             wc {:topic :refreshedGlobalDataset
-                 :data {:name "Global" 
-                        :model (dataset/get-model *db*)}})
-           (log/infof
-             "User %s deployed version %s@%s"
-             username (-> version :dataset :name) (:name version))
-           (when (not-empty selection) 
-             ; (log/tracef
-             ;   "Returning data for selection:\n%s"
-             ;   (with-out-str (clojure.pprint/pprint selection)))
-             (db/get-entity *db* du/dataset-version {:euuid euuid} selection)))
-         (catch clojure.lang.ExceptionInfo e
-           (log/errorf
-             e "Couldn't deploy dataset version %s@%s"
-             (-> version :dataset :name) (:name version))
-           (resolve/with-error
-             nil
-             (assoc (ex-data e) :message (ex-message e))))
-         (catch Throwable e
-           (log/errorf
-             e "Couldn't deploy dataset version %s@%s"
-             (-> version :dataset :name) (:name version))
-           ;; TODO - Decide if upon unsuccessfull deploy do we delete old table (commented)
-           ; (let [{versions :versions} 
-           ;       (graphql/get-entity
-           ;         connector
-           ;         datasets-uuid
-           ;         {:euuid euuid}
-           ;         {:name nil
-           ;          :versions [{:args {:_order_by [{:modified_on :desc}]}
-           ;                      :selections {:name nil
-           ;                                   :euuid nil
-           ;                                   :model nil}}]})]
-           ;   (when (empty? versions)
-           ;     (dataset/tear-down-module connector version)))
-           ; (dataset/unmount connector version)
-           #_(server/restart account)
-           (resolve/with-error
-             nil
-             {:message (.getMessage e)
-              :type ::dataset/error-unknown})))))))
+   (let [selection (executor/selections-tree context)] 
+     (log/infof
+       "User %s deploying dataset %s@%s"
+       username (-> version :dataset :name) (:name version))
+     (try
+       ; (let [{:keys [euuid]} (dataset/deploy! connector version)]
+       ;; TODO - Rethink this. Should we use teard-down and setup instead
+       ;; of plain deploy! recall!
+       (let [{:keys [euuid]} (dataset/deploy! *db* version)]
+         (async/put!
+           wc {:topic :refreshedGlobalDataset
+               :data {:name "Global" 
+                      :model (dataset/get-model *db*)}})
+         (log/infof
+           "User %s deployed version %s@%s"
+           username (-> version :dataset :name) (:name version))
+         (when (not-empty selection) 
+           ; (log/tracef
+           ;   "Returning data for selection:\n%s"
+           ;   (with-out-str (clojure.pprint/pprint selection)))
+           (db/get-entity *db* du/dataset-version {:euuid euuid} selection)))
+       (catch clojure.lang.ExceptionInfo e
+         (log/errorf
+           e "Couldn't deploy dataset version %s@%s"
+           (-> version :dataset :name) (:name version))
+         (resolve/with-error
+           nil
+           (assoc (ex-data e) :message (ex-message e))))
+       (catch Throwable e
+         (log/errorf
+           e "Couldn't deploy dataset version %s@%s"
+           (-> version :dataset :name) (:name version))
+         ;; TODO - Decide if upon unsuccessfull deploy do we delete old table (commented)
+         ; (let [{versions :versions} 
+         ;       (graphql/get-entity
+         ;         connector
+         ;         datasets-uuid
+         ;         {:euuid euuid}
+         ;         {:name nil
+         ;          :versions [{:args {:_order_by [{:modified_on :desc}]}
+         ;                      :selections {:name nil
+         ;                                   :euuid nil
+         ;                                   :model nil}}]})]
+         ;   (when (empty? versions)
+         ;     (dataset/tear-down-module connector version)))
+         ; (dataset/unmount connector version)
+         #_(server/restart account)
+         (resolve/with-error
+           nil
+           {:message (.getMessage e)
+            :type ::dataset/error-unknown}))))))
 
 
 ;; @hook
@@ -379,6 +316,9 @@
 (comment
   (def db *db*)
   (def global-model (dataset/get-last-deployed db))
+  (def euuid #uuid "ae3e0f7f-dd0a-468c-9885-caac4141a5c3")
+  (dataset/get-relation (deployed-model) #uuid "ae3e0f7f-dd0a-468c-9885-caac4141a5c3")
+  (lacinia/generate-lacinia-schema db)
   (do
     (def file "./first_ai_test.edm")
     (def model (neyho.eywa.transit/<-trasit (slurp file)))

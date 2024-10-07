@@ -1,22 +1,22 @@
 {:deps
- {nrepl/nrepl                            {:mvn/version "1.1.1"}
-  org.clojure/tools.namespace            {:mvn/version "1.5.0"}
+ {nrepl/nrepl                                  {:mvn/version "1.1.1"}
+  org.clojure/tools.namespace                  {:mvn/version "1.5.0"}
   ;; Administration
-  buddy/buddy-sign                {:mvn/version "3.5.351"}
-  buddy/buddy-core                {:mvn/version "1.11.423"}
-  buddy/buddy-hashers             {:mvn/version "2.0.167"}
-  environ/environ                 {:mvn/version "1.2.0"}
-  hiccup/hiccup                   {:mvn/version "2.0.0-RC3"}
-  com.taoensso/nippy              {:mvn/version "3.3.0"}
+  buddy/buddy-sign                             {:mvn/version "3.5.351"}
+  buddy/buddy-core                             {:mvn/version "1.11.423"}
+  buddy/buddy-hashers                          {:mvn/version "2.0.167"}
+  environ/environ                              {:mvn/version "1.2.0"}
+  hiccup/hiccup                                {:mvn/version "2.0.0-RC3"}
+  com.taoensso/nippy                           {:mvn/version "3.3.0"}
 
   ;; CORE
-  nano-id/nano-id            {:mvn/version "1.1.0"}
-  org.clojure/core.async     {:mvn/version "1.6.681"}
-  org.clojure/data.json      {:mvn/version "2.5.0"}
+  nano-id/nano-id                              {:mvn/version "1.1.0"}
+  org.clojure/core.async                       {:mvn/version "1.6.681"}
+  org.clojure/data.json                        {:mvn/version "2.5.0"}
   ;; POSTGRES
-  org.postgresql/postgresql         {:mvn/version "42.7.2"}
-  com.github.seancorfield/next.jdbc {:mvn/version "1.3.909"}
-  com.zaxxer/HikariCP               {:mvn/version "5.1.0"}
+  org.postgresql/postgresql                    {:mvn/version "42.7.2"}
+  com.github.seancorfield/next.jdbc            {:mvn/version "1.3.909"}
+  com.zaxxer/HikariCP                          {:mvn/version "5.1.0"}
   ;; SERVER
   org.bouncycastle/bcprov-jdk15on              {:mvn/version "1.70" :scope "test"}
   org.bouncycastle/bcpkix-jdk15on              {:mvn/version "1.70" :scope "test"}
@@ -45,7 +45,7 @@
 
  :aliases
  {:dev
-  {:extra-paths ["src/dev" "login/src/clj" "frontend/dist" "test"]
+  {:extra-paths ["src/dev" "src/css" "frontend/dist" "test"]
    :extra-deps {thheller/shadow-cljs {:mvn/version "2.20.20"}}}
   ;;
   :db
@@ -74,6 +74,11 @@
     com.cognitect.aws/endpoints     {:mvn/version "1.1.12.110"}
     com.cognitect.aws/s3            {:mvn/version "814.2.991.0"}}
    :ns-default build}
+  :css
+  {:extra-paths ["src/css"]
+   :extra-deps {thheller/shadow-cljs {:mvn/version "2.20.20"}}
+   :ns-default login.css.compile
+   :exec-fn login.css.compile/release}
   ;;
   :hr
   {:jvm-opts ["-Duser.country=HR"

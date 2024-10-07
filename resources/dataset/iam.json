@@ -1,0 +1,1700 @@
+{
+  "~:euuid": "~u8f556f8d-e664-493e-a57c-361c1781abb8",
+  "~:name": "0.795",
+  "~:dataset": {
+    "~:euuid": "~uc5c85417-0aef-4c44-9e86-8090647d6378",
+    "~:name": "IAM"
+  },
+  "~:model": {
+    "~#neyho.eywa.dataset.core.ERDModel": {
+      "~:entities": {
+        "~ua0d304a7-afe3-4d9f-a2e1-35e174bb5d5b": {
+          "~#neyho.eywa.dataset.core.ERDEntity": {
+            "~:euuid": "~ua0d304a7-afe3-4d9f-a2e1-35e174bb5d5b",
+            "~:position": {
+              "~:x": -1126.975,
+              "~:y": 534.2625
+            },
+            "~:width": 150.84375,
+            "~:height": 170,
+            "~:name": "Dataset Entity",
+            "~:attributes": [
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u32c94d8b-9a88-46fc-9385-9799af08ac28",
+                  "~:seq": 0,
+                  "~:name": "Configuration",
+                  "~:constraint": "optional",
+                  "~:type": "transit",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u016072ae-27e6-4e67-a204-a3bf16f7771b",
+                  "~:seq": 1,
+                  "~:name": "Position",
+                  "~:constraint": "mandatory",
+                  "~:type": "json",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~uc1210beb-bada-4d97-8286-3316b30268fc",
+                  "~:seq": 2,
+                  "~:name": "Type",
+                  "~:constraint": "mandatory",
+                  "~:type": "enum",
+                  "~:configuration": {
+                    "~:values": [
+                      {
+                        "~:euuid": "~u89e9a82d-f574-4f48-8a3c-325f89f14482",
+                        "~:active": true,
+                        "~:name": "STRONG"
+                      },
+                      {
+                        "~:euuid": "~u1bd08a57-242f-408c-88c6-eb74d6d52de8",
+                        "~:active": true,
+                        "~:name": "WEAK"
+                      }
+                    ]
+                  },
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u48631c43-1a57-4ed2-9d8e-57a286142a23",
+                  "~:seq": 3,
+                  "~:name": "Name",
+                  "~:constraint": "unique",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ua221487d-b29f-4369-a798-48efd6725129",
+                  "~:seq": 4,
+                  "~:name": "Width",
+                  "~:constraint": "mandatory",
+                  "~:type": "float",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u9fea664d-b644-44e1-8094-c103cee872a2",
+                  "~:seq": 5,
+                  "~:name": "Height",
+                  "~:constraint": "mandatory",
+                  "~:type": "float",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              }
+            ],
+            "~:type": "STRONG",
+            "~:configuration": {
+              "~:constraints": {
+                "~:unique": [
+                  [
+                    "~u48631c43-1a57-4ed2-9d8e-57a286142a23"
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        "~uedcab1db-ee6f-4744-bfea-447828893223": {
+          "~#neyho.eywa.dataset.core.ERDEntity": {
+            "~:euuid": "~uedcab1db-ee6f-4744-bfea-447828893223",
+            "~:position": {
+              "~:x": -798.9875,
+              "~:y": 873.7124999999999
+            },
+            "~:width": 142.78125,
+            "~:height": 202,
+            "~:name": "User",
+            "~:attributes": [
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ub9d88982-7d35-4b26-813a-a8d0365c68d6",
+                  "~:seq": 0,
+                  "~:name": "Name",
+                  "~:constraint": "unique",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u2c5684ac-d8e1-40a9-8a4b-db602052907f",
+                  "~:seq": 1,
+                  "~:name": "Password",
+                  "~:constraint": "optional",
+                  "~:type": "hashed",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u5cc58b70-6897-4919-bb4f-74e5faea55a4",
+                  "~:seq": 2,
+                  "~:name": "Avatar",
+                  "~:constraint": "optional",
+                  "~:type": "json",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u4ae319a6-2e71-4bf5-ba13-b758e43f0366",
+                  "~:seq": 3,
+                  "~:name": "Active",
+                  "~:constraint": "optional",
+                  "~:type": "boolean",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u6a44cf06-d72c-4930-b2d2-3d607ebf5a04",
+                  "~:seq": 4,
+                  "~:name": "Settings",
+                  "~:constraint": "optional",
+                  "~:type": "json",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u7c9e6704-a0b2-4039-883d-9911a27448f7",
+                  "~:seq": 5,
+                  "~:name": "Type",
+                  "~:constraint": "optional",
+                  "~:type": "enum",
+                  "~:configuration": {
+                    "~:values": [
+                      {
+                        "~:euuid": "~u30c1723f-f645-4561-8de0-28b4e6ef4649",
+                        "~:active": true,
+                        "~:name": "PERSON"
+                      },
+                      {
+                        "~:euuid": "~uee6006ac-974e-4a2d-8759-1fd30b39882b",
+                        "~:active": true,
+                        "~:name": "SERVICE"
+                      },
+                      {
+                        "~:euuid": "~ubdddbca0-f799-4f62-8383-d1a2a0d08158",
+                        "~:active": true,
+                        "~:name": "SECRET"
+                      },
+                      {
+                        "~:euuid": "~u9b25e4e3-6274-468f-9e13-cefde52cbe2a",
+                        "~:active": true,
+                        "~:name": "ROBOT"
+                      },
+                      {
+                        "~:euuid": "~ua13ae177-a0a3-4b86-932c-0e0f3230f9fc",
+                        "~:name": "OAUTH_CLIENT",
+                        "~:active": true
+                      }
+                    ]
+                  },
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u6b6bc6aa-165d-48ca-8c04-a23298066577",
+                  "~:seq": 6,
+                  "~:name": "Priority",
+                  "~:constraint": "optional",
+                  "~:type": "int",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u9d992b48-74f4-4705-bf04-84d3c4dec0e8",
+                  "~:seq": 7,
+                  "~:name": "Out of office",
+                  "~:constraint": "optional",
+                  "~:type": "boolean",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              }
+            ],
+            "~:type": "STRONG",
+            "~:configuration": {
+              "~:locators": null,
+              "~:constraints": {
+                "~:unique": [
+                  [
+                    "~ub9d88982-7d35-4b26-813a-a8d0365c68d6"
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        "~u17b18b52-458e-4657-a827-eb1255de8f1e": {
+          "~#neyho.eywa.dataset.core.ERDEntity": {
+            "~:euuid": "~u17b18b52-458e-4657-a827-eb1255de8f1e",
+            "~:position": {
+              "~:x": -800.15,
+              "~:y": 1125.1
+            },
+            "~:width": 150.84375,
+            "~:height": 154,
+            "~:name": "OAuth API",
+            "~:attributes": [
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~uf4f1473d-904e-456d-b37c-8e7007ea8561",
+                  "~:seq": 0,
+                  "~:name": "Name",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u9c56208f-240e-475b-a30b-41e15dd77632",
+                  "~:seq": 1,
+                  "~:name": "Description",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ucc801b1a-72a0-421f-9eaf-472385bb77c0",
+                  "~:seq": 2,
+                  "~:name": "Avatar",
+                  "~:constraint": "optional",
+                  "~:type": "json",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u285ed3e6-01e3-4171-9548-d7a42dfadfae",
+                  "~:seq": 3,
+                  "~:name": "Audience",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u520fb7f9-30b7-4bdf-8be5-e4cebc4e389f",
+                  "~:seq": 4,
+                  "~:name": "Configuration",
+                  "~:constraint": "optional",
+                  "~:type": "json",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              }
+            ],
+            "~:type": "WEAK",
+            "~:configuration": {
+              "~:constraints": {
+                "~:unique": [
+                  []
+                ]
+              }
+            }
+          }
+        },
+        "~u226f54b0-6af0-4c70-b090-d4fdf2579294": {
+          "~#neyho.eywa.dataset.core.ERDEntity": {
+            "~:euuid": "~u226f54b0-6af0-4c70-b090-d4fdf2579294",
+            "~:position": {
+              "~:x": -1494.775,
+              "~:y": 865.125
+            },
+            "~:width": 206.453125,
+            "~:height": 170,
+            "~:name": "Dataset Entity Attribute",
+            "~:attributes": [
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u3911a55e-28f4-4bc0-abde-867bb9a41729",
+                  "~:seq": 0,
+                  "~:name": "Configuration",
+                  "~:constraint": "optional",
+                  "~:type": "transit",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u6cac3062-e279-4236-8bff-f88183af4c30",
+                  "~:seq": 1,
+                  "~:name": "Active",
+                  "~:constraint": "mandatory",
+                  "~:type": "boolean",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u05585f5b-0382-4f8d-b549-19ed42bfefb3",
+                  "~:seq": 2,
+                  "~:name": "Seq",
+                  "~:constraint": "optional",
+                  "~:type": "int",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~uc6ba5078-dfb8-4658-a61e-f99c4d3ecc1f",
+                  "~:seq": 3,
+                  "~:name": "Type",
+                  "~:constraint": "mandatory",
+                  "~:type": "enum",
+                  "~:configuration": {
+                    "~:values": [
+                      {
+                        "~:euuid": "~u710cdb5b-df4c-424f-b2c8-acedcace2a01",
+                        "~:active": true,
+                        "~:name": "int"
+                      },
+                      {
+                        "~:euuid": "~u8c52b560-6fcc-418a-93cd-dee92a488e7c",
+                        "~:name": "float",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~u3205f5cc-1910-4814-8287-fd21097772fa",
+                        "~:name": "string",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~uaae82027-f55c-490b-a59f-852f9cf4e248",
+                        "~:name": "boolean",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~ud511f67e-22e9-43e3-8545-0556b55392a7",
+                        "~:name": "timestamp",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~u14b08c44-c20b-481d-8c52-15d3d16c8200",
+                        "~:name": "timeperiod",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~u7bb24a11-9a24-485a-92c7-92595575bc62",
+                        "~:name": "uuid",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~u6dceb05b-a6d3-4796-915e-a1549690bff0",
+                        "~:name": "transit",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~uf2122949-ab27-467d-9d25-6bbe5e4bdd1a",
+                        "~:name": "json",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~u2d4715bc-aa21-4d0b-b71e-cad5a9343001",
+                        "~:name": "currency",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~u359c95f0-ba28-425e-9fec-0bddd41ce271",
+                        "~:active": true,
+                        "~:name": "enum"
+                      },
+                      {
+                        "~:euuid": "~u02b3e9e8-abd7-4e19-9022-c5d97881b4eb",
+                        "~:name": "encrypted",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~ubb35fb7f-6ffc-4fb2-b82a-21450b7036a1",
+                        "~:active": true,
+                        "~:name": "hashed"
+                      },
+                      {
+                        "~:euuid": "~u644276b1-745c-41ce-9108-ecf3e5719112",
+                        "~:name": "user",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~u44bfd4c5-a097-4b58-86c4-52e711ded0c2",
+                        "~:name": "group",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~u63457751-92b6-4088-a540-72d20f53ba30",
+                        "~:name": "role",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~udf28042c-3de3-4d5b-83dc-7e7f8328954c",
+                        "~:active": true,
+                        "~:name": "avatar"
+                      }
+                    ]
+                  },
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u53c66c3f-a45c-47cc-a5b2-f2f624464694",
+                  "~:seq": 4,
+                  "~:name": "Name",
+                  "~:constraint": "mandatory",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ub41ceed4-ee89-40f5-98de-36d3a5e81aad",
+                  "~:seq": 5,
+                  "~:name": "Constraint",
+                  "~:constraint": "mandatory",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              }
+            ],
+            "~:type": "WEAK",
+            "~:configuration": {
+              "~:constraints": {
+                "~:unique": []
+              }
+            }
+          }
+        },
+        "~u95afb558-3d28-45e5-9fbf-a2625afc5675": {
+          "~#neyho.eywa.dataset.core.ERDEntity": {
+            "~:euuid": "~u95afb558-3d28-45e5-9fbf-a2625afc5675",
+            "~:position": {
+              "~:x": -464.425,
+              "~:y": 873.7750000000001
+            },
+            "~:width": 138.71875,
+            "~:height": 154,
+            "~:name": "User Group",
+            "~:attributes": [
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~uf34eee70-1c45-4110-bbbc-9b34f8e5a336",
+                  "~:seq": 0,
+                  "~:name": "Name",
+                  "~:constraint": "unique",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u7fd9b7e5-cf29-4fc2-8466-f03e45d37795",
+                  "~:seq": 1,
+                  "~:name": "Description",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u6106167a-0e5e-49bd-a5cc-bb4d24e76d66",
+                  "~:seq": 2,
+                  "~:name": "Active",
+                  "~:constraint": "optional",
+                  "~:type": "boolean",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~uf6f94fc2-7e85-44ad-9a3e-bc6522999fac",
+                  "~:seq": 3,
+                  "~:name": "Avatar",
+                  "~:constraint": "optional",
+                  "~:type": "json",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ub53d40ab-f0fc-489d-bbe6-794e26f641a5",
+                  "~:seq": 4,
+                  "~:name": "Type",
+                  "~:constraint": "optional",
+                  "~:type": "enum",
+                  "~:configuration": {
+                    "~:values": [
+                      {
+                        "~:euuid": "~u6608de07-9af9-4f1e-8ad8-17c74b77258b",
+                        "~:name": "ACCESS",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~uee142578-d873-492f-a0e2-616c12b8323c",
+                        "~:active": true,
+                        "~:name": "ROBOTICS"
+                      },
+                      {
+                        "~:euuid": "~u1936afce-e427-497b-a0ba-702bc65c5c39",
+                        "~:name": "SERVICE",
+                        "~:active": false
+                      }
+                    ]
+                  },
+                  "~:active": true
+                }
+              }
+            ],
+            "~:type": "STRONG",
+            "~:configuration": {
+              "~:constraints": {
+                "~:unique": [
+                  [
+                    "~uf34eee70-1c45-4110-bbbc-9b34f8e5a336"
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        "~u4778f7b1-f946-4cb2-b356-b9cb336b4087": {
+          "~#neyho.eywa.dataset.core.ERDEntity": {
+            "~:euuid": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:position": {
+              "~:x": -1131.6250000000005,
+              "~:y": 883.3000000000001
+            },
+            "~:width": 138.71875,
+            "~:height": 138,
+            "~:name": "User Role",
+            "~:attributes": [
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u56a8a49a-4125-4c96-8ab1-49e15c9b6e49",
+                  "~:seq": 0,
+                  "~:name": "Name",
+                  "~:constraint": "unique",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u17e52c70-ef11-43d4-aa91-28bbfc229918",
+                  "~:seq": 1,
+                  "~:name": "Description",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ud064e91c-82da-43a0-8c2f-b47695ffd915",
+                  "~:seq": 2,
+                  "~:name": "Active",
+                  "~:constraint": "optional",
+                  "~:type": "boolean",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u58fb7b7b-527b-4f9d-bb4a-db5ad230fa16",
+                  "~:seq": 3,
+                  "~:name": "Avatar",
+                  "~:constraint": "optional",
+                  "~:type": "json",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              }
+            ],
+            "~:type": "STRONG",
+            "~:configuration": {
+              "~:constraints": {
+                "~:unique": [
+                  [
+                    "~u56a8a49a-4125-4c96-8ab1-49e15c9b6e49"
+                  ]
+                ]
+              },
+              "~:graphql": {
+                "~:interceptors": {
+                  "~:sync": [
+                    "~$neyho.eywa.administration/reload-schema"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "~ub2ccded3-9f8e-49aa-b610-8902ad7330e9": {
+          "~#neyho.eywa.dataset.core.ERDEntity": {
+            "~:euuid": "~ub2ccded3-9f8e-49aa-b610-8902ad7330e9",
+            "~:position": {
+              "~:x": -567.9,
+              "~:y": 484
+            },
+            "~:width": 205.953125,
+            "~:height": 346,
+            "~:name": "Person Info",
+            "~:attributes": [
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u2246456f-469a-41d6-858d-5fe0691f81b5",
+                  "~:seq": 0,
+                  "~:name": "Nickname",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u4a0e0f4b-9274-4f7b-9472-afbdbc12bd28",
+                  "~:seq": 1,
+                  "~:name": "Family Name",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u1ab40a3f-ae86-474b-8c5b-51d4114bc625",
+                  "~:seq": 2,
+                  "~:name": "Preferred Username",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u1fd3ee5c-f661-47ed-a960-d61ea2896951",
+                  "~:seq": 3,
+                  "~:name": "Middle Name",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~udeb5c0ce-9dc3-4573-89e9-b1f8df1c1e0b",
+                  "~:seq": 4,
+                  "~:name": "ZoneInfo",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u5af7abda-eca9-4d7c-bd50-aa3d61ecf6eb",
+                  "~:seq": 5,
+                  "~:name": "Address",
+                  "~:constraint": "optional",
+                  "~:type": "json",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ub4dedb93-860a-403f-b9ec-09225232c952",
+                  "~:seq": 6,
+                  "~:name": "Email Verified",
+                  "~:constraint": "optional",
+                  "~:type": "boolean",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ua668bde5-1bca-4ae5-9660-d8c5245237c0",
+                  "~:seq": 7,
+                  "~:name": "Profile",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u4747aa14-d094-4d6b-8a9e-392c462708a0",
+                  "~:seq": 8,
+                  "~:name": "Phone Number",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ua0249226-bae2-4eae-a23f-b1b947b2e4a7",
+                  "~:seq": 9,
+                  "~:name": "Name",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u14b41703-e9fd-46ba-b9c6-7214b1116983",
+                  "~:seq": 10,
+                  "~:name": "Given Name",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u40417415-2b79-49b2-b6d0-e88a41aa0dcf",
+                  "~:seq": 11,
+                  "~:name": "email",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ub8fed08a-447f-4612-ac12-54e30d014b22",
+                  "~:seq": 12,
+                  "~:name": "Picture",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u5a8f87c0-ae82-4e0b-8ea1-b26cfc818cb6",
+                  "~:seq": 13,
+                  "~:name": "Gender",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ubf98a3a1-0c56-4601-84ed-08e1cc044564",
+                  "~:seq": 14,
+                  "~:name": "BirthDate",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~uf7297ac2-9671-46af-90bf-3de0b82e735a",
+                  "~:seq": 15,
+                  "~:name": "website",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ucf62da42-0452-463a-bf8b-2ec62b3fc2fb",
+                  "~:seq": 16,
+                  "~:name": "Phone Number Verified",
+                  "~:constraint": "optional",
+                  "~:type": "boolean",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              }
+            ],
+            "~:type": "WEAK",
+            "~:configuration": {
+              "~:constraints": {
+                "~:unique": [
+                  []
+                ]
+              }
+            }
+          }
+        },
+        "~u342f54bd-5a1b-4024-8b64-566862f82627": {
+          "~#neyho.eywa.dataset.core.ERDEntity": {
+            "~:euuid": "~u342f54bd-5a1b-4024-8b64-566862f82627",
+            "~:position": {
+              "~:x": -794.0250000000001,
+              "~:y": 585.575
+            },
+            "~:width": 138.71875,
+            "~:height": 138,
+            "~:name": "Project",
+            "~:attributes": [
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u7d9a4574-a2d4-4c40-a7e8-0ab98948febc",
+                  "~:seq": 0,
+                  "~:name": "Name",
+                  "~:constraint": "unique",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u6f8a0b57-8412-4510-9224-0fb9e679a48a",
+                  "~:seq": 1,
+                  "~:name": "Description",
+                  "~:constraint": "mandatory",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ue7efcf4b-cdb7-4342-8a45-9afb271ccb1d",
+                  "~:seq": 2,
+                  "~:name": "Active",
+                  "~:constraint": "mandatory",
+                  "~:type": "boolean",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u17d27f61-618a-413a-bd65-6c8a9f4e2ba8",
+                  "~:seq": 3,
+                  "~:name": "Avatar",
+                  "~:constraint": "optional",
+                  "~:type": "avatar",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              }
+            ],
+            "~:type": "STRONG",
+            "~:configuration": {
+              "~:constraints": {
+                "~:unique": [
+                  [
+                    "~u7d9a4574-a2d4-4c40-a7e8-0ab98948febc"
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        "~u191eb26a-c68f-46e5-84ec-1ee887d22adb": {
+          "~#neyho.eywa.dataset.core.ERDEntity": {
+            "~:euuid": "~u191eb26a-c68f-46e5-84ec-1ee887d22adb",
+            "~:position": {
+              "~:x": -1133.7625,
+              "~:y": 1381.5375
+            },
+            "~:width": 154.3125,
+            "~:height": 170,
+            "~:name": "Dataset Relation",
+            "~:attributes": [
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u4b5fab40-58e3-409e-a54a-fa8109bf26a7",
+                  "~:seq": 0,
+                  "~:name": "Path",
+                  "~:constraint": "optional",
+                  "~:type": "json",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u87042680-90d0-46a1-acf6-fc2be8d1047c",
+                  "~:seq": 1,
+                  "~:name": "To Label",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u592e84b1-34ea-47e2-89e3-b78dc18263cf",
+                  "~:seq": 2,
+                  "~:name": "Cardinality",
+                  "~:constraint": "mandatory",
+                  "~:type": "enum",
+                  "~:configuration": {
+                    "~:values": [
+                      {
+                        "~:euuid": "~u3034ba57-b5b3-480f-8eff-c3062448288d",
+                        "~:active": true,
+                        "~:name": "o2o"
+                      },
+                      {
+                        "~:euuid": "~u231b67b3-83b7-438d-ba01-c3450f9aac37",
+                        "~:name": "o2m",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~ueda831c8-b9c3-4cc4-8ad0-3599996cf1b4",
+                        "~:name": "m2o",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~u836a9356-a0cf-4ba4-97e9-55d3ab13c372",
+                        "~:name": "m2m",
+                        "~:active": true
+                      },
+                      {
+                        "~:euuid": "~ufe8a4ce6-7d20-4cd5-bbe9-9cebda9cc286",
+                        "~:active": true,
+                        "~:name": "tree"
+                      }
+                    ]
+                  },
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u78e596e0-280b-4573-a152-b9be5bbfdf40",
+                  "~:seq": 3,
+                  "~:name": "From",
+                  "~:constraint": "mandatory",
+                  "~:type": "uuid",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u706e8f4b-189c-48c4-a4a1-3e191fe818e2",
+                  "~:seq": 4,
+                  "~:name": "From Label",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u03850b9e-7e98-4072-abd9-ea0b82eb3252",
+                  "~:seq": 5,
+                  "~:name": "To",
+                  "~:constraint": "mandatory",
+                  "~:type": "uuid",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              }
+            ],
+            "~:type": "WEAK",
+            "~:configuration": {
+              "~:constraints": {
+                "~:unique": [
+                  []
+                ]
+              }
+            }
+          }
+        },
+        "~u0757bd93-7abf-45b4-8437-2841283edcba": {
+          "~#neyho.eywa.dataset.core.ERDEntity": {
+            "~:euuid": "~u0757bd93-7abf-45b4-8437-2841283edcba",
+            "~:position": {
+              "~:x": -567.625,
+              "~:y": 1132.925
+            },
+            "~:width": 138.71875,
+            "~:height": 186,
+            "~:name": "OAuth Client",
+            "~:attributes": [
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ubef3d576-f5c9-4a1c-bc7b-7a1d255b4298",
+                  "~:seq": 0,
+                  "~:name": "Type",
+                  "~:constraint": "optional",
+                  "~:type": "enum",
+                  "~:configuration": {
+                    "~:values": [
+                      {
+                        "~:euuid": "~u7b87d142-52ce-4933-8942-0f03f6546db1",
+                        "~:active": true,
+                        "~:name": "public"
+                      },
+                      {
+                        "~:euuid": "~u1018dceb-4068-4ee3-9648-62ce9ac9dfb9",
+                        "~:active": true,
+                        "~:name": "confidential"
+                      }
+                    ]
+                  },
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ua005577b-fc9e-4274-b1c0-a3fc2e81001d",
+                  "~:seq": 1,
+                  "~:name": "Secret",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u5628eca6-4d4a-4779-8368-fbcda6a23d94",
+                  "~:seq": 2,
+                  "~:name": "Active",
+                  "~:constraint": "optional",
+                  "~:type": "boolean",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u8ce47e5f-3dbd-4145-afb1-1068a57bfcc1",
+                  "~:seq": 3,
+                  "~:name": "Name",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u46ec9cfd-50f0-4ada-ac24-38a5385b6442",
+                  "~:seq": 4,
+                  "~:name": "ID",
+                  "~:constraint": "unique",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ued13175f-47e8-485c-899d-78e9deb15f9f",
+                  "~:seq": 5,
+                  "~:name": "Description",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ub5335489-9bb3-4c2a-a479-30083fadf58f",
+                  "~:seq": 6,
+                  "~:name": "Settings",
+                  "~:constraint": "optional",
+                  "~:type": "json",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              }
+            ],
+            "~:type": "STRONG",
+            "~:configuration": {
+              "~:constraints": {
+                "~:unique": [
+                  [
+                    "~u46ec9cfd-50f0-4ada-ac24-38a5385b6442"
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        "~ueb03406a-9b0c-4d61-8f96-34e8aa04f13c": {
+          "~#neyho.eywa.dataset.core.ERDEntity": {
+            "~:euuid": "~ueb03406a-9b0c-4d61-8f96-34e8aa04f13c",
+            "~:position": {
+              "~:x": -797.4750000000001,
+              "~:y": 1342.75
+            },
+            "~:width": 138.71875,
+            "~:height": 106,
+            "~:name": "OAuth Scope",
+            "~:attributes": [
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~uee8d7258-ef0c-4964-a106-82f444bd5928",
+                  "~:seq": 0,
+                  "~:name": "Name",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u31011857-40b6-4f57-b4ca-0b2031e9c1ae",
+                  "~:seq": 1,
+                  "~:name": "Description",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              }
+            ],
+            "~:type": "WEAK",
+            "~:configuration": {
+              "~:constraints": {
+                "~:unique": [
+                  []
+                ]
+              }
+            }
+          }
+        }
+      },
+      "~:relations": {
+        "~u9fd134da-ac87-4f48-aa7a-d94ae6ba18be": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u9fd134da-ac87-4f48-aa7a-d94ae6ba18be",
+            "~:from": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:to": "~u191eb26a-c68f-46e5-84ec-1ee887d22adb",
+            "~:from-label": "to delete roles",
+            "~:to-label": "to delete relations",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": [
+                  {
+                    "~#neyho.eywa.modeling.core.Coordinate": {
+                      "~:x": -1120,
+                      "~:y": 1030
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "~u7205f259-c1c7-4ead-ad8d-25cab3bcf342": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u7205f259-c1c7-4ead-ad8d-25cab3bcf342",
+            "~:from": "~ua0d304a7-afe3-4d9f-a2e1-35e174bb5d5b",
+            "~:to": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:from-label": "delete entities",
+            "~:to-label": "delete roles",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": {
+                  "~#list": [
+                    {
+                      "~#neyho.eywa.modeling.core.Coordinate": {
+                        "~:x": -1080,
+                        "~:y": 710
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "~uba88f08f-fd6f-413a-bab4-61730f0b6fa5": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~uba88f08f-fd6f-413a-bab4-61730f0b6fa5",
+            "~:from": "~u226f54b0-6af0-4c70-b090-d4fdf2579294",
+            "~:to": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:from-label": "read attributes",
+            "~:to-label": "read roles",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": [
+                  {
+                    "~#neyho.eywa.modeling.core.Coordinate": {
+                      "~:x": -1320,
+                      "~:y": 860
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "~uae3e0f7f-dd0a-468c-9885-caac4141a5c3": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~uae3e0f7f-dd0a-468c-9885-caac4141a5c3",
+            "~:from": "~u95afb558-3d28-45e5-9fbf-a2625afc5675",
+            "~:to": "~uedcab1db-ee6f-4744-bfea-447828893223",
+            "~:from-label": "groups",
+            "~:to-label": "users",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": {
+                  "~#list": [
+                    {
+                      "~#neyho.eywa.modeling.core.Coordinate": {
+                        "~:x": -630,
+                        "~:y": 880
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "~u5658e47b-51a6-4795-a5b7-d546a8f01fe4": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u5658e47b-51a6-4795-a5b7-d546a8f01fe4",
+            "~:from": "~uedcab1db-ee6f-4744-bfea-447828893223",
+            "~:to": "~ub2ccded3-9f8e-49aa-b610-8902ad7330e9",
+            "~:from-label": "user",
+            "~:to-label": "person info",
+            "~:cardinality": "o2o",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": {
+                  "~#list": [
+                    {
+                      "~#neyho.eywa.modeling.core.Coordinate": {
+                        "~:x": -570,
+                        "~:y": 820
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "~u1c7b9658-aaae-409a-821a-f0bf31dd44d6": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u1c7b9658-aaae-409a-821a-f0bf31dd44d6",
+            "~:from": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:to": "~u191eb26a-c68f-46e5-84ec-1ee887d22adb",
+            "~:from-label": "to write roles",
+            "~:to-label": "to write relations",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": [
+                  {
+                    "~#neyho.eywa.modeling.core.Coordinate": {
+                      "~:x": -1100,
+                      "~:y": 1060
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "~u21bddba6-07c6-41e0-9c3c-788df053b5ac": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u21bddba6-07c6-41e0-9c3c-788df053b5ac",
+            "~:from": "~ua0d304a7-afe3-4d9f-a2e1-35e174bb5d5b",
+            "~:to": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:from-label": "write entities",
+            "~:to-label": "write roles",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": [
+                  {
+                    "~#neyho.eywa.modeling.core.Coordinate": {
+                      "~:x": -1120,
+                      "~:y": 700
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "~u1deeb442-5bd2-45e3-8ba0-5cbb1d8d5389": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u1deeb442-5bd2-45e3-8ba0-5cbb1d8d5389",
+            "~:from": "~u191eb26a-c68f-46e5-84ec-1ee887d22adb",
+            "~:to": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:from-label": "from write relations",
+            "~:to-label": "from write roles",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": [
+                  {
+                    "~#neyho.eywa.modeling.core.Coordinate": {
+                      "~:x": -1180,
+                      "~:y": 1090
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "~u9c8ebcd4-5b23-4619-8fe8-cd3f474e7f72": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u9c8ebcd4-5b23-4619-8fe8-cd3f474e7f72",
+            "~:from": "~u191eb26a-c68f-46e5-84ec-1ee887d22adb",
+            "~:to": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:from-label": "from delete relations",
+            "~:to-label": "from delete roles",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": [
+                  {
+                    "~#neyho.eywa.modeling.core.Coordinate": {
+                      "~:x": -1140,
+                      "~:y": 1030
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "~u85dac0f6-3cb2-4054-88a5-0f2cfe63a792": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u85dac0f6-3cb2-4054-88a5-0f2cfe63a792",
+            "~:from": "~uedcab1db-ee6f-4744-bfea-447828893223",
+            "~:to": "~u342f54bd-5a1b-4024-8b64-566862f82627",
+            "~:from-label": "participants",
+            "~:to-label": "projects",
+            "~:cardinality": "m2m",
+            "~:path": null
+          }
+        },
+        "~u466b811e-0ec5-4871-a24d-5b2990e6db3d": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u466b811e-0ec5-4871-a24d-5b2990e6db3d",
+            "~:from": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:to": "~uedcab1db-ee6f-4744-bfea-447828893223",
+            "~:from-label": "roles",
+            "~:to-label": "users",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": [
+                  {
+                    "~#neyho.eywa.modeling.core.Coordinate": {
+                      "~:x": -980,
+                      "~:y": 880
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "~uad7b22c8-5370-4578-a749-7a73b7572c4a": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~uad7b22c8-5370-4578-a749-7a73b7572c4a",
+            "~:from": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:to": "~ua0d304a7-afe3-4d9f-a2e1-35e174bb5d5b",
+            "~:from-label": "owner roles",
+            "~:to-label": "owned entities",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": {
+                  "~#list": [
+                    {
+                      "~#neyho.eywa.modeling.core.Coordinate": {
+                        "~:x": -940,
+                        "~:y": 840
+                      }
+                    },
+                    {
+                      "~#neyho.eywa.modeling.core.Coordinate": {
+                        "~:x": -940,
+                        "~:y": 560
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "~u3d1f4371-fcd1-4de9-b9a6-aa7ffafbeb83": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u3d1f4371-fcd1-4de9-b9a6-aa7ffafbeb83",
+            "~:from": "~ua0d304a7-afe3-4d9f-a2e1-35e174bb5d5b",
+            "~:to": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:from-label": "read entities",
+            "~:to-label": "read roles",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": [
+                  {
+                    "~#neyho.eywa.modeling.core.Coordinate": {
+                      "~:x": -1170,
+                      "~:y": 700
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "~u9c5c9386-0e04-4849-b414-f189a083e5e8": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u9c5c9386-0e04-4849-b414-f189a083e5e8",
+            "~:from": "~u17b18b52-458e-4657-a827-eb1255de8f1e",
+            "~:to": "~ueb03406a-9b0c-4d61-8f96-34e8aa04f13c",
+            "~:from-label": "api",
+            "~:to-label": "scopes",
+            "~:cardinality": "o2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": [
+                  {
+                    "~#neyho.eywa.modeling.core.Coordinate": {
+                      "~:x": -800,
+                      "~:y": 1250
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "~u4f4cd8f9-e76a-45c0-8bcd-33b13a20e5fe": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u4f4cd8f9-e76a-45c0-8bcd-33b13a20e5fe",
+            "~:from": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:to": "~u191eb26a-c68f-46e5-84ec-1ee887d22adb",
+            "~:from-label": "to read roles",
+            "~:to-label": "to read relations",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": [
+                  {
+                    "~#neyho.eywa.modeling.core.Coordinate": {
+                      "~:x": -1080,
+                      "~:y": 1100
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "~u6aabb58b-6461-433e-a75d-26c094293e17": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u6aabb58b-6461-433e-a75d-26c094293e17",
+            "~:from": "~u226f54b0-6af0-4c70-b090-d4fdf2579294",
+            "~:to": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:from-label": "write attributes",
+            "~:to-label": "write roles",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": [
+                  {
+                    "~#neyho.eywa.modeling.core.Coordinate": {
+                      "~:x": -1330,
+                      "~:y": 920
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "~u25c97af4-4ddb-48e1-9fe9-4778999de49c": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u25c97af4-4ddb-48e1-9fe9-4778999de49c",
+            "~:from": "~u191eb26a-c68f-46e5-84ec-1ee887d22adb",
+            "~:to": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:from-label": "from read relations",
+            "~:to-label": "from read roles",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": [
+                  {
+                    "~#neyho.eywa.modeling.core.Coordinate": {
+                      "~:x": -1160,
+                      "~:y": 1030
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "~ud6f368d2-f8d4-4aff-a061-a40f6aa711e2": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~ud6f368d2-f8d4-4aff-a061-a40f6aa711e2",
+            "~:from": "~uedcab1db-ee6f-4744-bfea-447828893223",
+            "~:to": "~u0757bd93-7abf-45b4-8437-2841283edcba",
+            "~:from-label": null,
+            "~:to-label": "authorized clients",
+            "~:cardinality": "o2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": {
+                  "~#list": [
+                    {
+                      "~#neyho.eywa.modeling.core.Coordinate": {
+                        "~:x": -570,
+                        "~:y": 950
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "~u9aaef2f8-9db2-43c5-9821-3fad88ed5b33": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u9aaef2f8-9db2-43c5-9821-3fad88ed5b33",
+            "~:from": "~u0757bd93-7abf-45b4-8437-2841283edcba",
+            "~:to": "~u17b18b52-458e-4657-a827-eb1255de8f1e",
+            "~:from-label": "clients",
+            "~:to-label": "apis",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": [
+                  {
+                    "~#neyho.eywa.modeling.core.Coordinate": {
+                      "~:x": -680,
+                      "~:y": 1130
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "~u2c11b4c1-0033-4f4b-a113-bcf84d18d99a": {
+          "~#neyho.eywa.dataset.core.ERDRelation": {
+            "~:euuid": "~u2c11b4c1-0033-4f4b-a113-bcf84d18d99a",
+            "~:from": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
+            "~:to": "~ueb03406a-9b0c-4d61-8f96-34e8aa04f13c",
+            "~:from-label": "roles",
+            "~:to-label": "scopes",
+            "~:cardinality": "m2m",
+            "~:path": {
+              "~#neyho.eywa.modeling.core.Path": {
+                "~:coordinates": {
+                  "~#list": [
+                    {
+                      "~#neyho.eywa.modeling.core.Coordinate": {
+                        "~:x": -940,
+                        "~:y": 920
+                      }
+                    },
+                    {
+                      "~#neyho.eywa.modeling.core.Coordinate": {
+                        "~:x": -940,
+                        "~:y": 1130
+                      }
+                    },
+                    {
+                      "~#neyho.eywa.modeling.core.Coordinate": {
+                        "~:x": -940,
+                        "~:y": 1340
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "~:configuration": {
+        "~:audit": {
+          "~:who": "~:modified_by",
+          "~:when": "~:modified_on"
+        }
+      }
+    }
+  },
+  "~:deployed": true
+}

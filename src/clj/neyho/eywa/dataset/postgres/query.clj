@@ -13,7 +13,9 @@
     [next.jdbc.prepare :as p]
     [neyho.eywa.transit :refer [<-transit ->transit]]
     [neyho.eywa.iam.access :as access]
-    [neyho.eywa.iam.access.context :refer [*roles* *user*]]
+    [neyho.eywa.iam.access.context
+     :refer [*roles*
+             *user*]]
     [neyho.eywa.db :refer [*db*] :as db]
     [neyho.eywa.db.postgres.next :as postgres]
     [neyho.eywa.dataset.core
@@ -24,7 +26,7 @@
     [java.sql PreparedStatement]))
 
 
-(defonce ^:private -deployed-schema- (atom nil))
+(defonce ^:private _deployed-schema (atom nil))
 (defonce ^:dynamic *operation-rules* nil)
 
 
@@ -61,9 +63,9 @@
 ;     schema))
 
 
-(defn deploy-schema [schema] (reset! -deployed-schema- schema))
+(defn deploy-schema [schema] (reset! _deployed-schema schema))
 
-(defn deployed-schema [] @-deployed-schema-)
+(defn deployed-schema [] @_deployed-schema)
 
 
 (defn deployed-schema-entity [entity-id]
@@ -770,6 +772,14 @@
 
 
 (comment
+  (set-entity
+    #uuid "ccdab22c-0fd5-49da-b447-72ab55e596a4" 
+    {:euuid #uuid "2f1338c2-4659-4c96-8b80-15c01a5362f3"
+     :name "dijete"
+     :mother {:euuid #uuid "e5a6746c-dabe-4810-9fcf-e08dfb381ecd"
+              :name "mama"}
+     :father {:euuid #uuid "34d00251-cd25-40be-b68f-6755f6ca1bd1"
+              :name "tata"}})
   (binding [*roles* #{
                       ; (:euuid neyho.eywa.data/*ROOT*)
                       #uuid "97b95ab8-4ca3-498d-b578-b12e6d1a2df8"
@@ -796,18 +806,18 @@
 ;;
 (defn- flatten-selection [s]
   (reduce
-   (fn [r [k v]]
-     (assoc r
-       (-> k name keyword)
-       (let [[{:keys [selections]}] v]
-         (case selections
-           #:Currency{:amount [nil], :currency [nil]} [nil]
-           #:CurrencyInput{:amount [nil], :currency [nil]} [nil]
-           #:TimePeriod{:start [nil], :end [nil]} [nil]
-           #:TimePeriodInput{:start [nil], :end [nil]} [nil]
-           v))))
-   nil
-   s))
+    (fn [r [k v]]
+      (assoc r
+             (-> k name keyword)
+             (let [[{:keys [selections]}] v]
+               (case selections
+                 #:Currency{:amount [nil], :currency [nil]} [nil]
+                 #:CurrencyInput{:amount [nil], :currency [nil]} [nil]
+                 #:TimePeriod{:start [nil], :end [nil]} [nil]
+                 #:TimePeriodInput{:start [nil], :end [nil]} [nil]
+                 v))))
+    nil
+    s))
 
 
 (def scalar-types
@@ -824,7 +834,7 @@
    ;   :selection->schema entity-id
    ;   :selection selection
    ;   :args args)
-   (when (access/entity-allows? entity-id #{:read :ownes})
+   (when (access/entity-allows? entity-id #{:read :owns})
      (let [{relations :relations
             recursions :recursions
             fields :fields
@@ -895,6 +905,11 @@
                                (if (contains? recursions field) result
                                  (let [{:keys [relation to]} (get relations field)
                                        direction (if (= to entity-id) :from :to)]
+                                   (comment
+                                     (access/relation-allows?
+                                       #uuid "466b811e-0ec5-4871-a24d-5b2990e6db3d"
+                                       :to
+                                       #{:read}))
                                    (if-not relation result
                                      (let [allowed? (access/relation-allows? relation direction *operation-rules*)]
                                        (if allowed? result
@@ -943,8 +958,8 @@
                         (let [t (get field->type field)]
                           (case t
                             ;; Shortcircuit defaults
-                            ("boolean" "string" "int" "float" "json" "timestamp" "timeperiod" "currency" "uuid" "avatar" nil) result
-                            "hashed" (update result field hashers/derive)
+                            ("boolean" "string" "int" "float" "json" "timestamp" "timeperiod" "currency" "uuid" "avatar" "hashed" nil) result
+                            ; "hashed" (update result field hashers/derive)
                             "transit" (update result field freeze)
                             (assoc result field
                                    (fn [v]
@@ -1071,28 +1086,30 @@
     []
     (vec (concat (interleave (repeat :relations) cursor)))))
 
+
 (defn schema->cursors
   "Given selection schema produces cursors that point
   to all connected entity tables. This is a way point to
   pull linked data from db with single query"
   ([{:keys [relations] :as schema}]
    (schema->cursors
-    (when-let [cursors (keys relations)]
-      (mapv vector cursors))
-    schema))
+     (when-let [cursors (keys relations)]
+       (mapv vector cursors))
+     schema))
   ([cursors schema]
    (reduce
-    (fn [cursors cursor]
-      (let [{:keys [relations fields counted?]} (get-in schema (relations-cursor cursor))]
-        (if (not-empty relations)
-          (into
-           (conj cursors cursor)
-           (mapcat #(schema->cursors [(conj cursor %)] schema) (keys relations)))
-          (if (or counted? (some? fields))
-            (conj cursors cursor)
-            cursors))))
-    []
-    cursors)))
+     (fn [cursors cursor]
+       (let [{:keys [relations fields counted?]} (get-in schema (relations-cursor cursor))]
+         (if (not-empty relations)
+           (into
+             (conj cursors cursor)
+             (mapcat #(schema->cursors [(conj cursor %)] schema) (keys relations)))
+           (if (or counted? (some? fields))
+             (conj cursors cursor)
+             cursors))))
+     []
+     cursors)))
+
 
 ; (defn unique-cursors 
 ;   "Removes cursor subsets and leaves only unique cursors"
@@ -1108,6 +1125,7 @@
 ;           (if (some #(subvector? c %) others)
 ;             uniques
 ;             (conj uniques c)))))))
+
 
 (defn get-cursor-schema
   ([schema cursor]
@@ -1322,13 +1340,13 @@
                               statements')
                             ")"))))
                  ;; Ignore limit distinct offset
-                (:_limit :_offset :_order_by :_distinct)
-                (do
-                  ; (log/trace
-                  ;   :query.selection :ignore/field
-                  ;   :field field
-                  ;   :constraints constraints)
-                  [statements data])
+                 (:_limit :_offset :_order_by :_distinct)
+                 (do
+                   ; (log/trace
+                   ;   :query.selection :ignore/field
+                   ;   :field field
+                   ;   :constraints constraints)
+                   [statements data])
                 ;; Default handlers
                 (if (keyword? constraints)
                   (case constraints
@@ -1618,9 +1636,7 @@
      ((fnil into []) maybe-data data))))
 
 
-;; TODO - this can be optimized
-;; When using where statements and/or limit all roots per table are already known
-;; so pulling cursors can be  done in parallel
+
 (defn pull-cursors
   [con {:keys [entity/table fields decoders recursions entity/as args] :as schema} found-records]
   (reduce
@@ -1644,8 +1660,8 @@
           "[%s] Cursor position %s from table %s. Parents:\n%s"
           table cursor ftable (str/join ", " parents))
         (if (not-empty parents)
-          (let [{ptable :entity/table}
-                (get-cursor-schema schema (butlast cursor))
+          (let [{ptable :entity/table} (get-cursor-schema schema (butlast cursor))
+                ;;
                 query (pull-query
                         (update cursor-schema :args dissoc :_limit :_offset)
                         (get found-records (keyword as)) parents)
@@ -1738,6 +1754,8 @@
                         [root-query]
                         *return-type*))))}
     (sort (schema->cursors schema))))
+
+
 
 (defn construct-response
   [{:keys [entity/table recursions] :as schema} db found-records]
@@ -1963,32 +1981,57 @@
   (def selection
     {:euuid nil
      :name nil
-     :locators nil
-     :constraints nil
-     :height nil
-     :width nil
-     :configuration nil
-     :attributes [{:selections
+     :groups [{:selections
+               {:euuid nil
+                :name nil}}]
+     :person_inf [{:selection
                    {:euuid nil
-                    :seq nil
-                    :name nil
-                    :type nil
-                    :constraint nil
-                    :configuration nil
-                    :active nil}}]})
+                    :given_name nil
+                    :middle_name nil
+                    :nickname nil
+                    :name nil}}]
+     :roles [{:selections
+              {:euuid nil
+               :name nil
+               :scopes nil
+               :write_entities [{:selections {:euuid nil
+                                              :name nil
+                                              :configuration nil}}]
+               :read_entities [{:selection {:euuid nil
+                                            :name nil
+                                            :configuration nil}}]}}]})
   (def args nil)
-  (def entity-id #uuid "a0d304a7-afe3-4d9f-a2e1-35e174bb5d5b")
-  (def schema (selection->schema entity-id selection args))
+  (def entity-id #uuid "edcab1db-ee6f-4744-bfea-447828893223")
+  (def schema (time (selection->schema entity-id selection args)))
   (def connection (jdbc/get-connection (:datasource *db*)))
   (def con connection)
+  (schema->cursors schema)
   (def roots (search-entity-roots connection schema))
+  (time (search-entity entity-id args selection))
+
+
+  (def entity-id #uuid "a800516e-9cfa-4414-9874-60f2285ec330")
+  (binding [*user* user
+            *roles* roles]
+    (access/entity-allows? entity-id #{:read}))
+  (core/get-entity (neyho.eywa.dataset/deployed-model) entity-id)
   )
 
 
 (defn search-entity
   ([entity-id args selection]
+   ; (def user *user*)
+   ; (def roles *roles*)
+   ; (def entity-id entity-id)
+   (when-not (access/entity-allows? entity-id #{:read})
+     (throw
+       (ex-info
+         "You don't have sufficent privilages to read this entity"
+         {:type ::enforce-search-access
+          :roles *roles*})))
    (with-open [connection (jdbc/get-connection (:datasource *db*))]
-     (let [schema (selection->schema entity-id selection args)
+     (let [schema (binding [*operation-rules* #{:read}]
+                    (selection->schema entity-id selection args))
            _ (log/tracef "Searching for entity\n%s" schema)
            roots (search-entity-roots connection schema)]
        (when (some? roots)
@@ -2007,7 +2050,9 @@
        ;   :args args
        ;   :selection selection
        ;   :schema schema)
-       (if (not= enforced-schema schema)
+       (if (and
+             (not= enforced-schema schema)
+             (not (access/superuser?)))
          (throw
            (ex-info
              "Purge not allowed. User doesn't own all entites included in purge"
@@ -2046,7 +2091,7 @@
         :User/type [nil],
         :User/avatar [nil]}}]})
   (def args {:euuid #uuid "fbcf3bb9-7728-4b80-8b09-b27cca84e663"})
-  (def entity-id neyho.eywa.administration.uuids/user-group)
+  (def entity-id neyho.eywa.iam.uuids/user-group)
   (def args
     (reduce-kv
      (fn [args k v]
@@ -2085,9 +2130,21 @@
 (defn get-entity
   ([entity-id args selection]
    (assert (some? args) "No arguments to get entity for...")
+   (when-not (access/entity-allows? entity-id #{:read})
+     (throw
+       (ex-info
+         "You don't have sufficent privilages to read this entity"
+         {:type ::enforce-purge
+          :roles *roles*})))
    (log/debugf
     "[%s] Getting entity\nArgs:\n%s\nSelection:\n%s"
     entity-id (pprint args) (pprint selection))
+   ; (def entity-id entity-id)
+   ; (def args args)
+   ; (def selection selection)
+   ; (def selection selection)
+   ; (def args args)
+   ; (def entity-id entity-id)
    (let [args (reduce-kv
                (fn [args k v]
                  (assoc args k {:_eq v}))
@@ -2108,6 +2165,12 @@
 
 (defn get-entity-tree
   [entity-id root on selection]
+  (when-not (access/entity-allows? entity-id #{:read})
+    (throw
+      (ex-info
+        "You don't have sufficent privilages to read this entity"
+        {:type ::enforce-purge
+         :roles *roles*})))
   (let [{:keys [entity/table entity/as]
          :as schema} (binding [*operation-rules* #{:read}]
                        (selection->schema entity-id selection))
@@ -2143,6 +2206,12 @@
 (defn search-entity-tree
   "Function searches entity tree and returns results by requested selection."
   [entity-id on {order-by :_order_by :as args} selection]
+  (when-not (access/entity-allows? entity-id #{:read})
+    (throw
+      (ex-info
+        "You don't have sufficent privilages to read this entity"
+        {:type ::enforce-purge
+         :roles *roles*})))
   (let [{:keys [entity/table entity/as]
          :as schema}
         (binding [*operation-rules* #{:read}]
@@ -2537,9 +2606,6 @@
   (db/aggregate-entity-tree
     [_ entity-id on args selection]
     (aggregate-entity-tree entity-id on args selection))
-  (db/verify-hashed
-    [_ _ _]
-    nil)
   (db/delete-entity
     [_ entity-id data]
     (delete-entity entity-id data)))

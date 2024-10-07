@@ -36,6 +36,9 @@
     (server-addresses)))
 
 
+(.getHostName (InetAddress/getLocalHost))
+
+
 
 (comment
   (server-dns-records)

@@ -1,0 +1,381 @@
+{
+  "scopes": [
+    {
+      "euuid": "6d167826-2548-444c-8578-8a8a7732d772"
+    },
+    {
+      "euuid": "2875edd3-50bc-4e0c-b732-ebe0d7686bbd"
+    },
+    {
+      "euuid": "660b2e57-a73b-4603-9e67-d756542a4a54"
+    }
+  ],
+  "delete_entities": [
+    {
+      "euuid": "191eb26a-c68f-46e5-84ec-1ee887d22adb"
+    },
+    {
+      "euuid": "a0d304a7-afe3-4d9f-a2e1-35e174bb5d5b"
+    },
+    {
+      "euuid": "226f54b0-6af0-4c70-b090-d4fdf2579294"
+    },
+    {
+      "euuid": "d922edda-f8de-486a-8407-e62ad67bf44c"
+    },
+    {
+      "euuid": "a800516e-9cfa-4414-9874-60f2285ec330"
+    }
+  ],
+  "from_read_relations": [
+    {
+      "euuid": "6aabb58b-6461-433e-a75d-26c094293e17"
+    },
+    {
+      "euuid": "3d1f4371-fcd1-4de9-b9a6-aa7ffafbeb83"
+    },
+    {
+      "euuid": "21bddba6-07c6-41e0-9c3c-788df053b5ac"
+    },
+    {
+      "euuid": "ba88f08f-fd6f-413a-bab4-61730f0b6fa5"
+    },
+    {
+      "euuid": "7205f259-c1c7-4ead-ad8d-25cab3bcf342"
+    },
+    {
+      "euuid": "3c277257-916f-41ba-ac64-f591110c84a4"
+    },
+    {
+      "euuid": "ad7b22c8-5370-4578-a749-7a73b7572c4a"
+    },
+    {
+      "euuid": "4f4cd8f9-e76a-45c0-8bcd-33b13a20e5fe"
+    },
+    {
+      "euuid": "25c97af4-4ddb-48e1-9fe9-4778999de49c"
+    },
+    {
+      "euuid": "1deeb442-5bd2-45e3-8ba0-5cbb1d8d5389"
+    },
+    {
+      "euuid": "9c8ebcd4-5b23-4619-8fe8-cd3f474e7f72"
+    },
+    {
+      "euuid": "63f05e2f-22fc-4bae-9889-1f03a2ff4540"
+    },
+    {
+      "euuid": "9fd134da-ac87-4f48-aa7a-d94ae6ba18be"
+    },
+    {
+      "euuid": "1c7b9658-aaae-409a-821a-f0bf31dd44d6"
+    },
+    {
+      "euuid": "23d267d7-3ae2-4432-92cb-82581afb5f90"
+    },
+    {
+      "euuid": "5e165470-6bfc-4ae4-a0eb-6f04004a2b79"
+    }
+  ],
+  "to_read_relations": [
+    {
+      "euuid": "6aabb58b-6461-433e-a75d-26c094293e17"
+    },
+    {
+      "euuid": "3d1f4371-fcd1-4de9-b9a6-aa7ffafbeb83"
+    },
+    {
+      "euuid": "21bddba6-07c6-41e0-9c3c-788df053b5ac"
+    },
+    {
+      "euuid": "ba88f08f-fd6f-413a-bab4-61730f0b6fa5"
+    },
+    {
+      "euuid": "7205f259-c1c7-4ead-ad8d-25cab3bcf342"
+    },
+    {
+      "euuid": "3c277257-916f-41ba-ac64-f591110c84a4"
+    },
+    {
+      "euuid": "ad7b22c8-5370-4578-a749-7a73b7572c4a"
+    },
+    {
+      "euuid": "4f4cd8f9-e76a-45c0-8bcd-33b13a20e5fe"
+    },
+    {
+      "euuid": "25c97af4-4ddb-48e1-9fe9-4778999de49c"
+    },
+    {
+      "euuid": "1deeb442-5bd2-45e3-8ba0-5cbb1d8d5389"
+    },
+    {
+      "euuid": "9c8ebcd4-5b23-4619-8fe8-cd3f474e7f72"
+    },
+    {
+      "euuid": "63f05e2f-22fc-4bae-9889-1f03a2ff4540"
+    },
+    {
+      "euuid": "9fd134da-ac87-4f48-aa7a-d94ae6ba18be"
+    },
+    {
+      "euuid": "1c7b9658-aaae-409a-821a-f0bf31dd44d6"
+    },
+    {
+      "euuid": "23d267d7-3ae2-4432-92cb-82581afb5f90"
+    },
+    {
+      "euuid": "5e165470-6bfc-4ae4-a0eb-6f04004a2b79"
+    }
+  ],
+  "name": "Dataset Developer",
+  "owned_entities": [
+    {
+      "euuid": "a800516e-9cfa-4414-9874-60f2285ec330"
+    },
+    {
+      "euuid": "d922edda-f8de-486a-8407-e62ad67bf44c"
+    },
+    {
+      "euuid": "226f54b0-6af0-4c70-b090-d4fdf2579294"
+    },
+    {
+      "euuid": "a0d304a7-afe3-4d9f-a2e1-35e174bb5d5b"
+    },
+    {
+      "euuid": "191eb26a-c68f-46e5-84ec-1ee887d22adb"
+    }
+  ],
+  "from_write_relations": [
+    {
+      "euuid": "6aabb58b-6461-433e-a75d-26c094293e17"
+    },
+    {
+      "euuid": "3d1f4371-fcd1-4de9-b9a6-aa7ffafbeb83"
+    },
+    {
+      "euuid": "21bddba6-07c6-41e0-9c3c-788df053b5ac"
+    },
+    {
+      "euuid": "ba88f08f-fd6f-413a-bab4-61730f0b6fa5"
+    },
+    {
+      "euuid": "7205f259-c1c7-4ead-ad8d-25cab3bcf342"
+    },
+    {
+      "euuid": "3c277257-916f-41ba-ac64-f591110c84a4"
+    },
+    {
+      "euuid": "ad7b22c8-5370-4578-a749-7a73b7572c4a"
+    },
+    {
+      "euuid": "4f4cd8f9-e76a-45c0-8bcd-33b13a20e5fe"
+    },
+    {
+      "euuid": "1deeb442-5bd2-45e3-8ba0-5cbb1d8d5389"
+    },
+    {
+      "euuid": "9c8ebcd4-5b23-4619-8fe8-cd3f474e7f72"
+    },
+    {
+      "euuid": "63f05e2f-22fc-4bae-9889-1f03a2ff4540"
+    },
+    {
+      "euuid": "9fd134da-ac87-4f48-aa7a-d94ae6ba18be"
+    },
+    {
+      "euuid": "1c7b9658-aaae-409a-821a-f0bf31dd44d6"
+    },
+    {
+      "euuid": "23d267d7-3ae2-4432-92cb-82581afb5f90"
+    },
+    {
+      "euuid": "5e165470-6bfc-4ae4-a0eb-6f04004a2b79"
+    }
+  ],
+  "read_entities": [
+    {
+      "euuid": "a800516e-9cfa-4414-9874-60f2285ec330"
+    },
+    {
+      "euuid": "d922edda-f8de-486a-8407-e62ad67bf44c"
+    },
+    {
+      "euuid": "226f54b0-6af0-4c70-b090-d4fdf2579294"
+    },
+    {
+      "euuid": "a0d304a7-afe3-4d9f-a2e1-35e174bb5d5b"
+    },
+    {
+      "euuid": "191eb26a-c68f-46e5-84ec-1ee887d22adb"
+    }
+  ],
+  "to_write_relations": [
+    {
+      "euuid": "6aabb58b-6461-433e-a75d-26c094293e17"
+    },
+    {
+      "euuid": "3d1f4371-fcd1-4de9-b9a6-aa7ffafbeb83"
+    },
+    {
+      "euuid": "21bddba6-07c6-41e0-9c3c-788df053b5ac"
+    },
+    {
+      "euuid": "ba88f08f-fd6f-413a-bab4-61730f0b6fa5"
+    },
+    {
+      "euuid": "7205f259-c1c7-4ead-ad8d-25cab3bcf342"
+    },
+    {
+      "euuid": "3c277257-916f-41ba-ac64-f591110c84a4"
+    },
+    {
+      "euuid": "ad7b22c8-5370-4578-a749-7a73b7572c4a"
+    },
+    {
+      "euuid": "4f4cd8f9-e76a-45c0-8bcd-33b13a20e5fe"
+    },
+    {
+      "euuid": "25c97af4-4ddb-48e1-9fe9-4778999de49c"
+    },
+    {
+      "euuid": "1deeb442-5bd2-45e3-8ba0-5cbb1d8d5389"
+    },
+    {
+      "euuid": "9c8ebcd4-5b23-4619-8fe8-cd3f474e7f72"
+    },
+    {
+      "euuid": "63f05e2f-22fc-4bae-9889-1f03a2ff4540"
+    },
+    {
+      "euuid": "9fd134da-ac87-4f48-aa7a-d94ae6ba18be"
+    },
+    {
+      "euuid": "1c7b9658-aaae-409a-821a-f0bf31dd44d6"
+    },
+    {
+      "euuid": "23d267d7-3ae2-4432-92cb-82581afb5f90"
+    },
+    {
+      "euuid": "5e165470-6bfc-4ae4-a0eb-6f04004a2b79"
+    }
+  ],
+  "to_delete_relations": [
+    {
+      "euuid": "6aabb58b-6461-433e-a75d-26c094293e17"
+    },
+    {
+      "euuid": "3d1f4371-fcd1-4de9-b9a6-aa7ffafbeb83"
+    },
+    {
+      "euuid": "21bddba6-07c6-41e0-9c3c-788df053b5ac"
+    },
+    {
+      "euuid": "ba88f08f-fd6f-413a-bab4-61730f0b6fa5"
+    },
+    {
+      "euuid": "7205f259-c1c7-4ead-ad8d-25cab3bcf342"
+    },
+    {
+      "euuid": "3c277257-916f-41ba-ac64-f591110c84a4"
+    },
+    {
+      "euuid": "ad7b22c8-5370-4578-a749-7a73b7572c4a"
+    },
+    {
+      "euuid": "4f4cd8f9-e76a-45c0-8bcd-33b13a20e5fe"
+    },
+    {
+      "euuid": "25c97af4-4ddb-48e1-9fe9-4778999de49c"
+    },
+    {
+      "euuid": "1deeb442-5bd2-45e3-8ba0-5cbb1d8d5389"
+    },
+    {
+      "euuid": "9c8ebcd4-5b23-4619-8fe8-cd3f474e7f72"
+    },
+    {
+      "euuid": "63f05e2f-22fc-4bae-9889-1f03a2ff4540"
+    },
+    {
+      "euuid": "9fd134da-ac87-4f48-aa7a-d94ae6ba18be"
+    },
+    {
+      "euuid": "1c7b9658-aaae-409a-821a-f0bf31dd44d6"
+    },
+    {
+      "euuid": "23d267d7-3ae2-4432-92cb-82581afb5f90"
+    },
+    {
+      "euuid": "5e165470-6bfc-4ae4-a0eb-6f04004a2b79"
+    }
+  ],
+  "euuid": "8ebc60f1-8df0-48c8-a9b6-747a140df021",
+  "avatar": null,
+  "write_entities": [
+    {
+      "euuid": "a800516e-9cfa-4414-9874-60f2285ec330"
+    },
+    {
+      "euuid": "d922edda-f8de-486a-8407-e62ad67bf44c"
+    },
+    {
+      "euuid": "226f54b0-6af0-4c70-b090-d4fdf2579294"
+    },
+    {
+      "euuid": "a0d304a7-afe3-4d9f-a2e1-35e174bb5d5b"
+    },
+    {
+      "euuid": "191eb26a-c68f-46e5-84ec-1ee887d22adb"
+    }
+  ],
+  "from_delete_relations": [
+    {
+      "euuid": "6aabb58b-6461-433e-a75d-26c094293e17"
+    },
+    {
+      "euuid": "3d1f4371-fcd1-4de9-b9a6-aa7ffafbeb83"
+    },
+    {
+      "euuid": "21bddba6-07c6-41e0-9c3c-788df053b5ac"
+    },
+    {
+      "euuid": "ba88f08f-fd6f-413a-bab4-61730f0b6fa5"
+    },
+    {
+      "euuid": "7205f259-c1c7-4ead-ad8d-25cab3bcf342"
+    },
+    {
+      "euuid": "3c277257-916f-41ba-ac64-f591110c84a4"
+    },
+    {
+      "euuid": "ad7b22c8-5370-4578-a749-7a73b7572c4a"
+    },
+    {
+      "euuid": "4f4cd8f9-e76a-45c0-8bcd-33b13a20e5fe"
+    },
+    {
+      "euuid": "25c97af4-4ddb-48e1-9fe9-4778999de49c"
+    },
+    {
+      "euuid": "1deeb442-5bd2-45e3-8ba0-5cbb1d8d5389"
+    },
+    {
+      "euuid": "9c8ebcd4-5b23-4619-8fe8-cd3f474e7f72"
+    },
+    {
+      "euuid": "63f05e2f-22fc-4bae-9889-1f03a2ff4540"
+    },
+    {
+      "euuid": "9fd134da-ac87-4f48-aa7a-d94ae6ba18be"
+    },
+    {
+      "euuid": "1c7b9658-aaae-409a-821a-f0bf31dd44d6"
+    },
+    {
+      "euuid": "23d267d7-3ae2-4432-92cb-82581afb5f90"
+    },
+    {
+      "euuid": "5e165470-6bfc-4ae4-a0eb-6f04004a2b79"
+    }
+  ]
+}

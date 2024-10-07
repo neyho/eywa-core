@@ -9,3 +9,7 @@
 (def log-dir (str (fs/absolutize (env :eywa-log-dir (str home "/logs")))))
 (def config-dir (str (fs/absolutize (env :eywa-config-dir (str home "/config")))))
 (def git-dir (str (fs/absolutize (env :eywa-git-dir (str home "/git")))))
+
+
+(def iam-root-url (env :eywa-iam-root-url "http://localhost:8080"))
+(def iam-protocol (env :eywa-iam-protocol "http"))

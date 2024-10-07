@@ -33,8 +33,11 @@
     [neyho.eywa.dataset.postgres.query :as query]
     [neyho.eywa.lacinia :as lacinia]
     [neyho.eywa.data :refer [*EYWA*]]
-    [neyho.eywa.administration :as administration]
-    [neyho.eywa.administration.uuids :as au]
+    [neyho.eywa.iam :as iam]
+    [neyho.eywa.iam.util
+     :refer [import-role
+             import-api
+             import-app]]
     [neyho.eywa.dataset.uuids :as du]))
 
 
@@ -43,19 +46,19 @@
 
 
 (defn user-table []
-  (if-some [e (core/get-entity *model* au/user)]
+  (if-some [e (core/get-entity *model* iu/user)]
     (entity->table-name e)
     (throw (Exception. "Coulnd't find user entity"))))
 
 
 (defn group-table []
-  (if-some [e (core/get-entity *model* au/user-group)]
+  (if-some [e (core/get-entity *model* iu/user-group)]
     (entity->table-name e)
     (throw (Exception. "Coulnd't find group entity"))))
 
 
 (defn role-table []
-  (if-some [e (core/get-entity *model* au/user-role)]
+  (if-some [e (core/get-entity *model* iu/user-role)]
     (entity->table-name e)
     (throw (Exception. "Coulnd't find role entity"))))
 
@@ -74,6 +77,7 @@
     "group" (str "int references \"" (group-table) "\"(_eid) on delete set null")
     "role" (str "int references \"" (role-table) "\"(_eid) on delete set null")
     t))
+
 
 (defn attribute->ddl 
   "Function converts attribute to DDL syntax"
@@ -537,12 +541,20 @@
 (defn transform-relation
   [tx {:keys [from to] :as relation}]
   (let [diff (core/diff relation)
-        _ (log/tracef "Transforming relation\ndiff=%s\nfrom=%s\nto=%s" diff from to)
+        _ (log/tracef "Transforming relation\ndiff=%s\nfrom=%s\nto=%s" diff (pr-str from) (pr-str to))
         from-diff (:from diff)
         to-diff (:to diff)
         old-from (core/suppress from) 
         old-to (core/suppress to)
         old-relation (core/suppress relation) 
+        _ (do
+            (def relation relation)
+            (def old-relation old-relation)
+            (def old-to old-to)
+            (def old-from old-from)
+            (def to-diff to-diff)
+            (def from-diff from-diff)
+            (:euuid old-relation))
         old-name (relation->table-name old-relation) 
         ;; Assoc old from and to entities
         ;; This will be handled latter
@@ -747,18 +759,18 @@
                                     (assoc f :postgres/type (normalize-name (str table \space aname)))
                                     ;;
                                     "user"
-                                    (assoc f :postgres/reference au/user)
+                                    (assoc f :postgres/reference iu/user)
                                     ;;
                                     "group"
-                                    (assoc f :postgres/reference au/user-group)
+                                    (assoc f :postgres/reference iu/user-group)
                                     ;;
                                     "role"
-                                    (assoc f :postgres/reference au/user-role)
+                                    (assoc f :postgres/reference iu/user-role)
                                     ;;
                                     f))))
                        {:audit/who {:key :modified_by
                                     :type "user"
-                                    :postgres/reference au/user}}
+                                    :postgres/reference iu/user}}
                        (:attributes entity))
               {relations :relations
                recursions :recursions}
@@ -971,11 +983,6 @@
        (dataset/save-model model')
        (query/deploy-schema schema)
        (try
-         (comment
-           (def this neyho.eywa.db/*db*)
-           (def model' (db->model this))
-           (def model model')
-           (def schema (time (model->schema model'))))
          (lacinia/add-shard ::datasets (fn [] (lacinia/generate-lacinia-schema this)))
          (catch Throwable e
            (log/error e "Couldn't add lacinia schema shard")))
@@ -1011,7 +1018,7 @@
                 :who/table
                 (entity->table-name
                   (some 
-                    #(core/get-entity % au/user)
+                    #(core/get-entity % iu/user)
                     [current-model projection])))
               (:configuration model))))
         (assoc version :model (core/join-models current-model model)))))
@@ -1074,13 +1081,13 @@
        (log/infof "Initializing tables for host\n%s" (pr-str db))
        (core/create-deploy-history db)
        (log/info "Created __deploy_history")
-       (as-> (<-transit (slurp (io/resource "dataset/aaa.json"))) model 
+       (as-> (<-transit (slurp (io/resource "dataset/iam.json"))) model 
          (core/mount db model)
          (core/reload db model))
-       (dataset/stack-entity au/permission administration/permissions)
-       (log/info "Mounted aaa.json dataset")
-       (binding [core/*return-type* :edn] 
-         (dataset/sync-entity au/user *EYWA*)
+       ; (dataset/stack-entity iu/permission iam/permissions)
+       (log/info "Mounted iam.json dataset")
+       (binding [core/*return-type* :edn]
+         (dataset/sync-entity iu/user *EYWA*)
          (dataset/bind-service-user #'neyho.eywa.data/*EYWA*))
        (log/info "*EYWA* user created")
        (binding [*user* (:_eid *EYWA*)]
@@ -1090,19 +1097,33 @@
            (core/mount db model)
            (core/reload db model))
          (log/info "Mounted dataset.json dataset")
-         (dataset/stack-entity au/permission dataset/permissions)
-         (dataset/load-role-schema)
-         (log/info "Deploying AAA dataset")
-         (core/deploy! db (<-transit (slurp (io/resource "dataset/aaa.json"))))
+         ; (dataset/stack-entity iu/permission dataset/permissions)
+         ; (dataset/load-role-schema)
+         ;;
+         (log/info "Deploying IAM dataset")
+         (core/deploy! db (<-transit (slurp (io/resource "dataset/iam.json"))))
+         ;;
          (log/info "Deploying Datasets dataset")
          (core/deploy! db (<-transit (slurp (io/resource "dataset/dataset.json"))))
+         ;;
+         ; (log/info "Mounted oauth.json dataset")
+         ; (core/deploy! db (<-transit (slurp (io/resource "dataset/oauth.json"))))
+         ;;
          (log/info "Reloading")
          (core/reload db)
+         (import-app "exports/app_eywa_frontend.json")
+         (import-api "exports/api_eywa_graphql.json")
+         (doseq [role ["exports/role_dataset_developer.json"
+                       "exports/role_dataset_modeler.json"
+                       "exports/role_dataset_explorer.json"
+                       "exports/role_iam_admin.json"
+                       "exports/role_iam_user.json"]]
+           (import-role role))
          (log/info "Adding deployed model to history")
          (core/add-to-deploy-history db (core/get-model db)))))
     ([this options]
      (core/setup this)
-     (administration/setup options)))
+     (iam/setup options)))
   (core/tear-down
     [this]
     (let [admin (postgres/admin-from-env)]

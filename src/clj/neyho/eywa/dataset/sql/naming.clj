@@ -2,7 +2,7 @@
   (:require 
     [clojure.string :as str]
     [neyho.eywa.dataset.core :as core]
-    [neyho.eywa.administration :refer [hash-uuid]]))
+    [neyho.eywa.iam :refer [hash-uuid]]))
 
 
 (def npattern #"[\s\_\-\.\$\[\]\{\}\#]+")
