@@ -316,6 +316,7 @@
 (comment
   (def db *db*)
   (def global-model (dataset/get-last-deployed db))
+  (deployed-model)
   (def euuid #uuid "ae3e0f7f-dd0a-468c-9885-caac4141a5c3")
   (dataset/get-relation (deployed-model) #uuid "ae3e0f7f-dd0a-468c-9885-caac4141a5c3")
   (lacinia/generate-lacinia-schema db)

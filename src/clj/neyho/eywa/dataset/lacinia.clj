@@ -171,7 +171,8 @@
                 entities)))]
     (merge
       (model->enums)
-      {:currency_enum {:values currency-codes}
+      {:SQLJoinType {:values [:LEFT :RIGTH :INNER]}
+       :currency_enum {:values currency-codes}
        :order_by_enum {:values [:asc :desc]}
        :is_null_enum {:values [:is_null :is_not_null]}})))
 
@@ -206,6 +207,7 @@
                     r (entity->gql-object ename)
                     {:fields (as-> 
                                {:euuid {:type 'UUID}
+                                :_count {:type :Int}
                                 :modified_by (reference-object iu/user)
                                 :modified_on {:type :Timestamp}}
                                fields 
@@ -296,18 +298,26 @@
                                    (if (and (not-empty to-label) (not-empty (:name to))) 
                                      (assoc fields (attribute->gql-field to-label) 
                                             (let [t (entity->gql-object (:name to))] 
+                                              ;; TODO - rethink _maybe and _where
+                                              ;; It is essentially opening for _and _or and
+                                              ;; Can it be skipped?
+                                              ;; I think that it was just convinience to use operator
+                                              ;; instead of generating more argument... That is more code
                                               (case cardinality
                                                 ("o2m" "m2m") {:type (list 'list t)
                                                                :args {:_offset {:type 'Int}
                                                                       :_limit {:type 'Int}
                                                                       :_where {:type (entity->search-operator to)}
+                                                                      :_join {:type :SQLJoinType}
                                                                       :_maybe {:type (entity->search-operator to)}
                                                                       :_order_by {:type (entity->order-by-operator to)}}}
                                                 ("m2o" "o2o") {:type t
                                                                :args {:_where {:type (entity->search-operator to)}
+                                                                      :_join {:type :SQLJoinType}
                                                                       :_maybe {:type (entity->search-operator to)}}}
                                                 "tree" {:type t 
                                                         :args {:_where {:type (entity->search-operator entity)}
+                                                               :_join {:type :SQLJoinType}
                                                                :_maybe {:type (entity->search-operator entity)}
                                                                (attribute->gql-field to-label) {:type :is_null_enum}}}
                                                 {:type t})))
