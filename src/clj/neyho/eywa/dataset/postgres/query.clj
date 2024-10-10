@@ -1636,67 +1636,7 @@
     (pull-roots con schema {})))
 
 
-(defn schema->aggregate-cursors
-  "Given selection schema produces cursors that point
-  to all connected entity tables. This is a way point to
-  pull linked data from db with single query"
-  ([{:keys [relations] :as schema}]
-   (schema->aggregate-cursors
-    (when-let [cursors (keys relations)]
-      (mapv vector cursors))
-    schema))
-  ([cursors schema]
-   (reduce
-    (fn [cursors cursor]
-      (let [{:keys [relations counted? aggregate]} (get-in schema (relations-cursor cursor))]
-        (if (not-empty relations)
-          (into
-           (conj cursors cursor)
-           (mapcat #(schema->cursors [(conj cursor %)] schema) (keys relations)))
-          (if (or counted? (not-empty aggregate))
-            (conj cursors cursor)
-            cursors))))
-    []
-    cursors)))
 
-(defn shave-schema-aggregates
-  ([schema]
-   (reduce
-    shave-schema-aggregates
-    schema
-    (schema->aggregate-cursors schema)))
-  ([schema cursor]
-   (if (not-empty cursor)
-     (let [c (butlast cursor)]
-       (if-not c schema
-               (recur
-                (update-in schema (relations-cursor c) dissoc :counted? :aggregate)
-                c)))
-     (dissoc schema :counted? :aggregate))))
-
-
-(defn shave-schema-relations
-  ([schema]
-   (let [arg-keys (set (keys (:args schema)))
-         relation-keys (set (keys (:relations schema)))
-         valid-keys (clojure.set/intersection arg-keys relation-keys)]
-     (update schema :relations select-keys valid-keys)))
-  ([schema cursor]
-   (letfn [(shave [schema [current :as cursor]]
-             ;; If there is no current cursor return schema
-             (if-not current schema
-                     (assoc-in
-                 ;; Otherwise keep relations that have arguments
-                      (shave-schema-relations schema)
-                 ;; And associate current schema
-                      [:relations current]
-                 ;; With shaved schema for rest of cursor
-                      (shave (get-in schema [:relations current]) (rest cursor)))))]
-     (if (not-empty cursor)
-       (shave
-        (update-in schema (relations-cursor cursor) dissoc :relations)
-        cursor)
-       (dissoc schema :relations)))))
 
 
 (defn pull-cursors
@@ -1705,11 +1645,6 @@
     (letfn [(location->cursor [location]
               (let [[field] (zip/node location)]
                 (conj (mapv key (zip/path location)) field)))
-            ; (should-aggregate? [location]
-            ;   (let [[_ {:keys [counted? aggregate]}] (zip/node location)]
-            ;     (or counted? (not-empty aggregate))))
-            ; (cursor-field [cursor & fields]
-            ;    (clojure.string/join "$$" (map name (concat cursor fields))))
             (maybe-pull-children [result location]
               (loop [queries []
                      current-location (zip/down location)]
@@ -1770,7 +1705,7 @@
                                              (log/tracef
                                                "[%s] Sending aggregate query %s:\n%s"
                                                table ::ROOT query)
-                                             (hash-map [::ROOT] {nil (postgres/execute-one! con [query] *return-type*)}))))
+                                             (hash-map [::ROOT] {nil (postgres/execute-one! con (into [query] data) *return-type*)}))))
                     start-result (cond-> @expected-start-result
                                    expected-aggregate (update ::aggregates merge @expected-aggregate))]
                 (maybe-pull-children start-result location)))
@@ -2136,6 +2071,21 @@
                                                                      :_count
                                                                      [nil]}}]}}]})
      (def selection
+       #:DatasetVersion{:name [nil],
+                        :_count [nil],
+                        :entities
+                        [{:args
+                          {:_limit 1, :_where {:name {:_ilike "%user%"}}},
+                          :selections
+                          #:DatasetEntity{:name [nil],
+                                          :_count [nil],
+                                          :attributes
+                                          [{:selections
+                                            #:DatasetEntityAttribute{:name
+                                                                     [nil],
+                                                                     :_count
+                                                                     [nil]}}]}}]})
+     (def selection
        #:User{:name [nil],
               :_count [nil],
               :roles
@@ -2332,6 +2282,46 @@
         (when (not-empty roots)
           (pull-roots connection schema {(keyword as) roots}))))))
 
+
+(defn schema->aggregate-cursors
+  "Given selection schema produces cursors that point
+  to all connected entity tables. This is a way point to
+  pull linked data from db with single query"
+  ([{:keys [relations] :as schema}]
+   (schema->aggregate-cursors
+    (when-let [cursors (keys relations)]
+      (mapv vector cursors))
+    schema))
+  ([cursors schema]
+   (reduce
+    (fn [cursors cursor]
+      (let [{:keys [relations counted? aggregate]} (get-in schema (relations-cursor cursor))]
+        (if (not-empty relations)
+          (into
+           (conj cursors cursor)
+           (mapcat #(schema->cursors [(conj cursor %)] schema) (keys relations)))
+          (if (or counted? (not-empty aggregate))
+            (conj cursors cursor)
+            cursors))))
+    []
+    cursors)))
+
+(defn shave-schema-aggregates
+  ([schema]
+   (reduce
+    shave-schema-aggregates
+    schema
+    (schema->aggregate-cursors schema)))
+  ([schema cursor]
+   (if (not-empty cursor)
+     (let [c (butlast cursor)]
+       (if-not c schema
+               (recur
+                (update-in schema (relations-cursor c) dissoc :counted? :aggregate)
+                c)))
+     (dissoc schema :counted? :aggregate))))
+
+
 (defn search-entity-tree
   "Function searches entity tree and returns results by requested selection."
   [entity-id on {order-by :_order_by :as args} selection]
@@ -2464,122 +2454,7 @@
                   :_eid
                   (postgres/execute! connection sql-final *return-type*)))}))))))))
 
-;; TODO - rething about reimplementing this differently. Instead of cursor aggregation
-;; think about global search like aggregation
-(defn aggregate-entity
-  ([entity-id args selection]
-   (let [{:keys [fields]
-          :as schema} (binding [*operation-rules* #{:read}]
-                        (selection->schema entity-id selection args))
-         cursors (schema->aggregate-cursors schema)
-         args (reduce-kv
-               (fn [args k v]
-                 (if (some? v)
-                   (assoc args k v)
-                   args))
-               args
-               fields)
-         schema (assoc schema :args args)]
-     ; (def schema schema)
-     ; (def cursors cursors)
-     (log/tracef  "[%s] Aggregate cursors:\n%s" entity-id (pprint cursors))
-     (letfn [(cursor-field [cursor & fields]
-               (clojure.string/join "$$" (map name (concat cursor fields))))]
-       (with-open [connection (jdbc/get-connection (:datasource *db*))]
-         (reduce
-          (fn [result cursor]
-            (let [shaved-schema (if (empty? cursor)
-                                  (shave-schema-relations schema)
-                                  (->
-                                   schema
-                                   (shave-schema-relations cursor)
-                                   (shave-schema-aggregates (butlast cursor))))
-                   ;;
-                  {:keys [counted? aggregate entity/as]}
-                  (if (empty? cursor)
-                    shaved-schema
-                    (get-in shaved-schema (relations-cursor cursor)))
-                   ;;
-                  selection (clojure.string/join
-                             ", "
-                             (cond->
-                              []
-                               counted?
-                               (conj
-                                (format
-                                 "count(%s._eid) as %s"
-                                 as
-                                 (cursor-field cursor "count")))
-                                 ;;
-                               (not-empty aggregate)
-                               (as-> stack'
-                                     (reduce-kv
-                                      (fn [stack'' field aggregate]
-                                        (concat stack''
-                                                (map
-                                                 #(format "%s(%s.%s) as %s" % as (name field) (cursor-field cursor (name field) %))
-                                                 (:operations aggregate))))
-                                      stack'
-                                      aggregate))))
-                   ;;
-                  [_ from maybe-data] (search-stack-from shaved-schema)
-                   ;;
-                  [where data] (search-stack-args shaved-schema)
-                   ;;
-                  query (as-> (format "select %s from %s" selection from) query
-                          (if (not-empty where) (str query \newline "where " where) query))]
-              (log/tracef
-               "[%s] Aggregate query for cursor %s\nQuery:\n%sData:\n%s"
-               entity-id cursor query (pprint data))
-              (reduce-kv
-               (fn [result k v]
-                 (let [[_ selection :as path] (clojure.string/split (name k) #"\$\$")]
-                   (if (some? selection)
-                     (assoc-in result (map keyword path) v)
-                     (assoc result k v))))
-               result
-               (postgres/execute-one! connection (into [query] ((fnil into []) maybe-data data))))))
-          nil
-          (concat [[]] cursors)))))))
 
-(defn aggregate-entity-tree
-  [entity-id on args selection]
-  (let [{:keys [entity/table entity/as]
-         :as schema} (binding [*operation-rules* #{:read}]
-                       (selection->schema
-                        entity-id
-                        selection
-                        args))
-        on' (name on)]
-    (with-open [connection (jdbc/get-connection (:datasource *db*))]
-      (when-let [found-roots (search-entity-roots
-                              connection
-                              (update schema :args dissoc :_distinct :_limit :_offset))]
-        (when-let [roots (get found-roots (keyword as))]
-          (let [sql (format
-                     "with recursive tree(_eid,link,depth,path,cycle) as (
-                      select 
-                      g._eid, g.%s, 1, array[g._eid], false
-                      from %s g where g._eid = any(?)
-                      union all
-                      select g._eid, g.%s, o.depth + 1, path || g._eid, g._eid=any(path)
-                      from %s g, tree o
-                      where g._eid=o.link and not cycle
-                      ) select distinct on (_eid) * from tree"
-                     on' table on' table)]
-            (log/tracef
-             "[%s] Get entity tree roots\n%s"
-             entity-id sql)
-            (if-let [rows (when (not-empty roots)
-                            (not-empty
-                             (map
-                              :_eid
-                              (postgres/execute!
-                               connection
-                               [sql (long-array roots)]
-                               *return-type*))))]
-              (aggregate-entity entity-id {:_eid {:_in rows}} selection)
-              (aggregate-entity entity-id nil selection))))))))
 
 (defn delete-entity
   [entity-id args]
@@ -2729,12 +2604,6 @@
   (db/purge-entity
     [_ entity-id args selection]
     (purge-entity entity-id args selection))
-  (db/aggregate-entity
-    [_ entity-id args selection]
-    (aggregate-entity entity-id args selection))
-  (db/aggregate-entity-tree
-    [_ entity-id on args selection]
-    (aggregate-entity-tree entity-id on args selection))
   (db/delete-entity
     [_ entity-id data]
     (delete-entity entity-id data)))
