@@ -1758,13 +1758,18 @@
                                                                 *return-type*))))})
                     expected-aggregate (if-not counted? nil
                                          (future
-                                           (let [local-schema (dissoc schema :relations)
+                                           (let [found-roots (get found-records (keyword as))
+                                                 local-schema (cond-> (dissoc schema  :relations)
+                                                                found-roots (update :args assoc-in [:_eid :_in] (long-array found-roots)))
                                                  [where data] (search-stack-args local-schema) 
                                                  [[table] from] (search-stack-from local-schema)
                                                  query (as->
-                                                         (format "select count(%s._eid) as _count from %s" (name table) from) query
+                                                         (format "select count(distinct %s._eid) as _count from %s" (name table) from) query
                                                          (if (empty? where) query
                                                            (str query \newline "where " where)))]
+                                             (log/tracef
+                                               "[%s] Sending aggregate query %s:\n%s"
+                                               table ::ROOT query)
                                              (hash-map [::ROOT] {nil (postgres/execute-one! con [query] *return-type*)}))))
                     start-result (cond-> @expected-start-result
                                    expected-aggregate (update ::aggregates merge @expected-aggregate))]
@@ -1843,6 +1848,7 @@
                                                           (update :relations select-keys [field])
                                                           ;; Pin relation so that search from will include
                                                           ;; related table in stack
+                                                          (update :args assoc-in [:_eid :_in] (long-array parents))
                                                           (update-in [:relations field] assoc :aggregate {}))
                                   ; _ (do
                                   ;     (def parent-focused-schema parent-focused-schema))
@@ -1850,16 +1856,20 @@
                                   [_ from] (search-stack-from parent-focused-schema)
                                   query (as->
                                           (format
-                                            "select %s._eid as parent_id, count(%s._eid) as _count\nfrom %s"
+                                            "select %s._eid as parent_id, count(distinct %s._eid) as _count\nfrom %s"
                                             parent-as as from)
                                           query
                                           ;;
                                           (if (empty? where) query
                                             (str query "\nwhere " where))
                                           (str query \newline
-                                               (format "group by %s._eid, %s._eid"
-                                                       parent-as as)))]
-                              (postgres/execute! con (into [query] data) *return-type*))))]
+                                               (format "group by %s._eid"
+                                                       parent-as)))
+                                  result (postgres/execute! con (into [query] data) *return-type*)]
+                              (log/tracef
+                                "[%s] Sending aggregate query %s:\n%s\n%s"
+                                table cursor query result)
+                              result)))]
                     (letfn [(add-aggregate [result]
                               (update-in result [::aggregates cursor] merge
                                          (reduce
@@ -2108,52 +2118,23 @@
    ; (def args args)
    ; (def selection selection)
    (comment
-     (def entity-id #uuid "edcab1db-ee6f-4744-bfea-447828893223")
+     ; (def entity-id #uuid "edcab1db-ee6f-4744-bfea-447828893223")
+     (def entity-id #uuid "d922edda-f8de-486a-8407-e62ad67bf44c")
      (def args nil)
      (def selection
-       #:User{:name [nil],
-              :_count [nil],
-              :groups
-              [{:args {:_join :LEFT},
-                :selections #:UserGroup{:name [nil], :_count [nil]}}],
-              :roles
-              [{:selections
-                #:UserRole{:name [nil],
-                           :_count [nil],
-                           :owned_entities
-                           [{:args {:_join :LEFT},
-                             :selections
-                             #:DatasetEntity{:name [nil], :_count [nil]}}],
-                           :users
-                           [{:args {:_join :LEFT},
-                             :selections
-                             #:User{:name [nil],
-                                    :roles
-                                    [{:selections
-                                      #:UserRole{:_count [nil]}}]}}]}}]})
-     (def args nil)
-     (def selection
-       #:User{:name [nil],
-              :_count [nil],
-              :groups
-              [{:args {:_join :LEFT :name {:_ilike "%r%"}},
-                :selections #:UserGroup{:name [nil], :_count [nil]}}],
-              :roles
-              [{:args {:_join :LEFT}
-                :selections
-                #:UserRole{:name [nil],
-                           :_count [nil],
-                           :owned_entities
-                           [{:args {:_join :LEFT :name {:_ilike "%r%"}},
-                             :selections
-                             #:DatasetEntity{:name [nil], :_count [nil]}}],
-                           :users
-                           [{:args {:_join :LEFT :name {:_ilike "%r%"}},
-                             :selections
-                             #:User{:name [nil],
-                                    :roles
-                                    [{:selections
-                                      #:UserRole{:_count [nil]}}]}}]}}]})
+       #:DatasetVersion{:name [nil],
+                        :_count [nil],
+                        :entities
+                        [{:args {:_limit 1},
+                          :selections
+                          #:DatasetEntity{:name [nil],
+                                          :_count [nil],
+                                          :attributes
+                                          [{:selections
+                                            #:DatasetEntityAttribute{:name
+                                                                     [nil],
+                                                                     :_count
+                                                                     [nil]}}]}}]})
      (def selection
        #:User{:name [nil],
               :_count [nil],
