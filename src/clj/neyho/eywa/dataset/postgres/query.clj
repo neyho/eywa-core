@@ -13,6 +13,7 @@
    [next.jdbc :as jdbc]
    [next.jdbc.prepare :as p]
    [neyho.eywa.transit :refer [<-transit ->transit]]
+   [neyho.eywa.lacinia :refer [deep-merge]]
    [neyho.eywa.iam.access :as access]
    [neyho.eywa.iam.access.context
     :refer [*roles*
@@ -1540,24 +1541,13 @@
                                      next-stack)))))
                            [[] []]
                            locations)]
-      ; stack
       [(distinct (mapv keyword (into (cond-> [as] rtable (conj rtable)) tables)))
        (if rtable
-         (if (= "_eid" talias)
-           ;; If direct binding
-           ;; This is naive... user can specify _order_by that is not related
-           ;; to selection and cursor can point to somewhat different relations
-           (str
-             \" rtable \" " as " ras
-             " " join " join " \" ttable \" \space as \space " on "
-             ras \. falias \= as "._eid"
-             \newline (clojure.string/join "\n" stack))
-           ;; Otherwise
-           (str
-             \" rtable \" " as " ras
-             " " join " join " \" ttable \" \space as \space " on "
-             ras \. talias \= as "._eid"
-             \newline (clojure.string/join "\n" stack)))
+         (str
+           \" rtable \" " as " ras
+           " " join " join " \" ttable \" \space as \space " on "
+           ras \. talias \= as "._eid"
+           \newline (clojure.string/join "\n" stack))
          (str/join "\n" (conj
                           ; stack
                           (distinct stack)
@@ -1646,147 +1636,266 @@
     (pull-roots con schema {})))
 
 
-;; Logika za povlacanje ovisno o aggregateu i ostalim stvarima bi
-;; trebala biti ovdje, flagana sa maybe situacijam... OK, to je ok
-;; pocetak za sutra
-;; Uvijek proc cijeli selection originalni, a onda u svakom nodu ovisno
-;; o situaciji povlaciti ili  ne povlaciti querye sa backenda
-;; Search entity roots2 prilagoditi da ignorira maybe statement
-;; i... naspavat se
+(defn schema->aggregate-cursors
+  "Given selection schema produces cursors that point
+  to all connected entity tables. This is a way point to
+  pull linked data from db with single query"
+  ([{:keys [relations] :as schema}]
+   (schema->aggregate-cursors
+    (when-let [cursors (keys relations)]
+      (mapv vector cursors))
+    schema))
+  ([cursors schema]
+   (reduce
+    (fn [cursors cursor]
+      (let [{:keys [relations counted? aggregate]} (get-in schema (relations-cursor cursor))]
+        (if (not-empty relations)
+          (into
+           (conj cursors cursor)
+           (mapcat #(schema->cursors [(conj cursor %)] schema) (keys relations)))
+          (if (or counted? (not-empty aggregate))
+            (conj cursors cursor)
+            cursors))))
+    []
+    cursors)))
+
+(defn shave-schema-aggregates
+  ([schema]
+   (reduce
+    shave-schema-aggregates
+    schema
+    (schema->aggregate-cursors schema)))
+  ([schema cursor]
+   (if (not-empty cursor)
+     (let [c (butlast cursor)]
+       (if-not c schema
+               (recur
+                (update-in schema (relations-cursor c) dissoc :counted? :aggregate)
+                c)))
+     (dissoc schema :counted? :aggregate))))
+
+
+(defn shave-schema-relations
+  ([schema]
+   (let [arg-keys (set (keys (:args schema)))
+         relation-keys (set (keys (:relations schema)))
+         valid-keys (clojure.set/intersection arg-keys relation-keys)]
+     (update schema :relations select-keys valid-keys)))
+  ([schema cursor]
+   (letfn [(shave [schema [current :as cursor]]
+             ;; If there is no current cursor return schema
+             (if-not current schema
+                     (assoc-in
+                 ;; Otherwise keep relations that have arguments
+                      (shave-schema-relations schema)
+                 ;; And associate current schema
+                      [:relations current]
+                 ;; With shaved schema for rest of cursor
+                      (shave (get-in schema [:relations current]) (rest cursor)))))]
+     (if (not-empty cursor)
+       (shave
+        (update-in schema (relations-cursor cursor) dissoc :relations)
+        cursor)
+       (dissoc schema :relations)))))
+
+
 (defn pull-cursors
   [con {:keys [entity/table] :as schema} found-records]
   (let [zipper (schema-zipper schema)]
-    (letfn [(process-node [result location]
+    (letfn [(location->cursor [location]
+              (let [[field] (zip/node location)]
+                (conj (mapv key (zip/path location)) field)))
+            ; (should-aggregate? [location]
+            ;   (let [[_ {:keys [counted? aggregate]}] (zip/node location)]
+            ;     (or counted? (not-empty aggregate))))
+            ; (cursor-field [cursor & fields]
+            ;    (clojure.string/join "$$" (map name (concat cursor fields))))
+            (maybe-pull-children [result location]
+              (loop [queries []
+                     current-location (zip/down location)]
+                (if (nil? current-location)
+                  (if (empty? queries) result
+                    (let [results (map deref queries)]
+                      (apply deep-merge results)))
+                  (recur
+                    (conj queries (future (process-node result current-location)))
+                    (zip/right current-location)))))
+            (process-root [_ location]
+              (let [[_ {:keys [entity/table fields 
+                               decoders recursions entity/as args counted?]
+                        :as schema}] (zip/node location)
+                    expected-start-result (future
+                                            {table (apply array-map
+                                                          (reduce
+                                                            (fn [r d]
+                                                              (conj r
+                                                                    (:_eid d)
+                                                                    (reduce
+                                                                      (fn [data [k t]] (update data k t))
+                                                                      d
+                                                                      decoders)))
+                                                            []
+                                                            (let [root-query (format
+                                                                               "select %s from \"%s\"%s %s"
+                                                                               (extend-fields (concat (keys fields) (map name recursions)))
+                                                                               table
+                                                                               (if-let [records (get found-records (keyword as))]
+                                                                                 (format
+                                                                                   " where \"%s\"._eid in (%s) "
+                                                                                   table
+                                                                                   (clojure.string/join ", " records))
+                                                                                 "")
+                                                                               ;; TODO - test if this is necessary
+                                                                               ;; This maybe obsolete since we already know what recrods
+                                                                               ;; to pull and in which order
+                                                                               (str
+                                                                                 (when (= found-records {})
+                                                                                   (modifiers-selection->sql {:args args}))))]
+                                                              (log/tracef "[%s] Root query:\n%s" table root-query)
+                                                              (postgres/execute!
+                                                                con
+                                                                [root-query]
+                                                                *return-type*))))})
+                    expected-aggregate (if-not counted? nil
+                                         (future
+                                           (let [local-schema (dissoc schema :relations)
+                                                 [where data] (search-stack-args local-schema) 
+                                                 [[table] from] (search-stack-from local-schema)
+                                                 query (as->
+                                                         (format "select count(%s._eid) as _count from %s" (name table) from) query
+                                                         (if (empty? where) query
+                                                           (str query \newline "where " where)))]
+                                             (hash-map [::ROOT] {nil (postgres/execute-one! con [query] *return-type*)}))))
+                    start-result (cond-> @expected-start-result
+                                   expected-aggregate (update ::aggregates merge @expected-aggregate))]
+                (maybe-pull-children start-result location)))
+            ;;
+            (process-related [result location]
+              (let [[field {etable :entity/table
+                            falias :from/field
+                            talias :to/field
+                            decoders :decoders
+                            args :args
+                            as :entity/as
+                            ftable :from/table
+                            cardinality :type
+                            counted? :counted?
+                            :as current-schema}] (zip/node location)
+                    parents (keys (get result ftable))
+                    cursor (location->cursor location)]
+                (log/tracef
+                  "[%s] Cursor position %s from table %s. Parents:\n%s"
+                  table cursor ftable (str/join ", " parents))
+                (if (not-empty parents)
+                  (let [expected-result
+                        (future
+                          (let [[_ {ptable :entity/table}] (zip/node (zip/up location))
+
+                                ;;
+                                query (pull-query
+                                        (update current-schema :args dissoc :_limit :_offset)
+                                        (get found-records (keyword as)) parents)
+                                _ (log/tracef "[%s] Sending pull query:\n%s" table query)
+                                relations (cond->
+                                            (postgres/execute! con query *return-type*)
+                                            ;;
+                                            (some #(contains? args %) [:_offset :_limit])
+                                            (as-> relations
+                                              (let [grouping (group-by (keyword falias) relations)]
+                                                (vec
+                                                  (mapcat
+                                                    #(cond->> %
+                                                       (:_offset args) (drop (:_offset args))
+                                                       (:_limit args) (take (:_limit args)))
+                                                    (vals grouping))))))
+
+                                talias' (keyword talias)
+                                falias' (keyword falias)
+                                data (reduce
+                                       (fn [r d]
+                                         (assoc r (get d talias')
+                                                ;; TODO - Transform data here
+                                                (reduce-kv
+                                                  (fn [data k t] (update data k t))
+                                                  (dissoc d talias' falias')
+                                                  decoders)))
+                                       nil
+                                       relations)
+                                result' (update result etable
+                                                (fn [table]
+                                                  (merge-with merge table data)))]
+                            (reduce
+                              (fn [r {t talias' f falias'}]
+                                (case cardinality
+                                  :many
+                                  (update-in r [ptable f field] (fnil conj []) [etable t])
+                                  :one
+                                  (assoc-in r [ptable f field] [etable t])))
+                              result'
+                              relations)))
+                        ;;
+                        expected-aggregate
+                        (if-not counted? nil
+                          (future
+                            (let [[_ {parent-as :entity/as :as parent-schema}] (zip/node (zip/up location))
+                                  parent-focused-schema (->
+                                                          parent-schema 
+                                                          (update :relations select-keys [field])
+                                                          ;; Pin relation so that search from will include
+                                                          ;; related table in stack
+                                                          (update-in [:relations field] assoc :aggregate {}))
+                                  ; _ (do
+                                  ;     (def parent-focused-schema parent-focused-schema))
+                                  [where data] (search-stack-args parent-focused-schema) 
+                                  [_ from] (search-stack-from parent-focused-schema)
+                                  query (as->
+                                          (format
+                                            "select %s._eid as parent_id, count(%s._eid) as _count\nfrom %s"
+                                            parent-as as from)
+                                          query
+                                          ;;
+                                          (if (empty? where) query
+                                            (str query "\nwhere " where))
+                                          (str query \newline
+                                               (format "group by %s._eid, %s._eid"
+                                                       parent-as as)))]
+                              (postgres/execute! con (into [query] data) *return-type*))))]
+                    (letfn [(add-aggregate [result]
+                              (update-in result [::aggregates cursor] merge
+                                         (reduce
+                                           (fn [result {:keys [parent_id
+                                                               _count]
+                                                        :or {_count 0}
+                                                        :as agg}]
+                                             (merge
+                                               result
+                                               {parent_id (->
+                                                            agg 
+                                                            (dissoc :parent_id)
+                                                            (assoc :_count _count))}))
+                                           nil
+                                           @expected-aggregate)))]
+
+                      (cond->
+                        (maybe-pull-children @expected-result location)
+                        expected-aggregate add-aggregate)))
+                  (do
+                    (log/tracef
+                      "[%s] Couldn't find parents for: %s"
+                      etable result)
+                    result))))
+            ;;
+            (process-node [result location]
               (if (= ::ROOT (key (zip/node location)))
-                ;; When at root node
-                (let [[_ {:keys [entity/table fields decoders recursions entity/as args]}] (zip/node location)
-                      start-result {table (apply array-map
-                                                 (reduce
-                                                   (fn [r d]
-                                                     (conj r
-                                                           (:_eid d)
-                                                           (reduce
-                                                             (fn [data [k t]] (update data k t))
-                                                             d
-                                                             decoders)))
-                                                   []
-                                                   (let [root-query (format
-                                                                      "select %s from \"%s\"%s %s"
-                                                                      (extend-fields (concat (keys fields) (map name recursions)))
-                                                                      table
-                                                                      (if-let [records (get found-records (keyword as))]
-                                                                        (format
-                                                                          " where \"%s\"._eid in (%s) "
-                                                                          table
-                                                                          (clojure.string/join ", " records))
-                                                                        "")
-                                                                      ;; TODO - test if this is necessary
-                                                                      ;; This maybe obsolete since we already know what recrods
-                                                                      ;; to pull and in which order
-                                                                      (str
-                                                                        (when (= found-records {})
-                                                                          (modifiers-selection->sql {:args args}))))]
-                                                     (log/tracef "[%s] Root query:\n%s" table root-query)
-                                                     (postgres/execute!
-                                                       con
-                                                       [root-query]
-                                                       *return-type*))))}
-                      children-queries (loop [queries []
-                                              current-location (zip/down location)]
-                                         (if (nil? current-location) queries
-                                             (recur
-                                              (conj queries (future (process-node start-result current-location)))
-                                              (zip/right current-location))))]
-                  (apply merge-with merge (map deref children-queries)))
-                ;; 
-                (let [[field {etable :entity/table
-                              falias :from/field
-                              talias :to/field
-                              decoders :decoders
-                              args :args
-                              as :entity/as
-                              ftable :from/table
-                              cardinality :type
-                              :as current-schema}] (zip/node location)
-                      parents (keys (get result ftable))
-                      cursor (conj (mapv (comp keyword :entity/table val) (zip/path location)) field)]
-                  (log/tracef
-                   "[%s] Cursor position %s from table %s. Parents:\n%s"
-                   table cursor ftable (str/join ", " parents))
-                  (if (not-empty parents)
-                    (let [[_ {ptable :entity/table}] (zip/node (zip/up location))
-                          ;;
-                          query (pull-query
-                                 (update current-schema :args dissoc :_limit :_offset)
-                                 (get found-records (keyword as)) parents)
-                          _ (log/tracef
-                             "[%s] Sending pull query:\n%s\n%s"
-                             table (first query) (second query))
-                          relations (cond->
-                                     (postgres/execute! con query *return-type*)
-                                      ;;
-                                      (some #(contains? args %) [:_offset :_limit])
-                                      (as-> relations
-                                            (let [grouping (group-by (keyword falias) relations)]
-                                              (vec
-                                               (mapcat
-                                                #(cond->> %
-                                                   (:_offset args) (drop (:_offset args))
-                                                   (:_limit args) (take (:_limit args)))
-                                                (vals grouping))))))
-                          talias' (keyword talias)
-                          falias' (keyword falias)
-                          data (reduce
-                                (fn [r d]
-                                  (assoc r (get d talias')
-                                          ;; TODO - Transform data here
-                                         (reduce-kv
-                                          (fn [data k t] (update data k t))
-                                          (dissoc d talias' falias')
-                                          decoders)))
-                                nil
-                                relations)
-                          result' (update result etable
-                                          (fn [table]
-                                            (merge-with merge table data)))]
-                      ; (log/trace
-                      ;   :message "Received data"
-                      ;   :relations relations
-                      ;   :data data)
-                      ; children-queries (loop [queries []
-                      ;                         current-location (zip/down location)]
-                      ;                    (if (nil? current-location) queries
-                      ;                      (recur
-                      ;                        (conj queries (future (process-node start-result current-location)))
-                      ;                        (zip/right current-location))))
-                      (reduce
-                       (fn [r {t talias' f falias'}]
-                          ; (log/trace
-                          ;   :message "Referencing" 
-                          ;   :cardinality cardinality
-                          ;   :parent/table ptable 
-                          ;   :parent/field f
-                          ;   :parent/_eid (last cursor)
-                          ;   :table etable
-                          ;   :field t)
-                         (case cardinality
-                           :many
-                           (update-in r [ptable f field] (fnil conj []) [etable t])
-                           :one
-                           (assoc-in r [ptable f field] [etable t])))
-                       result'
-                       relations))
-                    (do
-                      (log/tracef
-                       "[%s] Couldn't find parents for: %s"
-                       etable result)
-                      result)))))]
+                (process-root result location)
+                (process-related result location)))]
+      ;;
       (let [result (doall (process-node nil zipper))]
         result))))
 
 
 (defn construct-response
-  [{:keys [entity/table recursions] :as schema} db found-records]
+  [{:keys [entity/table recursions] :as schema} {:keys [::aggregates] :as db} found-records]
   (letfn [(reference? [value]
             (vector? value))
           (list-reference? [value]
@@ -1798,25 +1907,31 @@
              (keys (:fields schema))
              (keys (:relations schema))
              recursions))
-          (pull-reference [[table id] schema]
+          (get-aggregate [cursor [_ parent]]
+            (get-in aggregates [cursor parent]))
+          (pull-reference [[table id] schema cursor]
             (let [data (select-keys (get-in db [table id]) (narrow schema))
                   data' (reduce-kv
                          (fn [data' k v]
                            (cond
                              (list-reference? v)
-                             (assoc data' k (mapv #(pull-reference % (get-in schema [:relations k])) v))
-                              ;;
+                             (assoc data' k (mapv
+                                              #(merge
+                                                 (pull-reference % (get-in schema [:relations k]) (conj cursor k))
+                                                 (get-aggregate (conj cursor k) [nil id]))
+                                              (distinct v)))
+                             ;;
                              (and (recursions k) (not= v id) (not= v [table id]))
                              (if (vector? v)
-                               (assoc data' k (pull-reference v schema))
-                               (assoc data' k (pull-reference [table v] schema)))
-                              ;;
+                               (assoc data' k (pull-reference v schema cursor))
+                               (assoc data' k (pull-reference [table v] schema cursor)))
+                             ;;
                              (and (not (recursions k)) (reference? v))
-                             (assoc data' k (pull-reference v (get-in schema [:relations k])))
+                             (assoc data' k (pull-reference v (get-in schema [:relations k]) (conj cursor k)))
+                             ;;
                              (= v [table id])
-                              ;;
                              (assoc data' k ::self)
-                              ;;
+                             ;;
                              :else data'))
                          data
                          data)]
@@ -1827,17 +1942,20 @@
                data'
                data')))]
     (mapv
-     #(pull-reference [table %] schema)
-     (reduce
-      (fn [r root]
-        (if (get-in db [table root])
-          (conj r root)
-          r))
-      []
-      (get
-       found-records
-       (keyword ((get-in postgres/defaults [core/*return-type* :label-fn]) (:entity/as schema)))
-       (keys (get db table)))))))
+      (fn [id]
+        (merge
+          (pull-reference [table id] schema [::ROOT])
+          (get-in aggregates [[::ROOT] nil])))
+      (reduce
+        (fn [r root]
+          (if (get-in db [table root])
+            (conj r root)
+            r))
+        []
+        (get
+          found-records
+          (keyword ((get-in postgres/defaults [core/*return-type* :label-fn]) (:entity/as schema)))
+          (keys (get db table)))))))
 
 (defn pull-roots [con schema found-records]
   (binding [*ignore-maybe* false]
@@ -1845,7 +1963,7 @@
       (construct-response schema db found-records))))
 
 (defn schema->aggregate-cursors
-  "Given selection schema produces cursors that point
+  "Given election schema produces cursors that point
   to all connected entity tables. This is a way point to
   pull linked data from db with single query"
   ([{:keys [relations] :as schema}]
@@ -1890,43 +2008,7 @@
 ;          cursor)
 ;        (dissoc schema :relations)))))
 
-(defn shave-schema-relations
-  ([schema]
-   (let [arg-keys (set (keys (:args schema)))
-         relation-keys (set (keys (:relations schema)))
-         valid-keys (clojure.set/intersection arg-keys relation-keys)]
-     (update schema :relations select-keys valid-keys)))
-  ([schema cursor]
-   (letfn [(shave [schema [current :as cursor]]
-             ;; If there is no current cursor return schema
-             (if-not current schema
-                     (assoc-in
-                 ;; Otherwise keep relations that have arguments
-                      (shave-schema-relations schema)
-                 ;; And associate current schema
-                      [:relations current]
-                 ;; With shaved schema for rest of cursor
-                      (shave (get-in schema [:relations current]) (rest cursor)))))]
-     (if (not-empty cursor)
-       (shave
-        (update-in schema (relations-cursor cursor) dissoc :relations)
-        cursor)
-       (dissoc schema :relations)))))
 
-(defn shave-schema-aggregates
-  ([schema]
-   (reduce
-    shave-schema-aggregates
-    schema
-    (schema->aggregate-cursors schema)))
-  ([schema cursor]
-   (if (not-empty cursor)
-     (let [c (butlast cursor)]
-       (if-not c schema
-               (recur
-                (update-in schema (relations-cursor c) dissoc :counted? :aggregate)
-                c)))
-     (dissoc schema :counted? :aggregate))))
 
 (defn shave-schema-arguments
   ([schema]
@@ -2014,7 +2096,8 @@
   (binding [*user* user
             *roles* roles]
     (access/entity-allows? entity-id #{:read}))
-  (core/get-entity (neyho.eywa.dataset/deployed-model) entity-id))
+  (core/get-entity (neyho.eywa.dataset/deployed-model) entity-id)
+  (time (search-entity entity-id args selection)))
 
 (defn search-entity
   ([entity-id args selection]
@@ -2377,19 +2460,18 @@
                                       on' (modifiers-selection->sql {:args {:_order_by order-by}}) table)
                                      (format "(select _eid, %s, _eid as _rank from %s)" on' table))
                   sql-final [(format
-                              (format
                                "with recursive tree(_eid,link,path,prank,cycle) as (
-                                 select 
-                                 g._eid, g.%s, array[g._eid],array[g._rank], false
-                                 from %s g
-                                 union all
-                                 select g._eid, g.%s, path || g._eid, prank || g._rank, g._eid=any(path)
-                                 from %s g, tree o
-                                 where g.%s =o._eid and not cycle
-                                 ) select * from tree order by prank asc %s"
+                               select 
+                               g._eid, g.%s, array[g._eid],array[g._rank], false
+                               from %s g
+                               union all
+                               select g._eid, g.%s, path || g._eid, prank || g._rank, g._eid=any(path)
+                               from %s g, tree o
+                               where g.%s =o._eid and not cycle
+                               ) select * from tree order by prank asc %s"
                                on' ranked-init-selection
                                on' ranked-selection on'
-                               (modifiers-selection->sql {:args (dissoc args :_order_by)})))]]
+                               (modifiers-selection->sql {:args (dissoc args :_order_by)}))]]
               (log/tracef
                "[%s] Get entity tree roots\n%s"
                entity-id  (first sql-final))
