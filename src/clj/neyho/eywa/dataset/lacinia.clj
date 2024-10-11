@@ -80,6 +80,10 @@
 ; (defn entity->aggregate-object [{n :name}]
 ;   (csk/->PascalCaseKeyword (str n " aggregate")))
 
+
+(defn entity->count-object [{n :name}]
+  (csk/->PascalCaseKeyword (str n " count")))
+
 (defn entity->slice-object [{n :name}]
   (csk/->PascalCaseKeyword (str n " slice")))
 
@@ -208,7 +212,7 @@
                     {:fields (as-> 
                                (cond->
                                  {:euuid {:type 'UUID}
-                                  :_count {:type :Int}
+                                  ; :_count {:type :Int}
                                   :modified_by (reference-object iu/user)
                                   :modified_on {:type :Timestamp}})
                                fields 
@@ -298,7 +302,9 @@
                                  (fn [fields {:keys [to to-label cardinality]}]
                                    (if (and (not-empty to-label) (not-empty (:name to))) 
                                      (assoc fields (attribute->gql-field to-label) 
-                                            (let [t (entity->gql-object (:name to))] 
+                                            (let [t (entity->gql-object (:name to))
+                                                  to-search (entity->search-operator to)
+                                                  tree-search (entity->search-operator entity)] 
                                               ;; TODO - rethink _maybe and _where
                                               ;; It is essentially opening for _and _or and
                                               ;; Can it be skipped?
@@ -308,23 +314,26 @@
                                                 ("o2m" "m2m") {:type (list 'list t)
                                                                :args {:_offset {:type 'Int}
                                                                       :_limit {:type 'Int}
-                                                                      :_where {:type (entity->search-operator to)}
+                                                                      :_where {:type to-search}
                                                                       :_join {:type :SQLJoinType}
-                                                                      :_maybe {:type (entity->search-operator to)}
-                                                                      :_order_by {:type (entity->order-by-operator to)}}}
+                                                                      :_maybe {:type to-search}
+                                                                      :_order_by {:type to-search}}}
                                                 ("m2o" "o2o") {:type t
-                                                               :args {:_where {:type (entity->search-operator to)}
+                                                               :args {:_where {:type to-search}
                                                                       :_join {:type :SQLJoinType}
-                                                                      :_maybe {:type (entity->search-operator to)}}}
+                                                                      :_maybe {:type to-search}}}
                                                 "tree" {:type t 
-                                                        :args {:_where {:type (entity->search-operator entity)}
+                                                        :args {:_where {:type tree-search}
                                                                :_join {:type :SQLJoinType}
-                                                               :_maybe {:type (entity->search-operator entity)}
+                                                               :_maybe {:type tree-search}
                                                                (attribute->gql-field to-label) {:type :is_null_enum}}}
                                                 {:type t})))
                                      fields))
                                  fields
-                                 to-relations))}
+                                 to-relations)
+                               ;;
+                               (if (empty? to-relations) fields
+                                 (assoc fields :_count {:type (entity->count-object entity)})))}
                     ;;
                     ; (entity->aggregate-object entity)
                     ; {:fields
@@ -357,18 +366,30 @@
                   ;;
                   (not-empty to-relations)
                   (assoc 
+                    ;;
                     (entity->slice-object entity)
                     {:fields
-                     (cond->
-                       (reduce
-                         (fn [fields {:keys [to to-label]}]
-                           (if (not-empty to-label) 
-                             (assoc fields (attribute->gql-field to-label)
-                                    {:type 'Boolean
-                                     :args {:_where {:type (entity->search-operator to)}}})
-                             fields))
-                         nil
-                         entity-relations))})
+                     (reduce
+                       (fn [fields {:keys [to to-label]}]
+                         (if (not-empty to-label) 
+                           (assoc fields (attribute->gql-field to-label)
+                                  {:type 'Boolean
+                                   :args {:_where {:type (entity->search-operator to)}}})
+                           fields))
+                       nil
+                       entity-relations)}
+                    ;;
+                    (entity->count-object entity)
+                    {:fields (reduce
+                               (fn [fields {:keys [to to-label]}]
+                                 (if (not-empty to-label) 
+                                   (assoc fields (attribute->gql-field to-label)
+                                          {:type 'Int
+                                           :args {:_where {:type (entity->search-operator to)}}})
+                                   fields))
+                               nil
+                               entity-relations)})
+                  ;;
                   (not-empty numerics)
                   (assoc (entity->numeric-enum entity) 
                          {:fields (zipmap numerics (repeat {:type 'Float}))}))))))
@@ -382,17 +403,6 @@
                     :args (zipmap
                             [:_gt :_lt :_eq :_neq :_ge :_le]
                             (repeat {:type 'Float}))}}}
-         ;;
-         ; :IntAggregate
-         ; {:fields
-         ;  (zipmap
-         ;    [:min :max :sum :avg]
-         ;    (repeat {:type 'Int}))}
-         ; :FloatAggregate
-         ; {:fields
-         ;  (zipmap
-         ;    [:min :max :sum :avg]
-         ;    (repeat {:type 'Float}))}
          ;;
          :TimePeriod
          {:fields

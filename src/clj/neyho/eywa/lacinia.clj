@@ -216,7 +216,8 @@
     (ref-set compiled (recompile))))
 
 (comment
-  (com.walmartlabs.lacinia.util/print-schema (deref compiled))
+  (require '[com.walmartlabs.lacinia.util])
+  (keys (deref compiled))
   (def _shard (slurp (clojure.java.io/resource "tasks.graphql")))
   (-> state deref :directives keys)
   (parse-schema _shard)
