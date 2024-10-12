@@ -317,7 +317,7 @@
                                                                       :_where {:type to-search}
                                                                       :_join {:type :SQLJoinType}
                                                                       :_maybe {:type to-search}
-                                                                      :_order_by {:type to-search}}}
+                                                                      :_order_by {:type (entity->order-by-operator to)}}}
                                                 ("m2o" "o2o") {:type t
                                                                :args {:_where {:type to-search}
                                                                       :_join {:type :SQLJoinType}

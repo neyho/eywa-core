@@ -10,6 +10,7 @@
    [buddy.hashers :as hashers]
    [clojure.tools.logging :as log]
    [camel-snake-kebab.core :as csk]
+   [com.walmartlabs.lacinia.resolve :as lacinia.resolve]
    [next.jdbc :as jdbc]
    [next.jdbc.prepare :as p]
    [neyho.eywa.transit :refer [<-transit ->transit]]
@@ -970,27 +971,31 @@
                                         (contains? objects rkey)
                                         (contains? order-by rkey)
                                         (contains? distinct-on rkey))
-                                    (assoc rs rkey
-                                           (merge
-                                             (clojure.set/rename-keys rdata {:table :relation/table})
-                                             {:relation/as (str (gensym "link_"))
-                                              :entity/as (str (gensym "data_"))}
-                                             (selection->schema
-                                               (:to rdata)
-                                               (get-in objects [rkey 0 :selections])
-                                               (cond->
-                                                 (get-in objects [rkey 0 :args])
-                                                 ;;
-                                                 (and
-                                                   (not= (:from rdata) (:to rdata))
-                                                   (contains? args rkey))
-                                                 (merge (get args rkey))
-                                                 ;;
-                                                 (contains? order-by rkey)
-                                                 (assoc :_order_by (get order-by rkey))
-                                                 ;;
-                                                 (contains? distinct-on rkey)
-                                                 (assoc :_distinct (get distinct-on rkey))))))
+                                    (reduce
+                                      (fn [final {:keys [selections alias]
+                                                  new-args :args}]
+
+                                        (assoc final (or alias rkey)
+                                               (merge
+                                                 (clojure.set/rename-keys rdata {:table :relation/table})
+                                                 {:relation/as (str (gensym "link_"))
+                                                  :entity/as (str (gensym "data_"))}
+                                                 (selection->schema
+                                                   (:to rdata) selections
+                                                   (cond-> new-args
+                                                     ;;
+                                                     (and
+                                                       (not= (:from rdata) (:to rdata))
+                                                       (contains? args rkey))
+                                                     (merge (get args rkey))
+                                                     ;;
+                                                     (contains? order-by rkey)
+                                                     (assoc :_order_by (get order-by rkey))
+                                                     ;;
+                                                     (contains? distinct-on rkey)
+                                                     (assoc :_distinct (get distinct-on rkey)))))))
+                                      rs
+                                      (get objects rkey))
                                     rs)
                                   rs))
                               nil
@@ -1014,8 +1019,9 @@
                                 (as-> relations
                                   (reduce
                                     (fn [relations' {:keys [postgres/reference] k :key}]
-                                      (let [{ttable :table} (deployed-schema-entity reference)]
-                                        (assoc relations' k
+                                      (let [{ttable :table} (deployed-schema-entity reference)
+                                            alias-key (get-in objects [k 0 :alias] k)]
+                                        (assoc relations' alias-key
                                                {:args (get-in objects [k 0 :args])
                                                 :from entity-id
                                                 :from/field (name k)
@@ -1690,6 +1696,40 @@
             (pull-aggregates [{as :entity/as
                                counted :count
                                :as schema} parents]
+              (comment
+                (def counted
+                  {:test1
+                   {:args {:_maybe {:name {:_ilike "%user%"}}},
+                    :entity/table "dataset_entity",
+                    :type :many,
+                    :to/field "dataset_entity_id",
+                    :entity/as "data_84745",
+                    :to/table "dataset_entity",
+                    :relation/table "data_vers_zw2zyw3y0133yz10_data_enti",
+                    :from #uuid "d922edda-f8de-486a-8407-e62ad67bf44c",
+                    :relation/as "link_84744",
+                    :aggregate {},
+                    :relation #uuid "63f05e2f-22fc-4bae-9889-1f03a2ff4540",
+                    :from/table "dataset_version",
+                    :from/field "dataset_version_id",
+                    :to #uuid "a0d304a7-afe3-4d9f-a2e1-35e174bb5d5b"},
+                   :test2
+                   {:args {:_maybe {:name {:_ilike "%dataset%"}}},
+                    :entity/table "dataset_entity",
+                    :type :many,
+                    :to/field "dataset_entity_id",
+                    :entity/as "data_84747",
+                    :to/table "dataset_entity",
+                    :relation/table "data_vers_zw2zyw3y0133yz10_data_enti",
+                    :from #uuid "d922edda-f8de-486a-8407-e62ad67bf44c",
+                    :relation/as "link_84746",
+                    :aggregate {},
+                    :relation #uuid "63f05e2f-22fc-4bae-9889-1f03a2ff4540",
+                    :from/table "dataset_version",
+                    :from/field "dataset_version_id",
+                    :to #uuid "a0d304a7-afe3-4d9f-a2e1-35e174bb5d5b"}})
+                (binding [*ignore-maybe* false]
+                  (-> counted :test1 query-selection->sql)))
               (if-not counted nil
                 (future
                   (let [schema (as-> schema schema
@@ -1702,30 +1742,37 @@
                                  (dissoc schema :count)
                                  (if-not parents schema
                                    (update schema :args assoc-in [:_eid :_in] (long-array parents))))
-                        ;;
-                        [where data] (search-stack-args schema)
                         [_ from] (search-stack-from schema)
-                        count-selections (reduce-kv
-                                           (fn [r as {etable :entity/as}]
-                                             (conj r (format
-                                                       "count(distinct %s._eid) as %s"
-                                                       etable (name as))))
-                                           []
-                                           counted)
+                        ;;
+                        [count-selections data]
+                        (reduce-kv
+                          (fn [[statements data] as {etable :entity/as :as schema}]
+                            (let [t (name as)
+                                  [[[_ [statement]]] statement-data] (binding [*ignore-maybe* false]
+                                                                     (-> schema query-selection->sql))]
+                              [(conj statements (if (empty? statement)
+                                                  (format
+                                                    "count(distinct %s._eid) as %s"
+                                                    etable t)
+                                                  (format
+                                                    "count(distinct case when %s then %s._eid end) as %s"
+                                                    statement etable t)))
+                               (if statement-data (into data statement-data)
+                                 data)]))
+                          [[] []]
+                          counted)
                         query (as->
                                 (format
                                   "select %s._eid as parent_id, %s\nfrom %s"
                                   as (str/join ", " count-selections) from)
                                 query
                                 ;;
-                                (if (empty? where) query
-                                  (str query "\nwhere " where))
                                 (str query \newline
                                      (format "group by %s._eid" as))
                                 (into [query] data))
                         _ (log/tracef
                             "[%s] Sending aggregate query:\n%s"
-                            table query)
+                            table (first query))
                         result (postgres/execute! con query *return-type*)]
                     (reduce
                       (fn [r {:keys [parent_id] :as data}]
@@ -1908,21 +1955,22 @@
                      (assoc data k data)))
                data'
                data')))]
-    (mapv
-      (fn [id]
-        (merge
-          (pull-reference [table id] schema [::ROOT])
-          (get-aggregate [::ROOT] id)))
-      (reduce
-        (fn [r root]
-          (if (get-in db [table root])
-            (conj r root)
-            r))
-        []
-        (get
-          found-records
-          (keyword ((get-in postgres/defaults [core/*return-type* :label-fn]) (:entity/as schema)))
-          (keys (get db table)))))))
+    (let [final (mapv
+                  (fn [id]
+                    (merge
+                      (pull-reference [table id] schema [::ROOT])
+                      (get-aggregate [::ROOT] id)))
+                  (reduce
+                    (fn [r root]
+                      (if (get-in db [table root])
+                        (conj r root)
+                        r))
+                    []
+                    (get
+                      found-records
+                      (keyword ((get-in postgres/defaults [core/*return-type* :label-fn]) (:entity/as schema)))
+                      (keys (get db table)))))]
+      final)))
 
 (defn pull-roots [con schema found-records]
   (binding [*ignore-maybe* false]

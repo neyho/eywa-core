@@ -9,6 +9,7 @@
     [com.walmartlabs.lacinia.selection :as selection]
     [com.walmartlabs.lacinia.resolve :as r]
     [com.walmartlabs.lacinia.schema :as schema]
+    [com.walmartlabs.lacinia.executor :as executor]
     [com.walmartlabs.lacinia.parser.schema :refer [parse-schema]]))
 
 
@@ -149,6 +150,16 @@
       (bind-resolvers :input-objects))))
 
 
+(defn default-field-resolver
+  "The default for the :default-field-resolver option, this uses the field name as the key into
+  the resolved value."
+  [{:keys [field-name alias] :as field-def}]
+  ^{:tag r/ResolverResult}
+  (fn default-resolver [ctx _ v]
+    (let [alias (selection/alias-name (-> ctx :com.walmartlabs.lacinia/selection))]
+      (r/resolve-as (get v alias)))))
+
+
 (defn ^:private recompile []
   (let [{:keys [shards directives]} @state]
     (when (not-empty shards)
@@ -168,7 +179,8 @@
           (->
             schema
             bind-resolvers)
-          {:apply-field-directives
+          {:default-field-resolver default-field-resolver
+           :apply-field-directives
            (fn [field resolver-fn]
              (log/infof
                "Applying field directive to field %s"

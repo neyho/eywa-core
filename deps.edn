@@ -27,7 +27,9 @@
   io.pedestal/pedestal.route                   {:mvn/version "0.6.3"}
   io.pedestal/pedestal.jetty                   {:mvn/version "0.6.3"}
   com.walmartlabs/lacinia                      {:mvn/version "1.2.2"}
-  com.walmartlabs/lacinia-pedestal             {:mvn/version "1.2"}
+  ; com.walmartlabs/lacinia                      {:local/root "../../lacinia"}
+  com.walmartlabs/lacinia-pedestal             {:mvn/version "1.2"
+                                                :exclusions [com.walmartlabs/lacinia]}
   ;; Logging - chosen because it follows pedestal and lacinia
   ;; they are both using clojure.tools.logging
   ch.qos.logback/logback-classic               {:mvn/version "1.5.0"}
