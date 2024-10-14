@@ -84,6 +84,16 @@
 (defn entity->count-object [{n :name}]
   (csk/->PascalCaseKeyword (str n " count")))
 
+(defn entity->max-object [{n :name}]
+  (csk/->PascalCaseKeyword (str n " max")))
+
+(defn entity->min-object [{n :name}]
+  (csk/->PascalCaseKeyword (str n " min")))
+
+(defn entity->avg-object [{n :name}]
+  (csk/->PascalCaseKeyword (str n " avg")))
+
+
 (defn entity->slice-object [{n :name}]
   (csk/->PascalCaseKeyword (str n " slice")))
 
@@ -187,20 +197,24 @@
             (let [entity (core/get-entity model euuid)]
               {:type (entity->gql-object (:name entity))
                :args {:_where {:type (entity->search-operator entity)}
-                      :_maybe {:type (entity->search-operator entity)}}}))]
+                      :_maybe {:type (entity->search-operator entity)}}}))
+          (has-numerics? [{:keys [attributes]}]
+            (some #({"int" "float"} (:type %)) attributes))
+          (get-numerics [{:keys [attributes]}]
+            (reduce
+              (fn [fields {atype :type :as attribute}]
+                (case atype
+                  ("int" "float") (conj fields attribute)
+                  fields))
+              [] 
+              attributes))]
     (let [entities (core/get-entities model)
           _who :modified_by
           _when :modified_on]
       (reduce
         (fn [r {ename :name attributes :attributes :as entity}]
           (if (empty? attributes) r
-            (let [numerics (reduce
-                             (fn [fields {aname :name atype :type}]
-                               (case atype
-                                 ("integer" "float") (conj fields (attribute->gql-field aname))
-                                 fields))
-                             [] 
-                             attributes)
+            (let [numerics (get-numerics entity) 
                   scalars (filter scalar-attribute? attributes)
                   references (filter reference-attribute? attributes)
                   entity-relations (core/focus-entity-relations model entity)
@@ -212,7 +226,6 @@
                     {:fields (as-> 
                                (cond->
                                  {:euuid {:type 'UUID}
-                                  ; :_count {:type :Int}
                                   :modified_by (reference-object iu/user)
                                   :modified_on {:type :Timestamp}})
                                fields 
@@ -333,36 +346,17 @@
                                  to-relations)
                                ;;
                                (if (empty? to-relations) fields
-                                 (assoc fields :_count {:type (entity->count-object entity)})))}
-                    ;;
-                    ; (entity->aggregate-object entity)
-                    ; {:fields
-                    ;  (cond->
-                    ;    (reduce
-                    ;      (fn [fields {:keys [to to-label]}]
-                    ;        (if (not-empty to-label) 
-                    ;          (assoc fields (attribute->gql-field to-label)
-                    ;                 {:type (entity->aggregate-object to)
-                    ;                  :args {:_where {:type (entity->search-operator to)}}})
-                    ;          fields))
-                    ;      (reduce
-                    ;        (fn [fields {t :type n :name}]
-                    ;          (assoc fields (attribute->gql-field n)
-                    ;                 (case t
-                    ;                   "int"
-                    ;                   {:type :IntAggregate
-                    ;                    :args (zipmap
-                    ;                            [:_gt :_lt :_eq :_neq :_ge :_le]
-                    ;                            (repeat {:type 'Int}))}
-                    ;                   "float"
-                    ;                   {:type :FloatAggregate
-                    ;                    :args (zipmap
-                    ;                            [:_gt :_lt :_eq :_neq :_ge :_le]
-                    ;                            (repeat {:type 'Float}))})))
-                    ;        {:count {:type 'Int}}
-                    ;        (numerics? entity))
-                    ;      to-relations))}
-                    )
+                                 (reduce
+                                   (fn [fields {:keys [to]}]
+                                     (if (has-numerics? to)
+                                       (assoc fields
+                                              :_max {:type (entity->numeric-enum to)}
+                                              :_min {:type (entity->numeric-enum to)}
+                                              :_avg {:type (entity->numeric-enum to)}
+                                              :_sum {:type (entity->numeric-enum to)})
+                                       fields))
+                                   (assoc fields :_count {:type (entity->count-object entity)})
+                                   to-relations)))})
                   ;;
                   (not-empty to-relations)
                   (assoc 
@@ -392,7 +386,14 @@
                   ;;
                   (not-empty numerics)
                   (assoc (entity->numeric-enum entity) 
-                         {:fields (zipmap numerics (repeat {:type 'Float}))}))))))
+                         {:fields (reduce
+                                    (fn [result attribute]
+                                      (assoc result (attribute->gql-field (:name attribute))
+                                             ; {:type (attribute-type->scalar entity attribute)
+                                             {:type 'Float 
+                                              :args {:_where {:type (entity->search-operator entity)}}}))
+                                    nil
+                                    numerics)}))))))
         {:Currency
          {:fields
           {:currency {:type :currency_enum 

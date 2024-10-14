@@ -1736,12 +1736,16 @@
                                  (assoc schema :relations
                                         (reduce-kv
                                           (fn [r k _]
-                                            (assoc-in r [k :aggregate] {}))
+                                            (->
+                                              r
+                                              (assoc-in [k :aggregate] {})
+                                              (assoc-in [k :args :_join] :LEFT)))
                                           (:count schema)
                                           (:count schema)))
                                  (dissoc schema :count)
                                  (if-not parents schema
                                    (update schema :args assoc-in [:_eid :_in] (long-array parents))))
+                        _ (def schema schema)
                         [_ from] (search-stack-from schema)
                         ;;
                         [count-selections data]
