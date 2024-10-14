@@ -820,10 +820,6 @@
   ([entity-id selection]
    (selection->schema entity-id selection nil))
   ([entity-id selection args]
-   ; (log/tracef
-   ;   :selection->schema entity-id
-   ;   :selection selection
-   ;   :args args)
    (when (access/entity-allows? entity-id #{:read :owns})
      (let [{relations :relations
             recursions :recursions
@@ -1049,7 +1045,8 @@
                                               :table table
                                               :type :one}))
                                     relations
-                                    recursions))))]
+                                    recursions))))
+           aggregate-keys [:_count :_min :_max :_avg :_sum]]
        (as-> (hash-map
                :entity/as (str (gensym "data_"))
                :entity/table table
@@ -1069,8 +1066,10 @@
                :encoders encoders
                :relations narrow-relations
                :recursions recursions) schema
-         (if-not (:_count selection) schema
-           (reduce
+         ;;
+         (if-not (some #(contains? selection %) aggregate-keys)
+           schema
+           #_(reduce
              (fn [schema {counts :selections}]
                (reduce-kv
                  (fn [schema relation specifics]
@@ -1085,7 +1084,7 @@
                                         (dissoc :relations)
                                         (clojure.set/rename-keys {:table :relation/table})
                                         (assoc 
-                                          :aggregate {}
+                                          :pinned true
                                           :entity/table (:to/table rdata)
                                           :relation/as (str (gensym "link_"))
                                           :entity/as (str (gensym "data_"))))]
@@ -1101,7 +1100,59 @@
                  schema
                  counts))
              schema
-             (:_count selection))))))))
+             (:_count selection))
+           (reduce-kv
+             (fn [schema operation fields]
+               (if (= :_count operation)
+                 (reduce
+                   (fn [schema {operations :selections}]
+                     (reduce-kv
+                       (fn [schema relation specifics]
+                         (reduce
+                           (fn [schema {:keys [alias args]}]
+                             (let [rkey (keyword (name relation))
+                                   rdata (get relations rkey)
+                                   akey (or alias rkey)
+                                   relation (->
+                                              rdata 
+                                              (dissoc :_count)
+                                              (dissoc :relations)
+                                              (clojure.set/rename-keys {:table :relation/table})
+                                              (assoc 
+                                                :pinned true
+                                                :entity/table (:to/table rdata)
+                                                :relation/as (str (gensym "link_"))
+                                                :entity/as (str (gensym "data_"))))]
+                               ;; Use original relation
+                               (assoc-in schema [:_count akey]
+                                         ;; and if there are arguments in _counted
+                                         ;; than use that arguments, otherwise use
+                                         ;; args from narrowed relation select
+                                         (cond-> relation 
+                                           args (assoc :args (clojure.set/rename-keys args {:_where :_maybe}))))))
+                           schema
+                           specifics))
+                       schema
+                       operations))
+                   schema
+                   fields)
+                 ;;
+                 (reduce
+                   (fn [schema {:keys [selections]}]
+                     (reduce-kv
+                       (fn [schema fkey selections]
+                         (reduce
+                           (fn [schema {:keys [alias args]}]
+                             (assoc-in schema [operation (or alias (keyword (name fkey)))]
+                                       (when args {:args args})))
+                           schema
+                           selections))
+                       schema
+                       selections))
+                   schema
+                   fields)))
+             schema
+             (select-keys selection aggregate-keys))))))))
 
 
 (comment
@@ -1501,9 +1552,9 @@
                     (some
                       targeting-args?
                       ((juxt :_and :_or :_where :_maybe) args')))))))
-          (targeting-schema? [[_ {:keys [args fields aggregate]}]]
+          (targeting-schema? [[_ {:keys [args fields pinned]}]]
             (or
-              aggregate
+              pinned
               (targeting-args? args)
               (some targeting-args? (vals fields))))
           (find-arg-locations
@@ -1694,43 +1745,9 @@
                     (conj queries (future (process-node result current-location)))
                     (zip/right current-location)))))
             (pull-aggregates [{as :entity/as
-                               counted :count
+                               counted :_count
                                :as schema} parents]
-              (comment
-                (def counted
-                  {:test1
-                   {:args {:_maybe {:name {:_ilike "%user%"}}},
-                    :entity/table "dataset_entity",
-                    :type :many,
-                    :to/field "dataset_entity_id",
-                    :entity/as "data_84745",
-                    :to/table "dataset_entity",
-                    :relation/table "data_vers_zw2zyw3y0133yz10_data_enti",
-                    :from #uuid "d922edda-f8de-486a-8407-e62ad67bf44c",
-                    :relation/as "link_84744",
-                    :aggregate {},
-                    :relation #uuid "63f05e2f-22fc-4bae-9889-1f03a2ff4540",
-                    :from/table "dataset_version",
-                    :from/field "dataset_version_id",
-                    :to #uuid "a0d304a7-afe3-4d9f-a2e1-35e174bb5d5b"},
-                   :test2
-                   {:args {:_maybe {:name {:_ilike "%dataset%"}}},
-                    :entity/table "dataset_entity",
-                    :type :many,
-                    :to/field "dataset_entity_id",
-                    :entity/as "data_84747",
-                    :to/table "dataset_entity",
-                    :relation/table "data_vers_zw2zyw3y0133yz10_data_enti",
-                    :from #uuid "d922edda-f8de-486a-8407-e62ad67bf44c",
-                    :relation/as "link_84746",
-                    :aggregate {},
-                    :relation #uuid "63f05e2f-22fc-4bae-9889-1f03a2ff4540",
-                    :from/table "dataset_version",
-                    :from/field "dataset_version_id",
-                    :to #uuid "a0d304a7-afe3-4d9f-a2e1-35e174bb5d5b"}})
-                (binding [*ignore-maybe* false]
-                  (-> counted :test1 query-selection->sql)))
-              (if-not counted nil
+              (if-not (some #(contains? schema %) [:_count :_max :_min :_avg :_sum]) nil
                 (future
                   (let [schema (as-> schema schema
                                  (assoc schema :relations
@@ -1738,11 +1755,11 @@
                                           (fn [r k _]
                                             (->
                                               r
-                                              (assoc-in [k :aggregate] {})
+                                              (assoc-in [k :pinned] true)
                                               (assoc-in [k :args :_join] :LEFT)))
-                                          (:count schema)
-                                          (:count schema)))
-                                 (dissoc schema :count)
+                                          (:_count schema)
+                                          (:_count schema)))
+                                 (dissoc schema :_count)
                                  (if-not parents schema
                                    (update schema :args assoc-in [:_eid :_in] (long-array parents))))
                         _ (def schema schema)
@@ -2410,9 +2427,9 @@
      (let [c (butlast cursor)]
        (if-not c schema
                (recur
-                (update-in schema (relations-cursor c) dissoc :counted? :aggregate)
+                (update-in schema (relations-cursor c) dissoc :counted? :pinned)
                 c)))
-     (dissoc schema :counted? :aggregate))))
+     (dissoc schema :counted? :pinned))))
 
 
 (defn search-entity-tree
