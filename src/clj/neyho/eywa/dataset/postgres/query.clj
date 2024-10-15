@@ -2665,7 +2665,6 @@
                   (postgres/execute! connection sql-final *return-type*)))}))))))))
 
 
-
 (defn delete-entity
   [entity-id args]
   (let [{:keys [entity/table]} (binding [*operation-rules* #{:delete}]

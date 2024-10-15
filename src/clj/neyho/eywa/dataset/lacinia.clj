@@ -93,6 +93,15 @@
 (defn entity->avg-object [{n :name}]
   (csk/->PascalCaseKeyword (str n " avg")))
 
+(defn entity->sum-object [{n :name}]
+  (csk/->PascalCaseKeyword (str n " sum")))
+
+(defn entity->agg-object [{n :name}]
+  (csk/->PascalCaseKeyword (str n " aggregate")))
+
+(defn entity->agg-part-object [{n :name}]
+  (csk/->PascalCaseKeyword (str n " agg")))
+
 
 (defn entity->slice-object [{n :name}]
   (csk/->PascalCaseKeyword (str n " slice")))
@@ -137,7 +146,7 @@
       (boolean (#{"int" "float"} t)))
     as))
 
-(defn entity->numeric-enum [{n :name}]
+(defn entity->numeric-object [{n :name}]
   (csk/->PascalCaseKeyword (str n " Numerics")))
 
 
@@ -219,7 +228,6 @@
                   references (filter reference-attribute? attributes)
                   entity-relations (core/focus-entity-relations model entity)
                   to-relations (filter #(not-empty (:to-label %)) entity-relations)]
-              (when (not-empty numerics) (println "ENTITY: " ename))
               (if (nil? ename) r
                 (cond->
                   (assoc 
@@ -349,22 +357,41 @@
                                (if (empty? to-relations) fields
                                  (cond->
                                    (assoc fields :_count {:type (entity->count-object entity)})
-                                   (not-empty numerics) (assoc
-                                                          :_max {:type (entity->numeric-enum entity)}
-                                                          :_min {:type (entity->numeric-enum entity)}
-                                                          :_avg {:type (entity->numeric-enum entity)}
-                                                          :_sum {:type (entity->numeric-enum entity)}))
-                                 #_(reduce
-                                   (fn [fields {:keys [to]}]
-                                     (if (has-numerics? to)
-                                       (assoc fields
-                                              :_max {:type (entity->numeric-enum to)}
-                                              :_min {:type (entity->numeric-enum to)}
-                                              :_avg {:type (entity->numeric-enum to)}
-                                              :_sum {:type (entity->numeric-enum to)})
-                                       fields))
-                                   (assoc fields :_count {:type (entity->count-object entity)})
-                                   to-relations)))})
+                                   ;;
+                                   (not-empty numerics)
+                                   (assoc
+                                     :_max {:type (entity->numeric-object entity)}
+                                     :_min {:type (entity->numeric-object entity)}
+                                     :_avg {:type (entity->numeric-object entity)}
+                                     :_sum {:type (entity->numeric-object entity)})
+                                   ;;
+                                   (some has-numerics? (map :to to-relations))
+                                   (assoc :_agg {:type (entity->agg-object entity)}))))})
+                  ;;
+                  (some has-numerics? (map :to to-relations))
+                  (as-> objects
+                    (reduce
+                      (fn [objects {:keys [to to-label]}]
+                        (if-not (has-numerics? to) objects
+                          (assoc objects
+                                 (entity->agg-part-object to)
+                                 {:fields
+                                  {:_max {:type (entity->numeric-object to)}
+                                   :_min {:type (entity->numeric-object to)}
+                                   :_avg {:type (entity->numeric-object to)}
+                                   :_sum {:type (entity->numeric-object to)}}})))
+                      objects
+                      to-relations)
+                    (assoc objects
+                           (entity->agg-object entity)
+                           {:fields
+                            (reduce
+                              (fn [fields {:keys [to to-label]}]
+                                (if-not (has-numerics? to) fields
+                                  (assoc fields (attribute->gql-field to-label) {:type (entity->agg-part-object to)})))
+                              nil
+                              to-relations)}))
+                  
                   ;;
                   (not-empty to-relations)
                   (assoc 
@@ -393,7 +420,7 @@
                                entity-relations)})
                   ;;
                   (not-empty numerics)
-                  (assoc (entity->numeric-enum entity) 
+                  (assoc (entity->numeric-object entity)
                          {:fields (reduce
                                     (fn [result attribute]
                                       (assoc result (attribute->gql-field (:name attribute))
