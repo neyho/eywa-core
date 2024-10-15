@@ -1744,62 +1744,84 @@
                   (recur
                     (conj queries (future (process-node result current-location)))
                     (zip/right current-location)))))
-            (pull-aggregates [{as :entity/as
-                               counted :_count
-                               :as schema} parents]
-              (if-not (some #(contains? schema %) [:_count :_max :_min :_avg :_sum]) nil
+            (pull-counts [result location]
+              (let [[_ {as :entity/as
+                        ftable :from/table
+                        counted :_count
+                        :as schema}] (zip/node location)
+                    parents (keys (get result ftable))]
+                (if-not (some #(contains? schema %) [:_count :_max :_min :_avg :_sum]) nil
+                  (future
+                    (let [schema (as-> schema schema
+                                   (assoc schema :relations
+                                          (reduce-kv
+                                            (fn [r k _]
+                                              (->
+                                                r
+                                                (assoc-in [k :pinned] true)
+                                                (assoc-in [k :args :_join] :LEFT)))
+                                            (:_count schema)
+                                            (:_count schema)))
+                                   (dissoc schema :_count)
+                                   (if-not parents schema
+                                     (update schema :args assoc-in [:_eid :_in] (long-array parents))))
+                          ; _ (def schema schema)
+                          [_ from] (search-stack-from schema)
+                          ;;
+                          [count-selections from-data]
+                          (reduce-kv
+                            (fn [[statements data] as {etable :entity/as :as schema}]
+                              (let [t (name as)
+                                    [[[_ [statement]]] statement-data] (binding [*ignore-maybe* false]
+                                                                         (-> schema query-selection->sql))]
+                                [(conj statements (if (empty? statement)
+                                                    (format
+                                                      "count(distinct %s._eid) as %s"
+                                                      etable t)
+                                                    (format
+                                                      "count(distinct case when %s then %s._eid end) as %s"
+                                                      statement etable t)))
+                                 (if statement-data (into data statement-data)
+                                   data)]))
+                            [[] []]
+                            counted)
+                          ;;
+                          [where where-data]  (search-stack-args schema)
+                          ;;
+                          [query-string :as query] (as->
+                                  (format
+                                    "select %s._eid as parent_id, %s\nfrom %s"
+                                    as (str/join ", " count-selections) from)
+                                  query
+                                  ;;
+                                  (if-not where query
+                                    (str query \newline
+                                         (str "where " where)))
+                                  ;;
+                                  (str query \newline
+                                       (format "group by %s._eid" as))
+                                  ;;
+                                  (reduce into [query] [from-data where-data]))
+                          _ (log/tracef
+                              "[%s] Sending aggregate query:\n%s"
+                              table query-string)
+                          result (postgres/execute! con query *return-type*)]
+                      (reduce
+                        (fn [r {:keys [parent_id] :as data}]
+                          (assoc r parent_id {:_count (dissoc data :parent_id)}))
+                        nil
+                        result))))))
+            (pull-numerics
+              [result location]
+              nil)
+            (pull-aggregates
+              [result location]
+              (let [counts (pull-counts result location)
+                    numerics (pull-numerics result location)]
                 (future
-                  (let [schema (as-> schema schema
-                                 (assoc schema :relations
-                                        (reduce-kv
-                                          (fn [r k _]
-                                            (->
-                                              r
-                                              (assoc-in [k :pinned] true)
-                                              (assoc-in [k :args :_join] :LEFT)))
-                                          (:_count schema)
-                                          (:_count schema)))
-                                 (dissoc schema :_count)
-                                 (if-not parents schema
-                                   (update schema :args assoc-in [:_eid :_in] (long-array parents))))
-                        _ (def schema schema)
-                        [_ from] (search-stack-from schema)
-                        ;;
-                        [count-selections data]
-                        (reduce-kv
-                          (fn [[statements data] as {etable :entity/as :as schema}]
-                            (let [t (name as)
-                                  [[[_ [statement]]] statement-data] (binding [*ignore-maybe* false]
-                                                                     (-> schema query-selection->sql))]
-                              [(conj statements (if (empty? statement)
-                                                  (format
-                                                    "count(distinct %s._eid) as %s"
-                                                    etable t)
-                                                  (format
-                                                    "count(distinct case when %s then %s._eid end) as %s"
-                                                    statement etable t)))
-                               (if statement-data (into data statement-data)
-                                 data)]))
-                          [[] []]
-                          counted)
-                        query (as->
-                                (format
-                                  "select %s._eid as parent_id, %s\nfrom %s"
-                                  as (str/join ", " count-selections) from)
-                                query
-                                ;;
-                                (str query \newline
-                                     (format "group by %s._eid" as))
-                                (into [query] data))
-                        _ (log/tracef
-                            "[%s] Sending aggregate query:\n%s"
-                            table (first query))
-                        result (postgres/execute! con query *return-type*)]
-                    (reduce
-                      (fn [r {:keys [parent_id] :as data}]
-                        (assoc r parent_id {:_count (dissoc data :parent_id)}))
-                      nil
-                      result)))))
+                  (cond-> result
+                    counts (deep-merge @counts)
+                    numerics (deep-merge @numerics)))))
             (process-root [_ location]
               (let [[_ {:keys [entity/table fields 
                                decoders recursions entity/as args]
@@ -1836,11 +1858,11 @@
                                                                 con
                                                                 [root-query]
                                                                 *return-type*))))})
-                    expected-aggregate (pull-aggregates schema nil)
+                    expected-aggregate (pull-aggregates nil location)
                     start-result (cond-> @expected-start-result
                                    expected-aggregate
                                    (update-in [::aggregates [::ROOT]] merge
-                                             @expected-aggregate))]
+                                              @expected-aggregate))]
                 (maybe-pull-children start-result location)))
             ;;
             (process-related [result location]
@@ -1852,7 +1874,7 @@
                             as :entity/as
                             ftable :from/table
                             cardinality :type
-                            :as current-schema}] (zip/node location)
+                            :as schema}] (zip/node location)
                     parents (keys (get result ftable))
                     cursor (location->cursor location)]
                 (log/tracef
@@ -1865,7 +1887,7 @@
 
                                 ;;
                                 query (pull-query
-                                        (update current-schema :args dissoc :_limit :_offset)
+                                        (update schema :args dissoc :_limit :_offset)
                                         (get found-records (keyword as)) parents)
                                 _ (log/tracef "[%s] Sending pull query:\n%s" table query)
                                 relations (cond->
@@ -1906,7 +1928,7 @@
                               result'
                               relations)))
                         ;;
-                        expected-aggregate (pull-aggregates current-schema parents)]
+                        expected-aggregate (pull-aggregates result location)]
                     (letfn [(add-aggregate [result]
                               (update-in result [::aggregates cursor] merge @expected-aggregate))]
 
