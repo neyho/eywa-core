@@ -353,7 +353,7 @@
                                      fields))
                                  fields
                                  to-relations)
-                               ;;
+                               ;; This was used when _agg wasn't defined
                                (if (empty? to-relations) fields
                                  (cond->
                                    (assoc fields :_count {:type (entity->count-object entity)})

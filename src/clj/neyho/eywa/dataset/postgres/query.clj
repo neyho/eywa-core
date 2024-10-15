@@ -826,6 +826,7 @@
             fields :fields
             modifier :audit/who
             modified-on :audit/when
+            _agg :_agg
             table :table} (deployed-schema-entity entity-id)
            selection (flatten-selection selection)
            ;;
@@ -966,7 +967,8 @@
                                         (contains? args rkey)
                                         (contains? objects rkey)
                                         (contains? order-by rkey)
-                                        (contains? distinct-on rkey))
+                                        (contains? distinct-on rkey)
+                                        (contains? _agg rkey))
                                     (reduce
                                       (fn [final {:keys [selections alias]
                                                   new-args :args}]
@@ -1046,7 +1048,8 @@
                                               :type :one}))
                                     relations
                                     recursions))))
-           aggregate-keys [:_count :_min :_max :_avg :_sum]]
+           aggregate-keys [:_count :_min :_max :_avg :_sum :_agg]]
+       ; (println "FOI: " (get-in schema [:_agg 0 :selections]))
        (as-> (hash-map
                :entity/as (str (gensym "data_"))
                :entity/table table
@@ -1069,41 +1072,11 @@
          ;;
          (if-not (some #(contains? selection %) aggregate-keys)
            schema
-           #_(reduce
-             (fn [schema {counts :selections}]
-               (reduce-kv
-                 (fn [schema relation specifics]
-                   (reduce
-                     (fn [schema {:keys [alias args]}]
-                       (let [rkey (keyword (name relation))
-                             rdata (get relations rkey)
-                             akey (or alias rkey)
-                             relation (->
-                                        rdata 
-                                        (dissoc :count)
-                                        (dissoc :relations)
-                                        (clojure.set/rename-keys {:table :relation/table})
-                                        (assoc 
-                                          :pinned true
-                                          :entity/table (:to/table rdata)
-                                          :relation/as (str (gensym "link_"))
-                                          :entity/as (str (gensym "data_"))))]
-                         ;; Use original relation
-                         (assoc-in schema [:count akey]
-                                   ;; and if there are arguments in _counted
-                                   ;; than use that arguments, otherwise use
-                                   ;; args from narrowed relation select
-                                   (cond-> relation 
-                                     args (assoc :args (clojure.set/rename-keys args {:_where :_maybe}))))))
-                     schema
-                     specifics))
-                 schema
-                 counts))
-             schema
-             (:_count selection))
            (reduce-kv
              (fn [schema operation fields]
-               (if (= :_count operation)
+               (case operation
+                 ;;
+                 :_count
                  (reduce
                    (fn [schema {operations :selections}]
                      (reduce-kv
@@ -1132,6 +1105,46 @@
                                            args (assoc :args (clojure.set/rename-keys args {:_where :_maybe}))))))
                            schema
                            specifics))
+                       schema
+                       operations))
+                   schema
+                   fields)
+                 ;;
+                 :_agg
+                 (reduce
+                   (fn [schema {operations :selections}]
+                     (reduce-kv
+                       (fn [schema relation [{specifics :selections}]]
+                         (let [rkey (keyword (name relation))
+                               rdata (get relations rkey)
+                               relation (->
+                                          rdata 
+                                          (dissoc :_agg)
+                                          (dissoc :relations)
+                                          (clojure.set/rename-keys {:table :relation/table})
+                                          (assoc 
+                                            :pinned true
+                                            :entity/table (:to/table rdata)
+                                            :relation/as (str (gensym "link_"))
+                                            :entity/as (str (gensym "data_"))))
+                               schema (assoc-in schema [:_agg rkey] relation)]
+                           (reduce-kv
+                             (fn [schema operation [{aggregates :selections}]]
+                               (let [operation (keyword (name operation))]
+                                 (reduce-kv
+                                   (fn [schema fkey selections]
+                                     (let [fkey (keyword (name fkey))]
+                                       (reduce
+                                         (fn [schema {:keys [alias args]}]
+                                           (let [field (or alias fkey)]
+                                             (assoc-in schema [:_agg rkey operation field]
+                                                       [fkey (when args {:args args})])))
+                                         schema
+                                         selections)))
+                                   schema
+                                   aggregates)))
+                             schema
+                             specifics)))
                        schema
                        operations))
                    schema
