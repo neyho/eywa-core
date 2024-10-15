@@ -219,6 +219,7 @@
                   references (filter reference-attribute? attributes)
                   entity-relations (core/focus-entity-relations model entity)
                   to-relations (filter #(not-empty (:to-label %)) entity-relations)]
+              (when (not-empty numerics) (println "ENTITY: " ename))
               (if (nil? ename) r
                 (cond->
                   (assoc 
@@ -346,7 +347,14 @@
                                  to-relations)
                                ;;
                                (if (empty? to-relations) fields
-                                 (reduce
+                                 (cond->
+                                   (assoc fields :_count {:type (entity->count-object entity)})
+                                   (not-empty numerics) (assoc
+                                                          :_max {:type (entity->numeric-enum entity)}
+                                                          :_min {:type (entity->numeric-enum entity)}
+                                                          :_avg {:type (entity->numeric-enum entity)}
+                                                          :_sum {:type (entity->numeric-enum entity)}))
+                                 #_(reduce
                                    (fn [fields {:keys [to]}]
                                      (if (has-numerics? to)
                                        (assoc fields
@@ -793,35 +801,7 @@
                               (catch Throwable e
                                 (log/error e  "Couldn't search dataset")
                                 (throw e))))}
-                         args (assoc :args args)))
-                     ;; AGGREGATE
-                     ; (csk/->camelCaseKeyword (str "aggregate " ename))
-                     ; (let [args (reduce
-                     ;              (fn [r {atype :type aname :name :as attribute}]
-                     ;                (if (ignored-field-type? atype) r 
-                     ;                  (assoc r (keyword (normalize-name aname)) 
-                     ;                         (attribute->type entity attribute))))
-                     ;              {:_where {:type (entity->search-operator entity)}
-                     ;               :euuid {:type :UUIDQueryOperator}}
-                     ;              search-arguments)]
-                     ;   (cond->
-                     ;     {:type (entity->aggregate-object entity) 
-                     ;      :resolve 
-                     ;      (fn aggregate [context data _]
-                     ;        (try
-                     ;          (log-query context)
-                     ;          (let [selection (executor/selections-tree context)]
-                     ;            (log/debugf
-                     ;              "Aggregating entity\n%s"
-                     ;              {:entity ename 
-                     ;               :data data
-                     ;               :selection selection})
-                     ;            (aggregate-entity *db* euuid data selection))
-                     ;          (catch Throwable e
-                     ;            (log/errorf e  "Couldn't resolve AGGREGATE")
-                     ;            (throw e))))}
-                     ;     args (assoc :args args)))
-                     )
+                         args (assoc :args args))))
               ;; Add recursive getters
               (not-empty recursions)
               (as-> qs
@@ -880,35 +860,7 @@
                                (catch Throwable e
                                  (log/error e "Couldn't resolve SEARCH TREE")
                                  (throw e))))}
-                          args (assoc :args args)))
-                      ;;
-                      ; (csk/->camelCaseKeyword (str "aggregate " ename " tree by " l))
-                      ; (let [args (reduce
-                      ;              (fn [r {atype :type aname :name :as attribute}]
-                      ;                (if (ignored-field-type? atype) r 
-                      ;                  (assoc r (keyword (normalize-name aname)) 
-                      ;                         (attribute->type entity attribute))))
-                      ;              {:_where {:type (entity->search-operator entity)}
-                      ;               :euuid {:type :UUIDQueryOperator}}
-                      ;              search-arguments)]
-                      ;   (cond->
-                      ;     {:type (entity->aggregate-object entity) 
-                      ;      :resolve 
-                      ;      (fn tree-aggregator [context data _]
-                      ;        (try
-                      ;          (log-query context)
-                      ;          (let [selection (executor/selections-tree context)]
-                      ;            (log/debugf
-                      ;              "Aggregating entity\n%s"
-                      ;              {:entity ename 
-                      ;               :data data
-                      ;               :selection selection})
-                      ;            (aggregate-entity-tree *db* euuid (keyword (normalize-name l)) data selection))
-                      ;          (catch Throwable e
-                      ;            (log/error e "Coulnd't resolve AGGREGATE")
-                      ;            (throw e))))}
-                      ;     args (assoc :args args)))
-                      ))
+                          args (assoc :args args)))))
                   qs
                   recursions)))))
         {}

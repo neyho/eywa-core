@@ -1141,12 +1141,14 @@
                    (fn [schema {:keys [selections]}]
                      (reduce-kv
                        (fn [schema fkey selections]
-                         (reduce
-                           (fn [schema {:keys [alias args]}]
-                             (assoc-in schema [operation (or alias (keyword (name fkey)))]
-                                       (when args {:args args})))
-                           schema
-                           selections))
+                         (let [fkey (keyword (name fkey))]
+                           (reduce
+                             (fn [schema {:keys [alias args]}]
+                               (let [field (or alias fkey)]
+                                 (assoc-in schema [operation field]
+                                           [fkey (when args {:args args})])))
+                             schema
+                             selections)))
                        schema
                        selections))
                    schema
@@ -1709,8 +1711,7 @@
                        (str ras \. falias \, ras \. talias))
            (when-not (empty? fields) (str "," (extend-fields (keys fields) as)))
            \newline "from " from
-           \newline "where "
-           (when where (str where))
+           (when where (str "\nwhere " where))
            (when modifiers (str \newline modifiers)))]
      ((fnil into []) maybe-data data))))
 
@@ -1746,11 +1747,14 @@
                     (zip/right current-location)))))
             (pull-counts [result location]
               (let [[_ {as :entity/as
-                        ftable :from/table
                         counted :_count
                         :as schema}] (zip/node location)
-                    parents (keys (get result ftable))]
-                (if-not (some #(contains? schema %) [:_count :_max :_min :_avg :_sum]) nil
+                    parents (when-let [parent (zip/up location)]
+                              (keys (get result (-> parent
+                                                    zip/node
+                                                    second
+                                                    :from/table))))]
+                (if-not (contains? schema :_count) nil
                   (future
                     (let [schema (as-> schema schema
                                    (assoc schema :relations
@@ -1762,7 +1766,7 @@
                                                 (assoc-in [k :args :_join] :LEFT)))
                                             (:_count schema)
                                             (:_count schema)))
-                                   (dissoc schema :_count)
+                                   (dissoc schema :_count :fields)
                                    (if-not parents schema
                                      (update schema :args assoc-in [:_eid :_in] (long-array parents))))
                           ; _ (def schema schema)
@@ -1788,22 +1792,24 @@
                           ;;
                           [where where-data]  (search-stack-args schema)
                           ;;
-                          [query-string :as query] (as->
-                                  (format
-                                    "select %s._eid as parent_id, %s\nfrom %s"
-                                    as (str/join ", " count-selections) from)
-                                  query
-                                  ;;
-                                  (if-not where query
-                                    (str query \newline
-                                         (str "where " where)))
-                                  ;;
-                                  (str query \newline
-                                       (format "group by %s._eid" as))
-                                  ;;
-                                  (reduce into [query] [from-data where-data]))
+                          [query-string :as query]
+                          (as->
+                            (format
+                              "select %s._eid as parent_id, %s\nfrom %s"
+                              as (str/join ", " count-selections) from)
+                            query
+                            ;;
+                            (if-not where query
+                              (str query \newline
+                                   (str "where " where)))
+                            ;;
+                            (str query \newline
+                                 (format "group by %s._eid" as))
+                            ;;
+                            (reduce into [query] (remove nil? [from-data where-data])))
+                          ;;
                           _ (log/tracef
-                              "[%s] Sending aggregate query:\n%s"
+                              "[%s] Sending counts aggregate query:\n%s"
                               table query-string)
                           result (postgres/execute! con query *return-type*)]
                       (reduce
@@ -1813,19 +1819,99 @@
                         result))))))
             (pull-numerics
               [result location]
-              nil)
-            (pull-aggregates
-              [result location]
-              (let [counts (pull-counts result location)
-                    numerics (pull-numerics result location)]
-                (future
-                  (cond-> result
-                    counts (deep-merge @counts)
-                    numerics (deep-merge @numerics)))))
+              (let [[target {as :entity/as
+                             ftable :from/table
+                             :as schema}] (zip/node location)
+                    schema (dissoc schema :fields)
+                    ; parents (when-let [parent (zip/up location)]
+                    ;           (keys (get result (-> parent
+                    ;                                 zip/node
+                    ;                                 second
+                    ;                                 :from/table))))
+                    parents (keys (get result ftable))
+                    numerics (select-keys schema [:_min :_max :_avg :_sum])]
+                (cond
+                  (empty? numerics) nil
+                  (empty? parents) nil
+                  :else
+                  (future
+                    (let [{pas :entity/as
+                           :as parent-schema}
+                          (-> location
+                              zip/up
+                              zip/node
+                              second
+                              (update :relations select-keys [target])
+                              (assoc-in [:relations target :pinned] true)
+                              (assoc-in [:relations target :args :_join] :LEFT)
+                              (dissoc :fields)
+                              (update :args assoc-in [:_eid :_in] (long-array parents)))
+                          ;;
+                          [numerics-selections numerics-data]
+                          (reduce-kv
+                            (fn [result operation fields]
+                              (reduce-kv
+                                (fn [[statements data] target-key [field-key field-args]]
+                                  (let [[[[_ [statement]]] statement-data]
+                                        (binding [*ignore-maybe* false]
+                                          (-> schema
+                                              (merge field-args)
+                                              query-selection->sql))]
+                                    [(conj statements
+                                           (format
+                                             "%s(%s) as %s$%s"
+                                             (case operation
+                                               :_min "min"
+                                               :_max "max"
+                                               :_avg "avg"
+                                               :_sum "sum")
+                                             (if (empty? statement)
+                                               (str as "." (name field-key))
+                                               (str "case when " statement
+                                                    " then " (str as "." (name field-key))
+                                                    " else null end")) 
+                                             (name operation) (name target-key)))
+                                     (if-not statement-data data
+                                       (into data statement-data))]))
+                                result
+                                fields))
+                            [[] []]
+                            numerics)
+                          [_ from] (search-stack-from parent-schema)
+                          [where where-data] (search-stack-args parent-schema)
+                          [query-string :as query]
+                          (as->
+                            (format
+                              "select %s._eid as parent_id, %s\nfrom %s"
+                              pas (str/join ", " numerics-selections) from)
+                            query
+                            ;;
+                            (if-not where query
+                              (str query \newline
+                                   (str "where " where)))
+                            ;;
+                            (str query \newline
+                                 (format "group by %s._eid" pas))
+                            ;;
+                            (reduce into [query] (remove nil? [numerics-data where-data])))
+                          _ (log/tracef
+                              "[%s] Sending numerics aggregate query:\n%s"
+                              table query-string)
+                          result (postgres/execute! con query *return-type*)]
+                      (reduce
+                        (fn [r {:keys [parent_id] :as data}]
+                          (assoc r parent_id
+                                 (reduce-kv
+                                   (fn [r k v]
+                                     (let [[operation k] (str/split (name k) #"\$")]
+                                       (assoc-in r [(keyword operation) (keyword k)] v)))
+                                   nil
+                                   (dissoc data :parent_id))))
+                        nil
+                        result))))))
             (process-root [_ location]
               (let [[_ {:keys [entity/table fields 
-                               decoders recursions entity/as args]
-                        :as schema}] (zip/node location)
+                               decoders recursions entity/as args]}] (zip/node location)
                     expected-start-result (future
                                             {table (apply array-map
                                                           (reduce
@@ -1858,12 +1944,14 @@
                                                                 con
                                                                 [root-query]
                                                                 *return-type*))))})
-                    expected-aggregate (pull-aggregates nil location)
-                    start-result (cond-> @expected-start-result
-                                   expected-aggregate
-                                   (update-in [::aggregates [::ROOT]] merge
-                                              @expected-aggregate))]
-                (maybe-pull-children start-result location)))
+                    counts (pull-counts nil location)
+                    numerics (pull-numerics nil location)]
+                (maybe-pull-children
+                  (cond->
+                    @expected-start-result
+                    counts (update-in [::counts [::ROOT]] merge @counts)
+                    numerics (update-in [::numerics [:ROOT]] merge @numerics))
+                  location)))
             ;;
             (process-related [result location]
               (let [[field {etable :entity/table
@@ -1889,7 +1977,9 @@
                                 query (pull-query
                                         (update schema :args dissoc :_limit :_offset)
                                         (get found-records (keyword as)) parents)
-                                _ (log/tracef "[%s] Sending pull query:\n%s" table query)
+                                _ (log/tracef
+                                    "[%s] Sending pull query:\n%s\n%s"
+                                    table (first query) (rest query))
                                 relations (cond->
                                             (postgres/execute! con query *return-type*)
                                             ;;
@@ -1928,13 +2018,12 @@
                               result'
                               relations)))
                         ;;
-                        expected-aggregate (pull-aggregates result location)]
-                    (letfn [(add-aggregate [result]
-                              (update-in result [::aggregates cursor] merge @expected-aggregate))]
-
-                      (cond->
-                        (maybe-pull-children @expected-result location)
-                        expected-aggregate add-aggregate)))
+                        expected-counts (pull-counts result location)
+                        expected-numerics (pull-numerics result location)]
+                    (cond->
+                      (maybe-pull-children @expected-result location)
+                      expected-counts (update-in [::counts cursor] merge @expected-counts)
+                      expected-numerics (update-in [::numerics cursor] merge @expected-numerics)))
                   (do
                     (log/tracef
                       "[%s] Couldn't find parents for: %s"
@@ -1951,7 +2040,7 @@
 
 
 (defn construct-response
-  [{:keys [entity/table recursions] :as schema} {:keys [::aggregates] :as db} found-records]
+  [{:keys [entity/table recursions] :as schema} {:keys [::counts ::numerics] :as db} found-records]
   ; (println "DB:\n" (pprint db))
   (letfn [(reference? [value]
             (vector? value))
@@ -1964,18 +2053,22 @@
              (keys (:fields schema))
              (keys (:relations schema))
              recursions))
-          (get-aggregate [cursor parent]
-            (get-in aggregates [cursor parent]))
+          (get-counts [cursor parent]
+            (get-in counts [cursor parent]))
+          (get-numerics [cursor parent]
+            (get-in numerics [cursor parent]))
           (pull-reference [[table id] schema cursor]
             (let [data (merge
                          (select-keys (get-in db [table id]) (narrow schema))
-                         (get-aggregate cursor id))
+                         (get-counts cursor id))
                   data' (reduce-kv
                          (fn [data' k v]
                            (cond
                              (list-reference? v)
                              (assoc data' k (mapv
-                                              #(pull-reference % (get-in schema [:relations k]) (conj cursor k))
+                                              #(merge
+                                                 (pull-reference % (get-in schema [:relations k]) (conj cursor k))
+                                                 (get-numerics (conj cursor k) id))
                                               (distinct v)))
                              ;;
                              (and (recursions k) (not= v id) (not= v [table id]))
@@ -2002,7 +2095,7 @@
                   (fn [id]
                     (merge
                       (pull-reference [table id] schema [::ROOT])
-                      (get-aggregate [::ROOT] id)))
+                      (get-counts [::ROOT] id)))
                   (reduce
                     (fn [r root]
                       (if (get-in db [table root])
@@ -2164,44 +2257,29 @@
    ; (def entity-id entity-id)
    ; (def entity-id entity-id)
    ; (def args args)
-   ; (def selection selection)
+   (def selection selection)
    (comment
      ; (def entity-id #uuid "edcab1db-ee6f-4744-bfea-447828893223")
+     ; Dataset version
      (def entity-id #uuid "d922edda-f8de-486a-8407-e62ad67bf44c")
+     ; Dataset entity
+     (def entity-id #uuid "a0d304a7-afe3-4d9f-a2e1-35e174bb5d5b")
      (def args nil)
      (def selection
-       #:DatasetVersion{:name [nil],
-                        :_count
-                        [{:selections
-                          #:DatasetVersionCount{:entities
-                                                [{:alias :test1,
-                                                  :args
-                                                  {:_where
-                                                   {:name {:_ilike "%user%"}}}}
-                                                 {:alias :test2,
-                                                  :args
-                                                  {:_where
-                                                   {:name
-                                                    {:_ilike
-                                                     "%dataset%"}}}}]}}],
-                        :entities
-                        [{:alias :test3,
-                          :args
-                          {:_join :LEFT,
-                           :_limit 1,
-                           :_maybe {:name {:_ilike "%user%"}}},
-                          :selections
-                          #:DatasetEntity{:name [nil],
-                                          :attributes
-                                          [{:selections
-                                            #:DatasetEntityAttribute{:name
-                                                                     [nil]}}],
-                                          :_count
-                                          [{:selections
-                                            #:DatasetEntityCount{:attributes
-                                                                 [nil],
-                                                                 :dataset_versions
-                                                                 [nil]}}]}}]})
+       #:DatasetEntity{:_eid [nil]
+                       :name [nil],
+                       :attributes
+                       [{:selections
+                         #:DatasetEntityAttribute{:euuid [nil],
+                                                  :seq [nil],
+                                                  :_avg
+                                                  [{:selections
+                                                    #:DatasetEntityAttributeNumerics{:seq
+                                                                                     [nil]}}],
+                                                  :_max
+                                                  [{:selections
+                                                    #:DatasetEntityAttributeNumerics{:seq
+                                                                                     [nil]}}]}}]})
      (def selection
        #:DatasetVersion{:name [nil],
                         :_count [nil],
