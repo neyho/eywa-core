@@ -1,6 +1,6 @@
 {
-  "~:euuid": "~u8f556f8d-e664-493e-a57c-361c1781abb8",
-  "~:name": "0.795",
+  "~:euuid": "~u7c9981ed-8494-47b0-9580-adc2951819f9",
+  "~:name": "0.8",
   "~:dataset": {
     "~:euuid": "~uc5c85417-0aef-4c44-9e86-8090647d6378",
     "~:name": "IAM"
@@ -118,8 +118,8 @@
               "~:x": -798.9875,
               "~:y": 873.7124999999999
             },
-            "~:width": 142.78125,
-            "~:height": 202,
+            "~:width": 127.859375,
+            "~:height": 186,
             "~:name": "User",
             "~:attributes": [
               {
@@ -223,17 +223,6 @@
                   "~:name": "Priority",
                   "~:constraint": "optional",
                   "~:type": "int",
-                  "~:configuration": null,
-                  "~:active": true
-                }
-              },
-              {
-                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
-                  "~:euuid": "~u9d992b48-74f4-4705-bf04-84d3c4dec0e8",
-                  "~:seq": 7,
-                  "~:name": "Out of office",
-                  "~:constraint": "optional",
-                  "~:type": "boolean",
                   "~:configuration": null,
                   "~:active": true
                 }
@@ -688,31 +677,9 @@
             "~:attributes": [
               {
                 "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
-                  "~:euuid": "~u2246456f-469a-41d6-858d-5fe0691f81b5",
+                  "~:euuid": "~u14b41703-e9fd-46ba-b9c6-7214b1116983",
                   "~:seq": 0,
-                  "~:name": "Nickname",
-                  "~:constraint": "optional",
-                  "~:type": "string",
-                  "~:configuration": null,
-                  "~:active": true
-                }
-              },
-              {
-                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
-                  "~:euuid": "~u4a0e0f4b-9274-4f7b-9472-afbdbc12bd28",
-                  "~:seq": 1,
-                  "~:name": "Family Name",
-                  "~:constraint": "optional",
-                  "~:type": "string",
-                  "~:configuration": null,
-                  "~:active": true
-                }
-              },
-              {
-                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
-                  "~:euuid": "~u1ab40a3f-ae86-474b-8c5b-51d4114bc625",
-                  "~:seq": 2,
-                  "~:name": "Preferred Username",
+                  "~:name": "Given Name",
                   "~:constraint": "optional",
                   "~:type": "string",
                   "~:configuration": null,
@@ -722,7 +689,7 @@
               {
                 "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
                   "~:euuid": "~u1fd3ee5c-f661-47ed-a960-d61ea2896951",
-                  "~:seq": 3,
+                  "~:seq": 1,
                   "~:name": "Middle Name",
                   "~:constraint": "optional",
                   "~:type": "string",
@@ -732,8 +699,52 @@
               },
               {
                 "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
-                  "~:euuid": "~udeb5c0ce-9dc3-4573-89e9-b1f8df1c1e0b",
+                  "~:euuid": "~u4a0e0f4b-9274-4f7b-9472-afbdbc12bd28",
+                  "~:seq": 2,
+                  "~:name": "Family Name",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u2246456f-469a-41d6-858d-5fe0691f81b5",
+                  "~:seq": 3,
+                  "~:name": "Nickname",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~ua0249226-bae2-4eae-a23f-b1b947b2e4a7",
                   "~:seq": 4,
+                  "~:name": "Name",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~u1ab40a3f-ae86-474b-8c5b-51d4114bc625",
+                  "~:seq": 5,
+                  "~:name": "Preferred Username",
+                  "~:constraint": "optional",
+                  "~:type": "string",
+                  "~:configuration": null,
+                  "~:active": true
+                }
+              },
+              {
+                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
+                  "~:euuid": "~udeb5c0ce-9dc3-4573-89e9-b1f8df1c1e0b",
+                  "~:seq": 6,
                   "~:name": "ZoneInfo",
                   "~:constraint": "optional",
                   "~:type": "string",
@@ -744,7 +755,7 @@
               {
                 "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
                   "~:euuid": "~u5af7abda-eca9-4d7c-bd50-aa3d61ecf6eb",
-                  "~:seq": 5,
+                  "~:seq": 7,
                   "~:name": "Address",
                   "~:constraint": "optional",
                   "~:type": "json",
@@ -755,7 +766,7 @@
               {
                 "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
                   "~:euuid": "~ub4dedb93-860a-403f-b9ec-09225232c952",
-                  "~:seq": 6,
+                  "~:seq": 8,
                   "~:name": "Email Verified",
                   "~:constraint": "optional",
                   "~:type": "boolean",
@@ -766,7 +777,7 @@
               {
                 "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
                   "~:euuid": "~ua668bde5-1bca-4ae5-9660-d8c5245237c0",
-                  "~:seq": 7,
+                  "~:seq": 9,
                   "~:name": "Profile",
                   "~:constraint": "optional",
                   "~:type": "string",
@@ -777,30 +788,8 @@
               {
                 "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
                   "~:euuid": "~u4747aa14-d094-4d6b-8a9e-392c462708a0",
-                  "~:seq": 8,
-                  "~:name": "Phone Number",
-                  "~:constraint": "optional",
-                  "~:type": "string",
-                  "~:configuration": null,
-                  "~:active": true
-                }
-              },
-              {
-                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
-                  "~:euuid": "~ua0249226-bae2-4eae-a23f-b1b947b2e4a7",
-                  "~:seq": 9,
-                  "~:name": "Name",
-                  "~:constraint": "optional",
-                  "~:type": "string",
-                  "~:configuration": null,
-                  "~:active": true
-                }
-              },
-              {
-                "~#neyho.eywa.dataset.core.ERDEntityAttribute": {
-                  "~:euuid": "~u14b41703-e9fd-46ba-b9c6-7214b1116983",
                   "~:seq": 10,
-                  "~:name": "Given Name",
+                  "~:name": "Phone Number",
                   "~:constraint": "optional",
                   "~:type": "string",
                   "~:configuration": null,
@@ -835,8 +824,21 @@
                   "~:seq": 13,
                   "~:name": "Gender",
                   "~:constraint": "optional",
-                  "~:type": "string",
-                  "~:configuration": null,
+                  "~:type": "enum",
+                  "~:configuration": {
+                    "~:values": [
+                      {
+                        "~:euuid": "~udbdf4a1d-2d0a-4084-8821-52ecc231c410",
+                        "~:active": true,
+                        "~:name": "male"
+                      },
+                      {
+                        "~:euuid": "~u59934a5c-f584-45fc-9975-f75666d7343e",
+                        "~:active": true,
+                        "~:name": "female"
+                      }
+                    ]
+                  },
                   "~:active": true
                 }
               },
@@ -1279,8 +1281,8 @@
             "~:euuid": "~uba88f08f-fd6f-413a-bab4-61730f0b6fa5",
             "~:from": "~u226f54b0-6af0-4c70-b090-d4fdf2579294",
             "~:to": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
-            "~:from-label": "read attributes",
-            "~:to-label": "read roles",
+            "~:from-label": "deny read attributes",
+            "~:to-label": "deny read roles",
             "~:cardinality": "m2m",
             "~:path": {
               "~#neyho.eywa.modeling.core.Path": {
@@ -1566,8 +1568,8 @@
             "~:euuid": "~u6aabb58b-6461-433e-a75d-26c094293e17",
             "~:from": "~u226f54b0-6af0-4c70-b090-d4fdf2579294",
             "~:to": "~u4778f7b1-f946-4cb2-b356-b9cb336b4087",
-            "~:from-label": "write attributes",
-            "~:to-label": "write roles",
+            "~:from-label": "deny write attributes",
+            "~:to-label": "deny write roles",
             "~:cardinality": "m2m",
             "~:path": {
               "~#neyho.eywa.modeling.core.Path": {
@@ -1696,5 +1698,5 @@
       }
     }
   },
-  "~:deployed": true
+  "~:deployed": false
 }

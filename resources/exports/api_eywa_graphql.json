@@ -30,6 +30,56 @@
       "euuid": "2875edd3-50bc-4e0c-b732-ebe0d7686bbd",
       "name": "dataset:subscription",
       "description": "User can subscribe to dataset changes by using GraphQL \"refreshedGlobalDataset\" subscription endpoint"
+    },
+    {
+      "euuid": "d9a948e0-e9ad-40ea-8f56-d3199b90a7ad",
+      "name": "robotics.location:add",
+      "description": "Allows user to add robotics location"
+    },
+    {
+      "euuid": "6dc74437-5a88-4fc2-b35e-1087cd9b8c62",
+      "name": "robotics.git:remove",
+      "description": "Allows user to remove GIT repository"
+    },
+    {
+      "euuid": "830fa207-749e-4b99-868e-818d29bf944b",
+      "name": "robotics.location:remove",
+      "description": "Allows user to remove robotics location"
+    },
+    {
+      "euuid": "72ce7ff6-2ca0-476c-bfc0-a6ac99886ccf",
+      "name": "robotics.robot:remove",
+      "description": "Allows user to remove robot"
+    },
+    {
+      "euuid": "3f9ca42f-dc4a-40c3-bc7f-41f5f862ab75",
+      "name": "robotics.git:add",
+      "description": "Allows user to add new git repository"
+    },
+    {
+      "euuid": "ae4e53ea-3a26-4416-ac02-19f8a939af6e",
+      "name": "robotics.robot:add",
+      "description": "User can add new robot"
+    },
+    {
+      "euuid": "6c4c1092-1856-450e-864f-6a50dfd925da",
+      "name": "robotics.queue:remove",
+      "description": "Allows user to remove tasks from robot queue"
+    },
+    {
+      "euuid": "a7ffb4bf-997f-4be4-aa85-247fd0cf7d2f",
+      "name": "dataset:save",
+      "description": "Allows user to save new dataset version"
+    },
+    {
+      "euuid": "039deca3-9661-4cdf-a99f-0203668adee7",
+      "name": "dataset:load",
+      "description": "Allows user to view saved datasets"
+    },
+    {
+      "euuid": "66e06093-2ef7-45d2-a645-7da3d717a2fe",
+      "name": "dataset:graphiql",
+      "description": "Allows user to introspect GraphQL schema"
     }
   ]
 }

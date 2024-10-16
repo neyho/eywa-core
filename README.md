@@ -60,7 +60,7 @@ run
 eywa core gen-config
 ```
 
-Since configuration file will contain credentials data in plaintext it is recommended to add
+Since configuration file will contain confidential data in plaintext it is recommended to add
 ```
 eywa.json
 eywa.edn
@@ -89,7 +89,7 @@ List of available versions. '*' installed, '-' not installed
 ```
 To install some version run
 ```
-eywa core -s 0.1.4
+eywa core -s 0.2.0
 ```
 Ok EYWA Core server is installed, now we need to initialize EYWA IAM and Datacraft. So we should run:
 ```
@@ -105,7 +105,7 @@ Now run
 ```
 eywa core start
 ```
-And navigate to **http://localhost:8080/eywa/** and login screen should be waiting for you. Use username and
+And navigate to **http://my.eywaonline.com/eywa/** and login screen should be waiting for you. Use username and
 password from previous step to login.
 
 Also there is GraphiQL ui available at http://localhost:8080/graphql/ui . To access it you need to login to EYWA
@@ -120,6 +120,30 @@ If something went wrong or EYWA Core server isn't running as supposed to, run
 eywa core doctor
 ```
 
+
+
+#### CLI
+__eywa__ cli client can connect to EYWA server by running
+```
+eywa connect http://localhost:8080
+```
+You will have to complete device code flow for target user and
+after successfull connection client will use provided tokens to
+interact with EYWA server.
+
+Client also supports executing scripts through
+```
+eywa run -c "py example.py"
+```
+This will encapsulate running script process and by using one of
+supported client libraries script can interact with connected EYWA
+server with authorized EYWA user. The part above
+
+For now we support:
+ * Python - [eywa-client](https://pypi.org/project/eywa-client/)
+ ``` pip install eywa-client```
+ * Javascript - [eywa-reacher-client](https://www.npmjs.com/package/eywa-client)
+ ```npm i eywa-client```
 
 
 #### Development setup
