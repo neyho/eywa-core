@@ -138,7 +138,7 @@ server with authorized EYWA user. The part above
 For now we support:
  * Python - [eywa-client](https://pypi.org/project/eywa-client/)
  ``` pip install eywa-client```
- * Javascript - [eywa-reacher-client](https://www.npmjs.com/package/eywa-client)
+ * Javascript - [eywa-client](https://www.npmjs.com/package/eywa-client)
  ```npm i eywa-client```
 
 
