@@ -105,12 +105,8 @@ Now run
 ```
 eywa core start
 ```
-And navigate to **http://my.eywaonline.com/eywa/** and login screen should be waiting for you. Use username and
+And navigate to **https://my.eywaonline.com/eywa/** and login screen should be waiting for you. Use username and
 password from previous step to login.
-
-Also there is GraphiQL ui available at http://localhost:8080/graphql/ui . To access it you need to login to EYWA
-ui first.
-
 
 To track what is happening open log file at location __~/.eywa/logs/dev.log__
 
