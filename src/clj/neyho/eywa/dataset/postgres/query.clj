@@ -1458,12 +1458,12 @@
                        (let [statement (case cn
                                          :_in (format "%s in (%s)" field' (clojure.string/join "," (repeat (count cv) \?)))
                                          :_not_in (format "%s not in (%s)" field' (clojure.string/join "," (repeat (count cv) \?)))
-                                         :_le (str field' " < ?")
-                                         :_ge (str field' " > ?")
+                                         :_le (str field' " <= ?")
+                                         :_ge (str field' " >= ?")
                                          :_eq (str field' " = ?")
                                          :_neq (str field' " != ?")
-                                         :_lt (str field' " <= ?")
-                                         :_gt (str field' " >= ?")
+                                         :_lt (str field' " < ?")
+                                         :_gt (str field' " > ?")
                                          :_like (str field' " like ?")
                                          :_ilike (str field' " ilike ?")
                                          :_limit (str field' " limit ?")
@@ -1832,7 +1832,7 @@
                         result))))))
             (pull-numerics
               [result location]
-              (let [[target {as :entity/as
+              (let [[_ {as :entity/as
                              ftable :from/table
                              :as schema}] (zip/node location)
                     schema (dissoc schema :fields)
@@ -1842,61 +1842,75 @@
                     ;                                 second
                     ;                                 :from/table))))
                     parents (keys (get result ftable))
-                    numerics (select-keys schema [:_min :_max :_avg :_sum])]
+                    numerics (get schema :_agg)]
                 (cond
                   (empty? numerics) nil
-                  (empty? parents) nil
                   :else
                   (future
-                    (let [{pas :entity/as
-                           :as parent-schema}
-                          (-> location
-                              zip/up
-                              zip/node
-                              second
-                              (update :relations select-keys [target])
-                              (assoc-in [:relations target :pinned] true)
-                              (assoc-in [:relations target :args :_join] :LEFT)
-                              (dissoc :fields)
-                              (update :args assoc-in [:_eid :_in] (long-array parents)))
+                    (let [aggregate-schema (-> schema
+                                               (assoc :relations numerics)
+                                               (dissoc :_agg :_count))
                           ;;
                           [numerics-selections numerics-data]
                           (reduce-kv
-                            (fn [result operation fields]
+                            (fn [result rkey {as :entity/as :as rdata}]
                               (reduce-kv
-                                (fn [[statements data] target-key [field-key field-args]]
-                                  (let [[[[_ [statement]]] statement-data]
-                                        (binding [*ignore-maybe* false]
-                                          (-> schema
-                                              (merge field-args)
-                                              query-selection->sql))]
-                                    [(conj statements
-                                           (format
-                                             "%s(%s) as %s$%s"
-                                             (case operation
-                                               :_min "min"
-                                               :_max "max"
-                                               :_avg "avg"
-                                               :_sum "sum")
-                                             (if (empty? statement)
-                                               (str as "." (name field-key))
-                                               (str "case when " statement
-                                                    " then " (str as "." (name field-key))
-                                                    " else null end")) 
-                                             (name operation) (name target-key)))
-                                     (if-not statement-data data
-                                       (into data statement-data))]))
+                                (fn [result operation definition]
+                                  (reduce-kv
+                                    (fn [[statements data] target-key [field-key field-args]]
+                                      (let [[statement-stack statement-data]
+                                            (binding [*ignore-maybe* false]
+                                              (-> aggregate-schema
+                                                  (get-in [rkey operation])
+                                                  (merge field-args)
+                                                  query-selection->sql))
+                                            j :and
+                                            statement (when (not-empty statement-stack)
+                                                        (str/join
+                                                          " "
+                                                          (map-indexed
+                                                            (fn [idx statement]
+                                                              (if (vector? statement)
+                                                                (let [[j statements] statement
+                                                                      op (str/join
+                                                                           (case j
+                                                                             :or " or "
+                                                                             :and " and "))]
+                                                                  (str
+                                                                    (when-not (zero? idx)
+                                                                      (str op \space))
+                                                                    (str/join op statements)))
+                                                                (str (when-not (zero? idx) j) statement)))
+                                                            statement-stack)))]
+                                        [(conj statements
+                                               (format
+                                                 "%s(%s) as %s$%s$%s"
+                                                 (case operation
+                                                   :_min "min"
+                                                   :_max "max"
+                                                   :_avg "avg"
+                                                   :_sum "sum")
+                                                 (if (empty? statement)
+                                                   (str as "." (name field-key))
+                                                   (str "case when " statement
+                                                        " then " (str as "." (name field-key))
+                                                        " else null end")) 
+                                                 (name rkey) (name operation) (name target-key)))
+                                         (if-not statement-data data
+                                           (into data statement-data))]))
+                                    result
+                                    definition))
                                 result
-                                fields))
+                                (select-keys rdata [:_min :_max :_avg :_sum])))
                             [[] []]
                             numerics)
-                          [_ from] (search-stack-from parent-schema)
-                          [where where-data] (search-stack-args parent-schema)
+                          [_ from] (search-stack-from aggregate-schema)
+                          [where where-data] (search-stack-args aggregate-schema)
                           [query-string :as query]
                           (as->
                             (format
                               "select %s._eid as parent_id, %s\nfrom %s"
-                              pas (str/join ", " numerics-selections) from)
+                              as (str/join ", " numerics-selections) from)
                             query
                             ;;
                             (if-not where query
@@ -1904,7 +1918,7 @@
                                    (str "where " where)))
                             ;;
                             (str query \newline
-                                 (format "group by %s._eid" pas))
+                                 (format "group by %s._eid" as))
                             ;;
                             (reduce into [query] (remove nil? [numerics-data where-data])))
                           _ (log/tracef
@@ -1916,12 +1930,104 @@
                           (assoc r parent_id
                                  (reduce-kv
                                    (fn [r k v]
-                                     (let [[operation k] (str/split (name k) #"\$")]
-                                       (assoc-in r [(keyword operation) (keyword k)] v)))
+                                     (let [[rkey operation k] (str/split (name k) #"\$")]
+                                       (assoc-in r [(keyword rkey) (keyword operation) (keyword k)] v)))
                                    nil
                                    (dissoc data :parent_id))))
                         nil
                         result))))))
+            ; (pull-numerics-old
+            ;   [result location]
+            ;   (let [[target {as :entity/as
+            ;                  ftable :from/table
+            ;                  :as schema}] (zip/node location)
+            ;         schema (dissoc schema :fields)
+            ;         ; parents (when-let [parent (zip/up location)]
+            ;         ;           (keys (get result (-> parent
+            ;         ;                                 zip/node
+            ;         ;                                 second
+            ;         ;                                 :from/table))))
+            ;         parents (keys (get result ftable))
+            ;         numerics (select-keys schema [:_min :_max :_avg :_sum])]
+            ;     (cond
+            ;       (empty? numerics) nil
+            ;       (empty? parents) nil
+            ;       :else
+            ;       (future
+            ;         (let [{pas :entity/as
+            ;                :as parent-schema}
+            ;               (-> location
+            ;                   zip/up
+            ;                   zip/node
+            ;                   second
+            ;                   (update :relations select-keys [target])
+            ;                   (assoc-in [:relations target :pinned] true)
+            ;                   (assoc-in [:relations target :args :_join] :LEFT)
+            ;                   (dissoc :fields)
+            ;                   (update :args assoc-in [:_eid :_in] (long-array parents)))
+            ;               ;;
+            ;               [numerics-selections numerics-data]
+            ;               (reduce-kv
+            ;                 (fn [result operation fields]
+            ;                   (reduce-kv
+            ;                     (fn [[statements data] target-key [field-key field-args]]
+            ;                       (let [[[[_ [statement]]] statement-data]
+            ;                             (binding [*ignore-maybe* false]
+            ;                               (-> schema
+            ;                                   (merge field-args)
+            ;                                   query-selection->sql))]
+            ;                         [(conj statements
+            ;                                (format
+            ;                                  "%s(%s) as %s$%s"
+            ;                                  (case operation
+            ;                                    :_min "min"
+            ;                                    :_max "max"
+            ;                                    :_avg "avg"
+            ;                                    :_sum "sum")
+            ;                                  (if (empty? statement)
+            ;                                    (str as "." (name field-key))
+            ;                                    (str "case when " statement
+            ;                                         " then " (str as "." (name field-key))
+            ;                                         " else null end")) 
+            ;                                  (name operation) (name target-key)))
+            ;                          (if-not statement-data data
+            ;                            (into data statement-data))]))
+            ;                     result
+            ;                     fields))
+            ;                 [[] []]
+            ;                 numerics)
+            ;               [_ from] (search-stack-from parent-schema)
+            ;               [where where-data] (search-stack-args parent-schema)
+            ;               [query-string :as query]
+            ;               (as->
+            ;                 (format
+            ;                   "select %s._eid as parent_id, %s\nfrom %s"
+            ;                   pas (str/join ", " numerics-selections) from)
+            ;                 query
+            ;                 ;;
+            ;                 (if-not where query
+            ;                   (str query \newline
+            ;                        (str "where " where)))
+            ;                 ;;
+            ;                 (str query \newline
+            ;                      (format "group by %s._eid" pas))
+            ;                 ;;
+            ;                 (reduce into [query] (remove nil? [numerics-data where-data])))
+            ;               _ (log/tracef
+            ;                   "[%s] Sending numerics aggregate query:\n%s"
+            ;                   table query-string)
+            ;               result (postgres/execute! con query *return-type*)]
+            ;           (reduce
+            ;             (fn [r {:keys [parent_id] :as data}]
+            ;               (assoc r parent_id
+            ;                      (reduce-kv
+            ;                        (fn [r k v]
+            ;                          (let [[operation k] (str/split (name k) #"\$")]
+            ;                            (assoc-in r [(keyword operation) (keyword k)] v)))
+            ;                        nil
+            ;                        (dissoc data :parent_id))))
+            ;             nil
+            ;             result))))))
             (process-root [_ location]
               (let [[_ {:keys [entity/table fields 
                                decoders recursions entity/as args]}] (zip/node location)
@@ -1963,7 +2069,7 @@
                   (cond->
                     @expected-start-result
                     counts (update-in [::counts [::ROOT]] merge @counts)
-                    numerics (update-in [::numerics [:ROOT]] merge @numerics))
+                    numerics (update-in [::numerics [::ROOT]] merge @numerics))
                   location)))
             ;;
             (process-related [result location]
@@ -2069,19 +2175,19 @@
           (get-counts [cursor parent]
             (get-in counts [cursor parent]))
           (get-numerics [cursor parent]
-            (get-in numerics [cursor parent]))
+            (when-some [data (get-in numerics [cursor parent])]
+              {:_agg data}))
           (pull-reference [[table id] schema cursor]
             (let [data (merge
                          (select-keys (get-in db [table id]) (narrow schema))
-                         (get-counts cursor id))
+                         (get-counts cursor id)
+                         (get-numerics cursor id))
                   data' (reduce-kv
                          (fn [data' k v]
                            (cond
                              (list-reference? v)
                              (assoc data' k (mapv
-                                              #(merge
-                                                 (pull-reference % (get-in schema [:relations k]) (conj cursor k))
-                                                 (get-numerics (conj cursor k) id))
+                                              #(pull-reference % (get-in schema [:relations k]) (conj cursor k))
                                               (distinct v)))
                              ;;
                              (and (recursions k) (not= v id) (not= v [table id]))
@@ -2106,9 +2212,7 @@
                data')))]
     (let [final (mapv
                   (fn [id]
-                    (merge
-                      (pull-reference [table id] schema [::ROOT])
-                      (get-counts [::ROOT] id)))
+                    (pull-reference [table id] schema [::ROOT]))
                   (reduce
                     (fn [r root]
                       (if (get-in db [table root])
