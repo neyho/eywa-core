@@ -49,8 +49,7 @@
 (defn domain+
   ([] (domain+ ""))
   ([path]
-   (if (str/starts-with? env/iam-root-url "http") (str env/iam-root-url path)
-     (str env/iam-protocol "://" env/iam-root-url path))))
+   (str env/iam-root-url path)))
 
 
 

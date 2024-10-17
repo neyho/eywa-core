@@ -501,6 +501,7 @@
    nil
    tmp-rows))
 
+
 (defn store-entity-records
   [tx {:keys [entity constraint] :as analysis}]
   (reduce-kv
@@ -642,7 +643,7 @@
                     (log/tracef
                      "[%s]Adding new recursions %s\n%s"
                      table (apply str bindings) sql)
-                    (jdbc/execute-batch! statement bindings (get postgres/defaults *return-type*))
+                    (future (jdbc/execute-batch! statement bindings (get postgres/defaults *return-type*)))
                     result)
                   (catch Throwable e
                     (log/error
@@ -1831,17 +1832,10 @@
                         nil
                         result))))))
             (pull-numerics
-              [result location]
+              [_ location]
               (let [[_ {as :entity/as
-                             ftable :from/table
                              :as schema}] (zip/node location)
                     schema (dissoc schema :fields)
-                    ; parents (when-let [parent (zip/up location)]
-                    ;           (keys (get result (-> parent
-                    ;                                 zip/node
-                    ;                                 second
-                    ;                                 :from/table))))
-                    parents (keys (get result ftable))
                     numerics (get schema :_agg)]
                 (cond
                   (empty? numerics) nil
@@ -2374,7 +2368,7 @@
    ; (def entity-id entity-id)
    ; (def entity-id entity-id)
    ; (def args args)
-   (def selection selection)
+   ; (def selection selection)
    (comment
      ; (def entity-id #uuid "edcab1db-ee6f-4744-bfea-447828893223")
      ; Dataset version
