@@ -10,7 +10,6 @@
    [buddy.hashers :as hashers]
    [clojure.tools.logging :as log]
    [camel-snake-kebab.core :as csk]
-   [com.walmartlabs.lacinia.resolve :as lacinia.resolve]
    [next.jdbc :as jdbc]
    [next.jdbc.prepare :as p]
    [neyho.eywa.transit :refer [<-transit ->transit]]
@@ -66,7 +65,9 @@
 
 (defn deploy-schema [schema] (reset! _deployed-schema schema))
 
+
 (defn deployed-schema [] @_deployed-schema)
+
 
 (defn deployed-schema-entity [entity-id]
   (if-some [entity (get (deployed-schema) entity-id)]
@@ -78,6 +79,7 @@
        :entity entity-id
        :available (keys (deployed-schema))}))))
 
+
 (defn distribute-fields
   "Given deployed schema fields returns map
   with :field and :reference split."
@@ -88,6 +90,7 @@
        ("user" "group" "role") :reference
        :field))
    (vals fields)))
+
 
 ;; EXPERIMENTAL = NEW DB INSERTION
 (defn tmp-key [] (nano-id 10))
@@ -105,68 +108,69 @@
       :roles [{:selections
                {:euuid nil :name nil :avatar nil}}]})))
 
+
 (defn analyze-data
   ([entity data] (analyze-data entity data true))
   ([entity data stack?]
    (let [schema (deployed-schema)
          find-entity (memoize (fn [entity] (get schema entity)))
          type-mapping (memoize
-                       (fn [{:keys [fields]}]
-                         (reduce-kv
-                          (fn [result _ {:keys [type key]
-                                         ptype :postgres/type}]
-                            (assoc result key (or ptype type)))
-                          {:euuid "uuid"}
-                          fields)))
+                        (fn [{:keys [fields]}]
+                          (reduce-kv
+                            (fn [result _ {:keys [type key]
+                                           ptype :postgres/type}]
+                              (assoc result key (or ptype type)))
+                            {:euuid "uuid"}
+                            fields)))
          reference-mapping (memoize
-                            (fn [entity]
-                              (let [{:keys [fields]} (find-entity entity)]
-                                (reduce
-                                 (fn [result {k :key r :postgres/reference}]
-                                   (if (some? r)
-                                     (assoc result k r)
-                                     result))
-                                 nil
-                                 (vals fields)))))
+                             (fn [entity]
+                               (let [{:keys [fields]} (find-entity entity)]
+                                 (reduce
+                                   (fn [result {k :key r :postgres/reference}]
+                                     (if (some? r)
+                                       (assoc result k r)
+                                       result))
+                                   nil
+                                   (vals fields)))))
          get-constraints (memoize
-                          (fn [entity]
-                            (let [{:keys [fields]
-                                   {:keys [unique]} :constraints} (find-entity entity)]
-                              (if (or (empty? unique) (every? empty? unique))
-                                [[:euuid]]
-                                (conj
-                                 (mapv
-                                  (fn [constraints]
-                                    (mapv (fn [e] (get-in fields [e :key])) constraints))
-                                  unique)
-                                 [:euuid])))))
+                           (fn [entity]
+                             (let [{:keys [fields]
+                                    {:keys [unique]} :constraints} (find-entity entity)]
+                               (if (or (empty? unique) (every? empty? unique))
+                                 [[:euuid]]
+                                 (conj
+                                   (mapv
+                                     (fn [constraints]
+                                       (mapv (fn [e] (get-in fields [e :key])) constraints))
+                                     unique)
+                                   [:euuid])))))
          now (java.util.Date.)]
      (letfn [(get-indexes [data constraints]
                ;; to find out if ID already exists
                ;; first group constraint data
                ;; and remove empty values
                (remove
-                empty?
-                (map
-                 #(select-keys data %)
-                 constraints)))
+                 empty?
+                 (map
+                   #(select-keys data %)
+                   constraints)))
              (get-id [current table indexes]
                ;; then try to find in current
                ;; result if constraint index exists
                ;; for given table
                (or
-                (some
-                 #(get-in current [:index table %])
-                 indexes)
+                 (some
+                   #(get-in current [:index table %])
+                   indexes)
                  ;; If it doesn't than create new temp key
-                (tmp-key)))
+                 (tmp-key)))
              (shallow-snake [data]
                (reduce-kv
-                (fn [r k v]
-                  (if-not k r
-                          (assoc r (csk/->snake_case_keyword k :separator #"[\s\-]") v)))
-                nil
-                data))
+                 (fn [r k v]
+                   (if-not k r
+                     (assoc r (csk/->snake_case_keyword k :separator #"[\s\-]") v)))
+                 nil
+                 data))
              (transform-object
                ([entity-euuid data]
                 (transform-object nil entity-euuid data))
@@ -249,8 +253,7 @@
                              id)
                         constraint-keys (flatten constraints)
                         ;;
-                        {:keys [references-data
-                                resolved-references]}
+                        {:keys [references-data resolved-references]}
                         (reduce-kv
                           (fn [r k v]
                             (if (map? v)
@@ -295,19 +298,20 @@
                         ;;
                         fields-data (if (or
                                           (not-empty references-data)
-                                          (not-empty (apply dissoc fields-data constraint-keys)))
+                                          ;; This part is for removing constraint keys, as in
+                                          ;; if somebody is linking entities, than entities aren't
+                                          ;; actually changed... Version bellow can cause veird behaviour
+                                          ;; when someone actually changes unique attribute. It doesn't
+                                          ;; recognise that as change that modifies row. This is quickfix
+                                          ;; for now
+                                          (not-empty (apply dissoc fields-data [:_eid :euuid]))
+                                          #_(not-empty (apply dissoc fields-data constraint-keys)))
                                       (assoc fields-data
                                              modifier (if (map? *user*)
                                                         (:_eid *user*)
                                                         *user*)
                                              modified-on now)
-                                      fields-data)
-                        ; fields-data (assoc fields-data
-                        ;                    modifier (if (map? *user*)
-                        ;                               (:_eid *user*)
-                        ;                               core/*user*)
-                        ;                    modified-on now)
-                        ]
+                                      fields-data)]
                     (as->
                       ;;
                       (->
@@ -422,76 +426,79 @@
               :entity/euuid entity}
              entity data)))))))
 
+
 (defn pull-references [tx reference-table references]
   (let [table-constraint-mapping
         (reduce-kv
-         (fn [result constraints _]
-           (update result
-                   (set (keys constraints))
-                   (fnil conj [])
-                   constraints))
-         nil
-         references)]
+          (fn [result constraints _]
+            (update result
+                    (set (keys constraints))
+                    (fnil conj [])
+                    constraints))
+          nil
+          references)]
     (reduce-kv
-     (fn [result constraint-keys values]
-       (let [multi? (> (count constraint-keys) 1)
-             pattern (if multi?
-                       (str \( (clojure.string/join ", " (repeat (count constraint-keys) \?)) \))
-                       (str "?"))
+      (fn [result constraint-keys values]
+        (let [multi? (> (count constraint-keys) 1)
+              pattern (if multi?
+                        (str \( (clojure.string/join ", " (repeat (count constraint-keys) \?)) \))
+                        (str "?"))
               ;; order is not guaranteed
-             columns (map name constraint-keys)
-             query (str
-                    "select " (str/join ", " (conj columns "_eid"))
-                    " from " \" reference-table \" " where "
-                    \( (clojure.string/join "," columns) \)
-                    " in (" (clojure.string/join ", " (repeat (count values) pattern)) ")")
-             values' (if multi?
-                       (map (apply juxt constraint-keys) values)
-                       (map #(get % (first constraint-keys)) values))]
-         (log/tracef
-          "[%s]Pulling references %s for values %s\nQuery: %s"
-          reference-table
-          (str/join ", " constraint-keys)
-          (str/join ", " values')
-          query)
-         (let [data (postgres/execute!
-                     tx (into [query] values')
-                     core/*return-type*)
-               data' (reduce
-                      (fn [r d]
-                        (assoc r (dissoc d :_eid) (:_eid d)))
-                      nil
-                      data)]
+              columns (map name constraint-keys)
+              query (str
+                      "select " (str/join ", " (conj columns "_eid"))
+                      " from " \" reference-table \" " where "
+                      \( (clojure.string/join "," columns) \)
+                      " in (" (clojure.string/join ", " (repeat (count values) pattern)) ")")
+              values' (if multi?
+                        (map (apply juxt constraint-keys) values)
+                        (map #(get % (first constraint-keys)) values))]
+          (log/tracef
+            "[%s]Pulling references %s for values %s\nQuery: %s"
+            reference-table
+            (str/join ", " constraint-keys)
+            (str/join ", " values')
+            query)
+          (let [data (postgres/execute!
+                       tx (into [query] values')
+                       core/*return-type*)
+                data' (reduce
+                        (fn [r d]
+                          (assoc r (dissoc d :_eid) (:_eid d)))
+                        nil
+                        data)]
             ; (log/tracef "Normalized reference data\n%s" (pprint data'))
-           (reduce
-            (fn [result constraint-data]
-              (assoc result constraint-data (get data' constraint-data)))
-            result
-            values))))
-     nil
-     table-constraint-mapping)))
+            (reduce
+              (fn [result constraint-data]
+                (assoc result constraint-data (get data' constraint-data)))
+              result
+              values))))
+      nil
+      table-constraint-mapping)))
+
 
 (defn prepare-references
   [tx {:keys [reference] :as analysis}]
   (reduce-kv
-   (fn [analysis reference-table references]
-     (let [pulled-references (pull-references tx reference-table references)]
-       (log/tracef "Pulled references for table: %s\n%s" reference-table (pprint pulled-references))
-       (reduce-kv
-        (fn [analysis constraint value]
-          (let [rows (get-in analysis [:reference reference-table constraint])]
-            (reduce
-             (fn [analysis row]
-               (log/tracef
-                "[%s]Updating row reference %s"
-                row value)
-               (assoc-in analysis (concat [:entity] row) value))
-             analysis
-             rows)))
-        analysis
-        pulled-references)))
-   analysis
-   reference))
+    (fn [analysis reference-table references]
+      (let [pulled-references (pull-references tx reference-table references)]
+        (log/tracef "Pulled references for table: %s\n%s" reference-table (pprint pulled-references))
+        (reduce-kv
+          (fn [analysis constraint value]
+            (let [rows (get-in analysis [:reference reference-table constraint])]
+              (reduce
+                (fn [analysis row]
+                  (log/tracef
+                    "[%s]Updating row reference %s"
+                    row value)
+                  (assoc-in analysis (concat [:entity] row) value))
+                analysis
+                rows)))
+          analysis
+          pulled-references)))
+    analysis
+    reference))
+
 
 (defn group-entity-rows
   [tmp-rows]
@@ -502,69 +509,93 @@
    tmp-rows))
 
 
+
+(comment
+  (search-entity
+    #uuid "0757bd93-7abf-45b4-8437-2841283edcba"
+    nil
+    {:name nil
+     :modified_by [{:selections
+                    {:name nil}}]
+     :modified_on nil})
+  (time
+    (set-entity
+      neyho.eywa.iam.uuids/user
+      [{:name "test1" :active true
+        :type :PERSON
+        :roles [neyho.eywa.data/*ROOT*]}
+       {:name "test2" :active true
+        :type :PERSON
+        :roles [neyho.eywa.data/*ROOT*]}
+       {:name "test3" :active true
+        :type :PERSON
+        :roles [neyho.eywa.data/*ROOT*]}])))
+
+
 (defn store-entity-records
   [tx {:keys [entity constraint] :as analysis}]
   (reduce-kv
-   (fn [analysis entity-table rows]
-     (reduce-kv
-      (fn [analysis ks rows]
-        (log/debugf
-         "[%s] Storing entity table rows %s\n%s"
-         entity-table (str/join ", " ks) (str/join "\n" rows))
-        (let [row-data (map
+    (fn [analysis entity-table rows]
+      (reduce-kv
+        (fn [analysis ks rows]
+          (log/debugf
+            "[%s] Storing entity table rows %s\n%s"
+            entity-table (str/join ", " ks) (str/join "\n" rows))
+          (let [row-data (map
                            ;; select only field keys
-                        (apply juxt ks)
+                           (apply juxt ks)
                            ;; Get only row without tempids
-                        (map first rows))
-              tmp-ids (map second rows)
-              columns-fn #(str \" (name %) \")
-              ks' (map columns-fn ks)
-              values-? (str \( (str/join ", " (repeat (count ks) \?)) \))
+                           (map first rows))
+                tmp-ids (map second rows)
+                columns-fn #(str \" (name %) \")
+                ks' (map columns-fn ks)
+                values-? (str \( (str/join ", " (repeat (count ks) \?)) \))
                 ;;
-              constraint (if (contains? ks :euuid)
-                           [:euuid]
-                           (some
-                            #(when (every? ks %) %)
-                            (get constraint entity-table)))
+                constraint (if (contains? ks :euuid)
+                             [:euuid]
+                             (some
+                               #(when (every? ks %) %)
+                               (get constraint entity-table)))
                 ;;
-              on-values (map columns-fn constraint)
+                on-values (map columns-fn constraint)
                 ;;
-              query
-              (str
-               "INSERT INTO \"" entity-table "\" ("
-               (str/join ", " ks') ") VALUES "
-               (str/join ", " (repeat (count row-data) values-?))
-               (when (not-empty on-values)
-                 (let [on-sql (str/join ", " on-values)
-                       do-set (str/join
-                               ", "
-                               (map
-                                (fn [column]
-                                  (str column "=excluded." column))
-                                ks'))]
-                   (str " ON CONFLICT (" on-sql ") DO UPDATE SET " do-set)))
-               " RETURNING _eid, euuid")
-              _ (log/tracef
-                 "[%s]Storing entity group %s\nData:\n%s\nQuery:\n%s"
-                 entity-table constraint (pprint row-data) query)
-              result (postgres/execute!
-                      tx (into [query] (flatten row-data))
-                      *return-type*)
-              _ (log/tracef
-                 "[%s]Stored entity group result:\n%s"
-                 entity-table (pprint result))
-              mapping (zipmap tmp-ids result)]
-          (log/tracef "[%s]Stored entity group %s" entity-table result)
-          (reduce-kv
-           (fn [analysis tmp-id data]
-             (log/tracef "[%s]Merging updated data %s=%s" entity-table tmp-id data)
-             (update-in analysis [:entity entity-table tmp-id] merge data))
-           analysis
-           mapping)))
-      analysis
-      (group-entity-rows rows)))
-   analysis
-   entity))
+                query
+                (str
+                  "INSERT INTO \"" entity-table "\" ("
+                  (str/join ", " ks') ") VALUES "
+                  (str/join ", " (repeat (count row-data) values-?))
+                  (when (not-empty on-values)
+                    (let [on-sql (str/join ", " on-values)
+                          do-set (str/join
+                                   ", "
+                                   (map
+                                     (fn [column]
+                                       (str column "=excluded." column))
+                                     ks'))]
+                      (str " ON CONFLICT (" on-sql ") DO UPDATE SET " do-set)))
+                  " RETURNING _eid, euuid")
+                _ (log/tracef
+                    "[%s]Storing entity group %s\nData:\n%s\nQuery:\n%s"
+                    entity-table constraint (pprint row-data) query)
+                result (postgres/execute!
+                         tx (into [query] (flatten row-data))
+                         *return-type*)
+                _ (log/tracef
+                    "[%s]Stored entity group result:\n%s"
+                    entity-table (pprint result))
+                mapping (zipmap tmp-ids result)]
+            (log/tracef "[%s]Stored entity group %s" entity-table result)
+            (reduce-kv
+              (fn [analysis tmp-id data]
+                (log/tracef "[%s]Merging updated data %s=%s" entity-table tmp-id data)
+                (update-in analysis [:entity entity-table tmp-id] merge data))
+              analysis
+              mapping)))
+        analysis
+        (group-entity-rows rows)))
+    analysis
+    entity))
+
 
 (defn project-saved-entities
   [{:keys [entity :relations/one :relations/many recursion] :as analysis}]
@@ -679,7 +710,7 @@
             (log/tracef
              "[%s]Adding new relations\n%s\nIDS:\n%s"
              table sql-add new)
-            (jdbc/execute-batch! sql-add new (get postgres/defaults *return-type*))
+            (future (jdbc/execute-batch! sql-add new (get postgres/defaults *return-type*)))
             result))
         result
         one))
@@ -706,7 +737,7 @@
             (log/tracef
              "[%s]Adding new relations\n%s"
              table sql-add)
-            (jdbc/execute-batch! sql-add new (get postgres/defaults *return-type*))
+            (future (jdbc/execute-batch! sql-add new (get postgres/defaults *return-type*)))
             result))
         result
         many)))
@@ -751,11 +782,19 @@
   ([tx entity-id data stack?]
    (letfn [(pull-roots [{:keys [root entity root/table]}]
              (log/tracef
-              "[%s]Pulling root(%s) entity after mutation"
-              entity-id root)
+               "[%s]Pulling root(%s) entity after mutation"
+               entity-id root)
              (if (sequential? root)
                (mapv #(get-in entity [table %]) root)
                (get-in entity [table root])))]
+     ; (def pull-roots pull-roots)
+     ; (def entity-id entity-id)
+     ; (def data data)
+     ; (def stack? stack?)
+     ; (def user *user*)
+     (comment
+       (binding [*user* user]
+         (analyze-data entity-id data stack?)))
      (let [analysis (analyze-data entity-id data stack?)]
        (log/tracef "Storing based on analysis\n%s" (pprint analysis))
        (as-> analysis result
@@ -779,22 +818,30 @@
                       #uuid "97b95ab8-4ca3-498d-b578-b12e6d1a2df8"
                       #uuid "7fc035e2-812e-4861-a25c-eb172b39577f"}
             *user* 100]
-    (analyze-data
-     neyho.eywa.iam.uuids/user
-     [{:euuid #uuid "2f1338c2-4659-4c96-8b80-15c01a5362f3"
-       :name "test 1"
-       :modified_by {:euuid (:euuid neyho.eywa.data/*EYWA*)}
-       :type :person}
-      {:euuid #uuid "83c1b3b6-e4e7-4c7c-8673-ef020e6355d5"
-       :name "test 2"
-       :type :person
-       :service_locations [{:euuid #uuid "61468ae5-7c30-41cd-9cfb-7d31eac02d4a"
-                            :name "Location1"}
-                           {:euuid #uuid "99fca851-69c5-4541-b7e1-3d59bb9e6b8a"
-                            :name "Location2"}]}
-      {:euuid #uuid "319b4ded-f8fc-4f1b-8718-128050e06912"
-       :name "test 3"
-       :roles [{:euuid #uuid "601ee98d-796b-43f3-ac1f-881851407f34"}]}])))
+    (binding [*user* {:_eid 3,
+                      :name "rgersak",
+                      :roles #{#uuid "601ee98d-796b-43f3-ac1f-881851407f34"},
+                      :settings nil,
+                      :active true,
+                      :euuid #uuid "4216dce4-7bec-11ef-9009-73dea08e4c4a",
+                      :avatar nil,
+                      :sessions #{"EkvySotNCwKiLiwSDwAyGoqPDQdcYF"},
+                      :groups #{}}]
+      (analyze-data
+        neyho.eywa.iam.uuids/user
+        [{:euuid #uuid "2f1338c2-4659-4c96-8b80-15c01a5362f3"
+          :name "test 1"
+          :type :person}
+         {:euuid #uuid "83c1b3b6-e4e7-4c7c-8673-ef020e6355d5"
+          :name "test 2"
+          :type :person
+          :service_locations [{:euuid #uuid "61468ae5-7c30-41cd-9cfb-7d31eac02d4a"
+                               :name "Location1"}
+                              {:euuid #uuid "99fca851-69c5-4541-b7e1-3d59bb9e6b8a"
+                               :name "Location2"}]}
+         {:euuid #uuid "319b4ded-f8fc-4f1b-8718-128050e06912"
+          :name "test 3"
+          :roles [{:euuid #uuid "601ee98d-796b-43f3-ac1f-881851407f34"}]}]))))
 
 ;;
 (defn- flatten-selection [s]
@@ -1170,10 +1217,6 @@
              schema
              (select-keys selection aggregate-keys))))))))
 
-
-(comment
-  (-> (selection->schema entity-id selection args) search-stack-from)
-  (println (second (search-stack-from schema))))
 
 (defn relations-cursor [cursor]
   (if (empty? cursor)
@@ -1607,6 +1650,8 @@
            falias :from/field
            talias :to/field} schema
           ;;
+          reference? (= "_eid" talias)
+          ;;
           join (->join schema)
           locations (find-end-locations zipper)
           [tables stack] (reduce
@@ -1651,24 +1696,13 @@
          (str
            \" rtable \" " as " ras
            " " join " join " \" ttable \" \space as \space " on "
-           ras \. talias \= as "._eid"
+           ras \. (if reference? falias talias) \= as "._eid"
            \newline (clojure.string/join "\n" stack))
          (str/join "\n" (conj
                           ; stack
                           (distinct stack)
                           (str "\"" table "\" as " as))))])))
 
-(comment
-  (println (second (search-stack-from2 schema)))
-  (update locations 1 (fn [stack] (str/join "\n" stack)))
-  (count locations)
-  (-> locations
-      seq
-      (nth 0)
-      zip/node
-      key)
-  (map key (zip/path (nth locations)))
-  (search-stack-from schema))
 
 (defn focus-order
   "Function will remove nested :_order_by arguments
@@ -2604,28 +2638,28 @@
           (pull-roots connection schema {(keyword as) roots}))))))
 
 
-(defn schema->aggregate-cursors
-  "Given selection schema produces cursors that point
-  to all connected entity tables. This is a way point to
-  pull linked data from db with single query"
-  ([{:keys [relations] :as schema}]
-   (schema->aggregate-cursors
-    (when-let [cursors (keys relations)]
-      (mapv vector cursors))
-    schema))
-  ([cursors schema]
-   (reduce
-    (fn [cursors cursor]
-      (let [{:keys [relations counted? aggregate]} (get-in schema (relations-cursor cursor))]
-        (if (not-empty relations)
-          (into
-           (conj cursors cursor)
-           (mapcat #(schema->cursors [(conj cursor %)] schema) (keys relations)))
-          (if (or counted? (not-empty aggregate))
-            (conj cursors cursor)
-            cursors))))
-    []
-    cursors)))
+; (defn schema->aggregate-cursors
+;   "Given selection schema produces cursors that point
+;   to all connected entity tables. This is a way point to
+;   pull linked data from db with single query"
+;   ([{:keys [relations] :as schema}]
+;    (schema->aggregate-cursors
+;     (when-let [cursors (keys relations)]
+;       (mapv vector cursors))
+;     schema))
+;   ([cursors schema]
+;    (reduce
+;     (fn [cursors cursor]
+;       (let [{:keys [relations counted? aggregate]} (get-in schema (relations-cursor cursor))]
+;         (if (not-empty relations)
+;           (into
+;            (conj cursors cursor)
+;            (mapcat #(schema->cursors [(conj cursor %)] schema) (keys relations)))
+;           (if (or counted? (not-empty aggregate))
+;             (conj cursors cursor)
+;             cursors))))
+;     []
+;     cursors)))
 
 (defn shave-schema-aggregates
   ([schema]

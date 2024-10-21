@@ -47,17 +47,6 @@
   (neyho.eywa.dataset/init))
 
 
-(comment
-  (neyho.eywa.iam/setup
-    {:users
-     [{:name "test1" :password "change-me" :active true
-       :roles [neyho.eywa.data/*ROOT*]}
-      {:name "test2" :password "change-me" :active true
-       :roles [neyho.eywa.data/*ROOT*]}
-      {:name "test3" :password "change-me" :active true
-       :roles [neyho.eywa.data/*ROOT*]}]}))
-
-
 (defn set-superuser
   []
   (let [user (env :eywa-user)
