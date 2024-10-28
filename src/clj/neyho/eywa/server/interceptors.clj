@@ -111,25 +111,25 @@
             :as context}]
         (if-not root context
           (let [extension (re-find #"(?<=\.).*?$" uri)] 
-          ;; If extension exists
-          (if (some? extension)
-            ;; Try to return that file
-            (as-> (or path-info uri) path
-              (if (.startsWith path "/")
-                (subs path 1)
-                path)
-              (let [target (str root "/" path)]
-                (log/tracef "Returning resource file %s, for path %s" uri path-info)
-                (if (fs/exists? target)
-                  (assoc context :response
-                         (-> (response/file-response target)
-                             (head/head-response request)))
-                  (chain/terminate
-                    (assoc context
-                           :response {:status 404
-                                      :body "Not found!"})))))
-            ;; Otherwise proceed
-            context))))
+            ;; If extension exists
+            (if (some? extension)
+              ;; Try to return that file
+              (as-> (or path-info uri) path
+                (if (.startsWith path "/")
+                  (subs path 1)
+                  path)
+                (let [target (str root "/" path)]
+                  (log/tracef "Returning resource file %s, for path %s" uri path-info)
+                  (if (fs/exists? target)
+                    (assoc context :response
+                           (-> (response/file-response target)
+                               (head/head-response request)))
+                    (chain/terminate
+                      (assoc context
+                             :response {:status 404
+                                        :body "Not found!"})))))
+              ;; Otherwise proceed
+              context))))
       ;; Leave will only happen when requested URI ends without extension
       ;; That is when static file isn't directly required
       :leave

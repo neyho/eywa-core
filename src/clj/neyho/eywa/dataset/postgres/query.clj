@@ -275,6 +275,7 @@
                                                             result))))))
                                                 []
                                                 (keys relations)))
+                        ;;
                         relations-data (when (not-empty valid-relation-keys)
                                          (select-keys data valid-relation-keys))
                         ;;
@@ -479,25 +480,28 @@
 
 (defn prepare-references
   [tx {:keys [reference] :as analysis}]
-  (reduce-kv
-    (fn [analysis reference-table references]
-      (let [pulled-references (pull-references tx reference-table references)]
-        (log/tracef "Pulled references for table: %s\n%s" reference-table (pprint pulled-references))
-        (reduce-kv
-          (fn [analysis constraint value]
-            (let [rows (get-in analysis [:reference reference-table constraint])]
-              (reduce
-                (fn [analysis row]
-                  (log/tracef
-                    "[%s]Updating row reference %s"
-                    row value)
-                  (assoc-in analysis (concat [:entity] row) value))
-                analysis
-                rows)))
-          analysis
-          pulled-references)))
+  (reduce
+    (fn [analysis [reference-table pulled-references]]
+      (log/tracef "Pulled references for table: %s\n%s" reference-table (pprint pulled-references))
+      (reduce-kv
+        (fn [analysis constraint value]
+          (let [rows (get-in analysis [:reference reference-table constraint])]
+            (reduce
+              (fn [analysis row]
+                (log/tracef
+                  "[%s]Updating row reference %s"
+                  row value)
+                (assoc-in analysis (concat [:entity] row) value))
+              analysis
+              rows)))
+        analysis
+        pulled-references))
     analysis
-    reference))
+    (let [expected-references (map
+                                (fn [[reference-table references]]
+                                  (future [reference-table (pull-references tx reference-table references)]))
+                                reference)]
+      (mapv deref expected-references))))
 
 
 (defn group-entity-rows

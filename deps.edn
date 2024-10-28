@@ -21,7 +21,7 @@
   org.bouncycastle/bcprov-jdk15on              {:mvn/version "1.70" :scope "test"}
   org.bouncycastle/bcpkix-jdk15on              {:mvn/version "1.70" :scope "test"}
   org.clojure/data.codec                       {:mvn/version "0.2.0"}
-  org.clojure/data.zip                         {:mvn/version "1.1.0"}
+  ; org.clojure/data.zip                         {:mvn/version "1.1.0"}
   org.clojure/data.csv                         {:mvn/version "1.1.0"}
   io.pedestal/pedestal.service                 {:mvn/version "0.6.3"}
   io.pedestal/pedestal.route                   {:mvn/version "0.6.3"}
@@ -30,6 +30,7 @@
   ; com.walmartlabs/lacinia                      {:local/root "../../lacinia"}
   com.walmartlabs/lacinia-pedestal             {:mvn/version "1.2"
                                                 :exclusions [com.walmartlabs/lacinia]}
+  org.clojure/math.combinatorics               {:mvn/version "0.3.0"}
   ;; Logging - chosen because it follows pedestal and lacinia
   ;; they are both using clojure.tools.logging
   ch.qos.logback/logback-classic               {:mvn/version "1.5.0"}

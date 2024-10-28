@@ -66,6 +66,7 @@
                 data))))
 
 (comment
+  (keyword "jiof/ieo")
   (def data
     {"jiofqi  82801" :moj
      :doijo #uuid "ed934519-98f8-46ca-bc6a-6136d5d0b1c4"
