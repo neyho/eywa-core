@@ -3,6 +3,7 @@
    clojure.set
    [clojure.pprint :as pp]
    [clojure.zip :as zip]
+   [clojure.walk :as walk]
    [clojure.core.async :as async]
    [clojure.string :as str]
    [clojure.data.json :as json]
@@ -20,6 +21,9 @@
             *user*]]
    [neyho.eywa.db :refer [*db*] :as db]
    [neyho.eywa.db.postgres.next :as postgres]
+   [neyho.eywa.dataset.encryption
+    :refer [encrypt-data
+            decrypt-data]]
    [neyho.eywa.dataset.core
     :refer [*return-type*]
     :as core])
@@ -236,6 +240,10 @@
                                                                              (str n "/" (name data))
                                                                              (name data))
                                                                            data))))))
+                                       "encrypted" (fn [data]
+                                                     (doto (PGobject.)
+                                                       (.setType "jsonb")
+                                                       (.setValue (json/write-str (encrypt-data data)))))
                                        "hashed" hashers/derive
                                        "transit" freeze
                                        ->postgres))
@@ -964,6 +972,8 @@
                            (if-let [transform (case (get type-mapping k)
                                                  ; "enum" keyword
                                                 "transit" <-transit
+                                                "encrypted" (fn [data]
+                                                              (decrypt-data (walk/keywordize-keys data)))
                                                 ("currency" "period") shallow-keywords
                                                 nil)]
                              (assoc r k transform)

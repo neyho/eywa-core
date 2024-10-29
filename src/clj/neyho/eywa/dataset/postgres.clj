@@ -68,10 +68,9 @@
   [t]
   (case t
     "currency" "jsonb"
-    ("avatar" "string" "encrypted" "hashed") "text"
+    ("avatar" "string" "hashed") "text"
     "timestamp" "timestamp"
-    "timeperiod" "jsonb"
-    "json" "jsonb"
+    ("json" "encrypted" "timeperiod") "jsonb"
     "transit" "text"
     "user" (str "int references \"" (user-table) "\"(_eid) on delete set null")
     "group" (str "int references \"" (group-table) "\"(_eid) on delete set null")

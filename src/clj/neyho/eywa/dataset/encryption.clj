@@ -8,24 +8,35 @@
      :refer [execute-one!]]
     [clojure.data.json :as json]
     [buddy.core.crypto :as crypto]
-    [buddy.core.codecs :as codecs]
     [buddy.core.nonce :as nonce])
   (:import
     [org.postgresql.util PGobject]
     [java.util Random]
     java.math.BigInteger
-    [javax.crypto.spec SecretKeySpec GCMParameterSpec]
-    [javax.crypto Cipher KeyGenerator SecretKey]
+    [javax.crypto.spec SecretKeySpec]
     [java.util Base64]))
 
 
 
-(defn- gen-master [] (BigInteger. 128 (Random.)))
 
 
 
-(defonce ^:dynamic *master-key* 4714597897634884447769226850258298369)
+
+(defonce ^:dynamic *master-key*
+  (let [bs (take 32
+                 (concat
+                   (.toByteArray (java.math.BigInteger. (.toString 4714597897634884447769226850258298369)))
+                   (repeat 0)))]
+    (SecretKeySpec. (byte-array bs) "AES")))
 (defonce ^:dynamic *dke* nil)
+
+
+(defn gen-key []
+  (let [bs (take 32
+                 (concat
+                   (.toByteArray (java.math.BigInteger. (.toString (BigInteger. 128 (Random.)))))
+                   (repeat 0)))]
+    (SecretKeySpec. (byte-array bs) "AES")))
 
 
 (defonce dkes (atom nil))
@@ -61,14 +72,6 @@
     (SecretKeySpec. key-bytes "AES")))
 
 
-(def master-key->aes
-  (memoize
-    (fn []
-      (let [bs (take 32
-                     (concat (.toByteArray (java.math.BigInteger. (.toString *master-key*)))
-                             (repeat 0)))]
-        (SecretKeySpec. (byte-array bs) "AES")))))
-
 
 (defn encrypt-dek
   [dek]
@@ -76,7 +79,7 @@
         iv (nonce/random-bytes 12)
         encrypted (crypto/encrypt
                     (.getBytes key-string "UTF-8")
-                    (.getEncoded (master-key->aes))
+                    (.getEncoded *master-key*)
                     iv
                     {:alg :aes256-gcm})]
     {:key (.encodeToString (Base64/getEncoder) encrypted)
@@ -90,13 +93,11 @@
         iv (.decode (Base64/getDecoder) iv)
         decrypted (crypto/decrypt
                     aes-key
-                    (.getEncoded (master-key->aes))
+                    (.getEncoded *master-key*)
                     iv
                     {:alg :aes256-gcm})
         decoded (.decode (Base64/getDecoder) decrypted)]
-    decoded
-    #_(String. decrypted "UTF-8")
-    #_(.getBytes (String. decrypted "UTF-8") "UTF-8")))
+    decoded))
 
 
 (defn create-dek
@@ -121,8 +122,7 @@
     dkes
     (reduce
       (fn [r {id :__dkes/id
-              dek :__dkes/dek
-              active :__dkes/active}]
+              dek :__dkes/dek}]
         (let [db-dek (json/read-str (.getValue dek) :key-fn keyword)]
           (assoc r id (decrypt-dek db-dek))))
       nil
@@ -130,6 +130,15 @@
         (jdbc/execute!
           con
           ["select id,dek,active from __dkes"])))))
+
+(comment
+  (def data "jfiqojeoifjq")
+  (alter-var-root #'*dke* (fn [_] 1))
+  (->
+    data
+    encrypt-data
+    decrypt-data)
+  (def current-dek 1))
 
 
 (defn encrypt-data
