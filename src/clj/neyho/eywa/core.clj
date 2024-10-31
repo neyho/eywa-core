@@ -15,6 +15,7 @@
     neyho.eywa.db.postgres
     neyho.eywa.dataset
     neyho.eywa.dataset.core
+    neyho.eywa.dataset.encryption
     neyho.eywa.dataset.default-model
     neyho.eywa.dataset.postgres
     neyho.eywa.dataset.postgres.query
@@ -261,6 +262,7 @@
                   (neyho.eywa.db.postgres/init)
                   (neyho.eywa.dataset/init)
                   (neyho.eywa.iam/init)
+                  (neyho.eywa.dataset.encryption/init)
                   (when (#{"true" "TRUE" "YES" "yes" "y"} (env :eywa-iam-enforce-access))
                     (neyho.eywa.iam.access/start-enforcing))
                   (neyho.eywa.server/start
