@@ -546,6 +546,7 @@
 
 (defn store-entity-records
   [tx {:keys [entity constraint] :as analysis}]
+  (def analysis analysis)
   (reduce-kv
     (fn [analysis entity-table rows]
       (reduce-kv
@@ -973,7 +974,9 @@
                                                  ; "enum" keyword
                                                 "transit" <-transit
                                                 "encrypted" (fn [data]
-                                                              (decrypt-data (walk/keywordize-keys data)))
+                                                              (try
+                                                                (decrypt-data (walk/keywordize-keys data))
+                                                                (catch Throwable _ nil)))
                                                 ("currency" "period") shallow-keywords
                                                 nil)]
                              (assoc r k transform)

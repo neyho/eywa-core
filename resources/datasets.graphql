@@ -1,6 +1,37 @@
 type Query {
   getDeployedModel:DatasetVersion
   @resolve(fn: "neyho.eywa.dataset/get-deployed-model")
+
+  generateShares(shares: Int=5, threshold: Int=3):[SSShare]
+  @resolve(fn: "neyho.eywa.dataset.encryption/generate-shares")
+
+  generateMaster:String
+  @resolve(fn: "neyho.eywa.dataset.encryption/generate-master")
+}
+
+
+type SSShare {
+  id: Int
+  value: String
+}
+
+
+enum EncryptionStatus {
+  INITIALIZED
+  WAITING_FOR_MORE_SHARES
+  ERROR
+}
+
+
+input SSShareInput {
+  id: Int
+  value: String
+}
+
+
+type EncryptionResponse {
+  status: EncryptionStatus
+  message: String
 }
 
 type Mutation {
@@ -10,6 +41,12 @@ type Mutation {
   deleteDataset:Boolean
   @hook(fn: "neyho.eywa.dataset/prepare-deletion-context" metric: -1)
   @hook(fn: "neyho.eywa.dataset/destroy-linked-versions")
+
+  initializeEncryptionWithShare(share: SSShareInput): EncryptionResponse
+  @resolve(fn: "neyho.eywa.dataset.encryption/init-with-share")
+
+  initializeEncryptionRaw(master: String): EncryptionResponse
+  @resolve(fn: "neyho.eywa.dataset.encryption/init-with-master")
 }
 
 type Subscription {
