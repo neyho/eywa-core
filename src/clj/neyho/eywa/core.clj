@@ -20,6 +20,7 @@
     neyho.eywa.dataset.postgres.query
     neyho.eywa.iam
     neyho.eywa.iam.uuids
+    neyho.eywa.iam.access
     [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
 
@@ -260,6 +261,8 @@
                   (neyho.eywa.db.postgres/init)
                   (neyho.eywa.dataset/init)
                   (neyho.eywa.iam/init)
+                  (when (#{"true" "TRUE" "YES" "yes" "y"} (env :eywa-iam-enforce-access))
+                    (neyho.eywa.iam.access/start-enforcing))
                   (neyho.eywa.server/start
                     {:port (when-some [port (env :eywa-server-port "8080")] (if (number? port) port (Integer/parseInt port)))
                      :host (env :eywa-server-host "0.0.0.0")

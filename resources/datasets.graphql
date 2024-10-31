@@ -1,12 +1,6 @@
 type Query {
   getDeployedModel:DatasetVersion
   @resolve(fn: "neyho.eywa.dataset/get-deployed-model")
-
-  generateShares(shares: Int=5, threshold: Int=3):[SSShare]
-  @resolve(fn: "neyho.eywa.dataset.encryption/generate-shares")
-
-  generateMaster:String
-  @resolve(fn: "neyho.eywa.dataset.encryption/generate-master")
 }
 
 
@@ -47,6 +41,14 @@ type Mutation {
 
   initializeEncryptionRaw(master: String): EncryptionResponse
   @resolve(fn: "neyho.eywa.dataset.encryption/init-with-master")
+
+
+  generateShares(shares: Int=5, threshold: Int=3):[SSShare]
+  @resolve(fn: "neyho.eywa.dataset.encryption/generate-shares")
+
+  generateMaster:String
+  @resolve(fn: "neyho.eywa.dataset.encryption/generate-master")
+
 }
 
 type Subscription {

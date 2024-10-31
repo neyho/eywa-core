@@ -25,7 +25,6 @@
 
 
 (defonce ^:dynamic *master-key* nil)
-
 (defonce ^:dynamic *dek* nil)
 
 
@@ -93,7 +92,6 @@
      :iv (.encodeToString (Base64/getEncoder) iv)}))
 
 
-
 (defn decrypt-dek
   [{aes-key :key iv :iv}]
   (let [aes-key (.decode (Base64/getDecoder) aes-key)
@@ -106,7 +104,9 @@
         decoded (.decode (Base64/getDecoder) decrypted)]
     decoded))
 
+
 (def ^:private encryption-barrier "this_was_encrypted")
+
 
 (defn encrypt-data
   [data]
@@ -155,6 +155,7 @@
               (json/write-str
                 (binding [*dek* id]
                   (encrypt-data encryption-barrier))))) id])))
+
 
 (defn set-dek-active
   [id]
@@ -279,6 +280,7 @@
   [_]
   (r/with-error nil
     {:message "Not authorized!"}))
+
 
 ;; @resolve
 (defn init-with-share
