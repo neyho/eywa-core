@@ -12,10 +12,10 @@
 
 
 (defn make-listener
-  [{:keys [user groups roles]}]
+  [{:keys [eywa/user eywa/groups eywa/roles]}]
   (let [wrapped-execute (interceptor
                           {:name (:name subscriptions/execute-operation-interceptor)
-                           :leave (:leave subscriptions/execute-operation-interceptor) 
+                           :leave (:leave subscriptions/execute-operation-interceptor)
                            :error (:error subscriptions/execute-operation-interceptor)
                            :enter (fn [ctx]
                                     (binding [*user* user
@@ -44,7 +44,7 @@
           ;;
           :eywa.dataset/subscriptions
           (let [token (first (get (.getParameterMap req) "access_token"))
-                token-ctx  (get-token-context token)]
+                token-ctx (get-token-context token)]
             (if (nil? token-ctx)
               (doto
                 resp
