@@ -8,6 +8,7 @@
     [buddy.core.hash :as hash]
     [ring.util.codec :as codec]
     [io.pedestal.interceptor.chain :as chain]
+    [io.pedestal.http.body-params :as bp]
     [neyho.eywa.iam.oauth.core :as core]
     [neyho.eywa.iam.oauth.token :as token
      :refer [token-interceptor
@@ -173,12 +174,23 @@
   (send-off maintenance-agent maintenance))
 
 
+(def state-interceptor
+  {:name ::state
+   :enter
+   (fn [{{params :params :as request}
+         :request :as ctx}]
+     (let [{:keys [form-params]} (bp/form-parser request)
+           data (merge params form-params)
+           ;;
+           {state :state} (update data :state (fn [x] (when x (core/decrypt x))))]
+       (assoc ctx ::state state)))})
+
+
 (let [token (conj core/oauth-common-interceptor core/scope->set pkce-interceptor token-interceptor)
       revoke (conj core/oauth-common-interceptor core/idsrv-session-read revoke-token-interceptor)]
   (def routes
     #{["/oauth/token" :post token :route-name ::handle-token]
       ["/oauth/revoke" :post revoke :route-name ::post-revoke]
       ["/oauth/revoke" :get revoke :route-name ::get-revoke]
-      ["/oauth/authorize" :get (conj core/oauth-common-interceptor core/idsrv-session-read authorization-request)
-     :route-name ::authorize-request]
-      ["/oauth/status" :get status-page :route-name ::oauth-status]}))
+      ["/oauth/authorize" :get (conj core/oauth-common-interceptor core/idsrv-session-read authorization-request) :route-name ::authorize-request]
+      ["/oauth/status" :get (conj state-interceptor status-page) :route-name ::oauth-status]}))

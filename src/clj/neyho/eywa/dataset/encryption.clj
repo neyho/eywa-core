@@ -247,24 +247,25 @@
 (defn init
   ([] (init (env :eywa-encryption-master-key)))
   ([master]
-   (let [bs (take 32
-                  (concat
-                    (.toByteArray (java.math.BigInteger. master))
-                    (repeat 0)))
-         master-key (SecretKeySpec. (byte-array bs) "AES")]
-     (when (and (initialized?) (not= master-key *master-key*))
-       (throw
-         (ex-info
-           "Encryption already initialized with different master key!"
-           {:master master
-            :master/key master-key})))
-     (try
-       (binding [*master-key* master-key]
-         (init-deks))
-       (alter-var-root #'*master-key* (fn [_] master-key))
-       (catch Throwable _
-         (log/errorf "[ENCRYPTION] Couldn't initialize dataset encryption")
-         nil)))))
+   (when (not-empty master)
+     (let [bs (take 32
+                    (concat
+                      (.toByteArray (java.math.BigInteger. master))
+                      (repeat 0)))
+           master-key (SecretKeySpec. (byte-array bs) "AES")]
+       (when (and (initialized?) (not= master-key *master-key*))
+         (throw
+           (ex-info
+             "Encryption already initialized with different master key!"
+             {:master master
+              :master/key master-key})))
+       (try
+         (binding [*master-key* master-key]
+           (init-deks))
+         (alter-var-root #'*master-key* (fn [_] master-key))
+         (catch Throwable _
+           (log/errorf "[ENCRYPTION] Couldn't initialize dataset encryption")
+           nil))))))
 
 
 (defonce ^:private available-shares (atom nil))

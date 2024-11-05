@@ -42,6 +42,10 @@
   (get @*device-codes* device-code))
 
 
+(defn get-code-client [device-code]
+  (get-client (:client (get @*device-codes* device-code))))
+
+
 (def grant "urn:ietf:params:oauth:grant-type:device_code")
 
 
@@ -394,6 +398,3 @@
       ;;
       ["/oauth/device/confirm" :get [user-code-confirm-page] :route-name ::serve-confirm-page]
       ["/oauth/device/confirm" :post [user-code-confirm-page] :route-name ::confirm-device]}))
-
-
-

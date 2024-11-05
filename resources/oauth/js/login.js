@@ -45,5 +45,35 @@ function fitImage() {
 
 }
 
-window.addEventListener("resize", fitImage)
-fitImage()
+// window.addEventListener("resize", fitImage)
+// fitImage()
+
+
+user_input=document.getElementById('username')
+password_input=document.getElementById('password')
+user_icon=document.getElementById('username-icon')
+password_icon=document.getElementById('password-icon')
+
+
+function track_active (element, icon) {
+  element.addEventListener('keyup', (e)=> {
+    if (e.target.value != "") {
+      icon.classList.add('active')
+    } else {
+      icon.classList.remove('active')
+    }
+  })
+}
+
+
+track_active(user_input,user_icon)
+track_active(password_input, password_icon)
+
+user_input.focus()
+
+// document.addEventListener("DOMContentLoaded", () => {
+//   setTimeout(() => {
+//     user_input.focus()
+//   }, 500); // Adjust the delay as needed
+// });
+

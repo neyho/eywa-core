@@ -61,9 +61,19 @@
    (get-in @core/*sessions* [session :code])))
 
 
+(defn get-code-request
+  [code]
+  (get-in @*authorization-codes* [code :request]))
+
+
 (defn get-code-session
   [code]
   (get-in @*authorization-codes* [code :session]))
+
+
+(defn get-code-client
+  [code]
+  (get-client (:client_id (get-code-request code))))
 
 
 (defn revoke-authorization-code
@@ -73,11 +83,6 @@
        (swap! *authorization-codes* dissoc code)
        (swap! core/*sessions* update session dissoc :code)
        (publish :revoke/code {:code code :session session})))))
-
-
-(defn get-code-request
-  [code]
-  (get-in @*authorization-codes* [code :request]))
 
 
 (defn code-was-issued? [code] (true? (get-in @*authorization-codes* [code :issued?])))

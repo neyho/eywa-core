@@ -69,11 +69,12 @@
            data (merge params form-params)
            ;;
            {:keys [username password]
-            {:keys [flow device-code authorization-code]} :state}
+            {:keys [flow device-code authorization-code]
+             :as flow-state} :state}
            (update data :state (fn [x] (when x (core/decrypt x))))]
        (case method
          ;; Passthrough
-         :get ctx
+         :get (assoc ctx ::state flow-state)
          ;;
          :post
          (let [resource-owner (core/validate-resource-owner username password)]
@@ -88,6 +89,7 @@
                    session (core/gen-session-id)
                    now (vura/date)]
                (cond
+                 ;;
                  (nil? prepared-code)
                  (chain/terminate
                    (assoc ctx :response
@@ -100,7 +102,7 @@
                  ;; When user isn't authenticated, leave for some other interceptor
                  ;; to return response
                  (nil? resource-owner)
-                 (assoc ctx ::error :credentials)
+                 (assoc ctx ::state flow-state ::error :credentials)
                  ;; When everything is OK
                  (and resource-owner (set/intersection #{"code" "authorization_code"} response_type))
                  (do
@@ -117,6 +119,7 @@
                    (chain/terminate
                      (-> 
                        (assoc ctx
+                              ::state flow-state
                               ::session session
                               :response {:status 302
                                          :headers {"Location" (str redirect-uri "?"
@@ -126,7 +129,7 @@
                                                                         :code authorization-code})))}}))))
                  ;; Otherwise let someone after handle error
                  :else
-                 (assoc ctx ::error :unknown)))
+                 (assoc ctx ::state flow-state ::error :unknown)))
              "device_code"
              ;; If user authenticated than do your stuff
              (let [{:keys [session client expires-at]
@@ -163,7 +166,7 @@
                             (fn [data]
                               (->
                                 data
-                                (assoc 
+                                (assoc
                                   :confirmed false
                                   :session session)
                                 (dissoc :challenges))))
@@ -285,7 +288,7 @@
   (def routes
     #{["/oauth/login" :get [only-identity-provider redirect-to-login] :route-name ::short-login]
       ["/oauth/login/index.html" :post [only-identity-provider middleware/cookies login-interceptor login-page] :route-name ::handle-login]
-      ["/oauth/login/index.html" :get (conj core/oauth-common-interceptor only-identity-provider login-page) :route-name ::short-login-redirect]
+      ["/oauth/login/index.html" :get (conj core/oauth-common-interceptor only-identity-provider login-interceptor login-page) :route-name ::short-login-redirect]
       ;; Login resources
       ["/oauth/login/icons/*" :get [only-identity-provider core/serve-resource] :route-name ::login-images]
       ["/oauth/icons/*" :get [only-identity-provider core/serve-resource] :route-name ::login-icons]

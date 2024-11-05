@@ -2,6 +2,8 @@
   {:shadow.css/include
    ["neyho/eywa/iam/oauth/page/common.css"]}
   (:require
+    [neyho.eywa.iam.oauth.authorization-code :as ac]
+    [neyho.eywa.iam.oauth.device-code :as dc]
     [hiccup2.core :refer [html]]
     [shadow.css :refer [css]]))
 
@@ -42,30 +44,31 @@
     :items-center
     :relative
     :p-10
-    {:background-color "#101010d9"
-     :border "1px solid #232323"}
+    :pb-40
     ["& .row"
      :relative
      {:width "15em"}]
     ["& .row .ficon"
      :absolute
      :top-2 :left-2
-     :h-6 :w-6 {:color "#797979"}]
+     :h-6 :w-6]
+    :transition
     ["& .row:not(:last-child)" :mb-2]
-    ["& span.error" :h-8 :text-xs :block {:color "#B56B6B"}]))
+    ["& .row svg" {:fill "#9a9a9a"}]
+    ["& .row:focus-within svg, & .row:hover svg, & .row svg.active" {:fill "black"}]
+    ; ["& .active + & .ficon" {:fill "black"}]
+    ; ["& .row" {:border "#9a9a9a"}]
+    ; ["& .row:focus-within" {:border "black"}]
+    ["& span.error" :h-8 :pt-2 :text-xs :block :font-semibold {:color "#c11212"}]))
 
 
 (def $input
   (css 
     :pl-10 :pr-2 :w-full :h-10
     {:transition "border-color .3s ease-in-out"
-     :color "#797979"
-     :border-color "#232323"
-     :background-color "#101010"
-     :border "1px solid"}
-    ["&:hover:not(:focus)" {:border-color "#689579"}]
-    ["&:focus"
-     {:border-color "#797979"}]))
+     :color "black"
+     :border-bottom "1px solid #9a9a9a"}
+    ["&:hover, &:focus-within" {:border-bottom "1px solid black"}]))
 
 
 (def $sign-in
@@ -74,15 +77,29 @@
     :h-10
     :uppercase
     {:width "15em"
-     :color "#B9B9B9"
-     :background-color "#101010"
-     :border "1px solid #232323"}
-    ["&:hover" {:border-color "#689579"}]))
+     :color "#636363"
+     :background-color "#dcdcdc"}
+    :transition-colors
+    :rounded-md
+    ["&:hover" {:background-color "#c9c9c9"}]))
+
+
+(def $logo
+  (css
+    :w-full
+    :flex 
+    :items-center
+    :pl-2
+    {:max-width "370px"
+     :max-height "5rem"}
+    ["& img" :rounded-md {:width "56px" :height "56px"}]
+    ["& .name" :pt-3 :ml-2 :font-medium]))
 
 
 (def password-icon
   [:svg
-   {:viewBox "0 0 24 24"
+   {:id "password-icon"
+    :viewBox "0 0 24 24"
     :fill "currentColor"
     :class "ficon"}
    [:path
@@ -90,7 +107,8 @@
 
 (def user-icon
   [:svg
-   {:viewBox "0 0 16 16"
+   {:id "username-icon"
+    :viewBox "0 0 16 16"
     :fill "currentColor"
     :class "ficon"}
    [:path
@@ -98,66 +116,76 @@
 
 
 (defn login-html
-  ([{error :neyho.eywa.iam.oauth.login/error}]
-   (html
-     [:head
-      [:meta {:charset "UTF-8"}]
-      [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0"}]
-      [:title "EYWA Login"]
-      [:link {:rel "icon" :href "https:/my.eywaonline.com/images/eywa.svg" :crossorigin true}]
-      [:link {:rel "preconnect" :href "https://fonts.googleapis.com"}]
-      [:link {:rel "preconnect" :href "https://fonts.gstatic.com" :crossorigin true}]
-      [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;800;900&family=Roboto&display=swap"}]
-      [:link {:rel "stylesheet" :href "../css/login.css"}]]
-     [:body
-      [:svg
-       {:id "background-viewbox"
-        :viewBox "0 0 1000 1000"
-        :style {:width "100%"
-                :height "100%"}}
-       [:image
-        {:id "background-image"
-         :x 0 :y 0 :height 1000 :width 1000
-         :href "https://my.eywaonline.com/images/login_normal.png"}]]
-      [:div {:class $login-wrapper}
-       ; [:div
-       ;  {:class $login-greeting}
-       ;  [:h1 "Hellow mate,"]
-       ;  [:h4 "Welcome to EYWA authentication page"]]
-       [:form
-        {:class $login-form
-         :method "post"}
-        [:div
-         {:class :row}
-         user-icon
-         [:input
-          {:id "username"
-           :name "username"
-           :class $input
-           :autoComplete "new-password"}]]
-        [:div
-         {:class :row}
-         password-icon
-         [:input
-          {:id "password"
-           :name "password"
-           :class $input
-           :type "password"
-           :autocomplete "new-password"
-           :autocorrect "off"
-           :spellcheck false}]]
-        [:div
-         {:class :row}
-         [:span.error (case error
-                        nil ""
-                        ;;
-                        :credentials
-                        "Wrong credentials. Check you username and password"
-                        ;;
-                        :already-authorized
-                        "User has alredy authorized this device"
-                        ;;
-                        "Unknown error... Contact support")]]
-        [:button {:class $sign-in}
-         [:h4 "SIGN IN"]]]]
-      [:script {:src "../js/login.js"}]])))
+  ([{error :neyho.eywa.iam.oauth.login/error
+     {:keys [authorization-code device-code] :as state} :neyho.eywa.iam.oauth.login/state}]
+   ; (def state state)
+   ; (def ctx ctx)
+   (let [client (cond
+                  authorization-code (ac/get-code-client authorization-code)
+                  device-code (dc/get-code-client device-code))
+         logo (get-in client [:settings "logo-url"] "https://my.eywaonline.com/images/eywa.svg")]
+     ; (def client client)
+     (html
+       [:head
+        [:meta {:charset "UTF-8"}]
+        [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0"}]
+        [:title "EYWA Login"]
+        [:link {:rel "icon" :href "https://my.eywaonline.com/images/eywa.svg" :crossorigin true}]
+        [:link {:rel "preconnect" :href "https://fonts.googleapis.com"}]
+        [:link {:rel "preconnect" :href "https://fonts.gstatic.com" :crossorigin true}]
+        [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;800;900&family=Roboto&display=swap"}]
+        [:link {:rel "stylesheet" :href "../css/login.css"}]]
+       [:body
+        {:style {:background-color "#ededed"}}
+        #_[:svg
+         {:id "background-viewbox"
+          :viewBox "0 0 1000 1000"
+          :style {:width "100%"
+                  :height "100%"}}]
+        [:div {:class $login-wrapper}
+         ; [:div
+         ;  {:class $login-greeting}
+         ;  [:h1 "Hellow mate,"]
+         ;  [:h4 "Welcome to EYWA authentication page"]]
+         [:div {:class $logo}
+          [:image
+           {:id "logo-image"
+            :src logo}]
+          [:div.name (:name client)]]
+         [:form
+          {:class $login-form
+           :method "post"}
+          [:div
+           {:class :row}
+           user-icon
+           [:input
+            {:id "username"
+             :name "username"
+             :class $input
+             :autoComplete "new-password"}]]
+          [:div
+           {:class :row}
+           password-icon
+           [:input
+            {:id "password"
+             :name "password"
+             :class $input
+             :type "password"
+             :autocomplete "new-password"
+             :autocorrect "off"
+             :spellcheck false}]]
+          [:div
+           {:class :row}
+           [:span.error (case error
+                          nil ""
+                          ;;
+                          :credentials
+                          "Wrong credentials. Check you username and password"
+                          ;;
+                          :already-authorized
+                          "User has alredy authorized this device"
+                          ;;
+                          "Unknown error... Contact support")]]
+          [:button {:class $sign-in}
+           [:h4 "SUBMIT"]]]]
+        [:script {:src "../js/login.js"}]]))))
