@@ -20,7 +20,6 @@
              search-entity
              sync-entity
              delete-entity]]
-    [neyho.eywa.lacinia :as lacinia]
     [neyho.eywa.env :as env]
     [neyho.eywa.iam.gen :as gen]
     [neyho.eywa.iam.access.context :refer [*user*]]
@@ -333,6 +332,7 @@
                :avatar nil)))))
 
 
+;; DEPRECATED - in favor of neyho.eywa.iam.util/import*
 (defn init-eywa-frontend-client
   []
   (letfn [(ensure [coll should-contain]

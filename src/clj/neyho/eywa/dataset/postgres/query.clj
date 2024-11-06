@@ -99,19 +99,6 @@
 ;; EXPERIMENTAL = NEW DB INSERTION
 (defn tmp-key [] (nano-id 10))
 
-(comment
-  (def entity neyho.eywa.iam.uuids/user)
-  (def data
-    (dataset/search-entity
-     neyho.eywa.iam.uuids/user
-     nil
-     {:euuid nil
-      :name nil
-      :settings nil
-      :avatar nil
-      :roles [{:selections
-               {:euuid nil :name nil :avatar nil}}]})))
-
 
 (defn analyze-data
   ([entity data] (analyze-data entity data true))
@@ -505,7 +492,13 @@
         analysis
         pulled-references))
     analysis
-    (let [expected-references (map
+    (mapv
+      (fn [[reference-table references]]
+        [reference-table (pull-references tx reference-table references)])
+      reference)
+    ;; FIXME - When below is used future is deadlocking... I suppose because tx is used
+    ;; on same table... so postgres doesn't return anything at all
+    #_(let [expected-references (mapv
                                 (fn [[reference-table references]]
                                   (future [reference-table (pull-references tx reference-table references)]))
                                 reference)]
@@ -546,7 +539,6 @@
 
 (defn store-entity-records
   [tx {:keys [entity constraint] :as analysis}]
-  (def analysis analysis)
   (reduce-kv
     (fn [analysis entity-table rows]
       (reduce-kv
@@ -800,14 +792,6 @@
              (if (sequential? root)
                (mapv #(get-in entity [table %]) root)
                (get-in entity [table root])))]
-     ; (def pull-roots pull-roots)
-     ; (def entity-id entity-id)
-     ; (def data data)
-     ; (def stack? stack?)
-     ; (def user *user*)
-     (comment
-       (binding [*user* user]
-         (analyze-data entity-id data stack?)))
      (let [analysis (analyze-data entity-id data stack?)]
        (log/tracef "Storing based on analysis\n%s" (pprint analysis))
        (as-> analysis result
@@ -1114,7 +1098,6 @@
                                     relations
                                     recursions))))
            aggregate-keys [:_count :_min :_max :_avg :_sum :_agg]]
-       ; (println "FOI: " (get-in schema [:_agg 0 :selections]))
        (as-> (hash-map
                :entity/as (str (gensym "data_"))
                :entity/table table
@@ -1781,19 +1764,6 @@
      ((fnil into []) maybe-data data))))
 
 
-(comment
-  (mapv key (-> schema
-                schema-zipper
-                zip/down
-                zip/down
-                zip/path))
-  (with-open [con (jdbc/get-connection (:datasource *db*))]
-    (pull-roots con schema {})))
-
-
-
-
-
 (defn pull-cursors
   [con {:keys [entity/table] :as schema} found-records]
   (let [zipper (schema-zipper schema)]
@@ -1981,98 +1951,6 @@
                                    (dissoc data :parent_id))))
                         nil
                         result))))))
-            ; (pull-numerics-old
-            ;   [result location]
-            ;   (let [[target {as :entity/as
-            ;                  ftable :from/table
-            ;                  :as schema}] (zip/node location)
-            ;         schema (dissoc schema :fields)
-            ;         ; parents (when-let [parent (zip/up location)]
-            ;         ;           (keys (get result (-> parent
-            ;         ;                                 zip/node
-            ;         ;                                 second
-            ;         ;                                 :from/table))))
-            ;         parents (keys (get result ftable))
-            ;         numerics (select-keys schema [:_min :_max :_avg :_sum])]
-            ;     (cond
-            ;       (empty? numerics) nil
-            ;       (empty? parents) nil
-            ;       :else
-            ;       (future
-            ;         (let [{pas :entity/as
-            ;                :as parent-schema}
-            ;               (-> location
-            ;                   zip/up
-            ;                   zip/node
-            ;                   second
-            ;                   (update :relations select-keys [target])
-            ;                   (assoc-in [:relations target :pinned] true)
-            ;                   (assoc-in [:relations target :args :_join] :LEFT)
-            ;                   (dissoc :fields)
-            ;                   (update :args assoc-in [:_eid :_in] (long-array parents)))
-            ;               ;;
-            ;               [numerics-selections numerics-data]
-            ;               (reduce-kv
-            ;                 (fn [result operation fields]
-            ;                   (reduce-kv
-            ;                     (fn [[statements data] target-key [field-key field-args]]
-            ;                       (let [[[[_ [statement]]] statement-data]
-            ;                             (binding [*ignore-maybe* false]
-            ;                               (-> schema
-            ;                                   (merge field-args)
-            ;                                   query-selection->sql))]
-            ;                         [(conj statements
-            ;                                (format
-            ;                                  "%s(%s) as %s$%s"
-            ;                                  (case operation
-            ;                                    :_min "min"
-            ;                                    :_max "max"
-            ;                                    :_avg "avg"
-            ;                                    :_sum "sum")
-            ;                                  (if (empty? statement)
-            ;                                    (str as "." (name field-key))
-            ;                                    (str "case when " statement
-            ;                                         " then " (str as "." (name field-key))
-            ;                                         " else null end")) 
-            ;                                  (name operation) (name target-key)))
-            ;                          (if-not statement-data data
-            ;                            (into data statement-data))]))
-            ;                     result
-            ;                     fields))
-            ;                 [[] []]
-            ;                 numerics)
-            ;               [_ from] (search-stack-from parent-schema)
-            ;               [where where-data] (search-stack-args parent-schema)
-            ;               [query-string :as query]
-            ;               (as->
-            ;                 (format
-            ;                   "select %s._eid as parent_id, %s\nfrom %s"
-            ;                   pas (str/join ", " numerics-selections) from)
-            ;                 query
-            ;                 ;;
-            ;                 (if-not where query
-            ;                   (str query \newline
-            ;                        (str "where " where)))
-            ;                 ;;
-            ;                 (str query \newline
-            ;                      (format "group by %s._eid" pas))
-            ;                 ;;
-            ;                 (reduce into [query] (remove nil? [numerics-data where-data])))
-            ;               _ (log/tracef
-            ;                   "[%s] Sending numerics aggregate query:\n%s"
-            ;                   table query-string)
-            ;               result (postgres/execute! con query *return-type*)]
-            ;           (reduce
-            ;             (fn [r {:keys [parent_id] :as data}]
-            ;               (assoc r parent_id
-            ;                      (reduce-kv
-            ;                        (fn [r k v]
-            ;                          (let [[operation k] (str/split (name k) #"\$")]
-            ;                            (assoc-in r [(keyword operation) (keyword k)] v)))
-            ;                        nil
-            ;                        (dissoc data :parent_id))))
-            ;             nil
-            ;             result))))))
             (process-root [_ location]
               (let [[_ {:keys [entity/table fields 
                                decoders recursions entity/as args]}] (zip/node location)
@@ -2205,7 +2083,6 @@
 
 (defn construct-response
   [{:keys [entity/table recursions] :as schema} {:keys [::counts ::numerics] :as db} found-records]
-  ; (println "DB:\n" (pprint db))
   (letfn [(reference? [value]
             (vector? value))
           (list-reference? [value]
@@ -2399,7 +2276,6 @@
   (def args nil)
   (def entity-id #uuid "edcab1db-ee6f-4744-bfea-447828893223")
   (def schema (time (selection->schema entity-id selection args)))
-  (def connection (jdbc/get-connection (:datasource *db*)))
   (def con connection)
   (schema->cursors schema)
   (def roots (search-entity-roots connection schema))
@@ -2414,71 +2290,6 @@
 
 (defn search-entity
   ([entity-id args selection]
-   ; (def user *user*)
-   ; (def roles *roles*)
-   ; (def entity-id entity-id)
-   ; (def entity-id entity-id)
-   ; (def args args)
-   ; (def selection selection)
-   (comment
-     ; (def entity-id #uuid "edcab1db-ee6f-4744-bfea-447828893223")
-     ; Dataset version
-     (def entity-id #uuid "d922edda-f8de-486a-8407-e62ad67bf44c")
-     ; Dataset entity
-     (def entity-id #uuid "a0d304a7-afe3-4d9f-a2e1-35e174bb5d5b")
-     (def args nil)
-     (def selection
-       #:DatasetEntity{:_eid [nil]
-                       :name [nil],
-                       :attributes
-                       [{:selections
-                         #:DatasetEntityAttribute{:euuid [nil],
-                                                  :seq [nil],
-                                                  :_avg
-                                                  [{:selections
-                                                    #:DatasetEntityAttributeNumerics{:seq
-                                                                                     [nil]}}],
-                                                  :_max
-                                                  [{:selections
-                                                    #:DatasetEntityAttributeNumerics{:seq
-                                                                                     [nil]}}]}}]})
-     (def selection
-       #:DatasetVersion{:name [nil],
-                        :_count [nil],
-                        :entities
-                        [{:args
-                          {:_limit 1, :_where {:name {:_ilike "%user%"}}},
-                          :selections
-                          #:DatasetEntity{:name [nil],
-                                          :_count [nil],
-                                          :attributes
-                                          [{:selections
-                                            #:DatasetEntityAttribute{:name
-                                                                     [nil],
-                                                                     :_count
-                                                                     [nil]}}]}}]})
-     (def selection
-       #:User{:name [nil],
-              :_count [nil],
-              :roles
-              [{:args {:_join :LEFT :_maybe {:name {:_ilike "%robo%"}}}
-                :selections
-                #:UserRole{:name [nil],
-                           :_count [nil],
-                           :owned_entities
-                           [{:args {:_join :LEFT},
-                             :selections
-                             #:DatasetEntity{:name [nil], :_count [nil]}}],
-                           :users
-                           [{:args {:_join :LEFT},
-                             :selections
-                             #:User{:name [nil],
-                                    :roles
-                                    [{:selections
-                                      #:UserRole{:_count [nil]}}]}}]}}]})
-     (def schema (selection->schema entity-id selection args))
-     (println (second (search-stack-from schema))))
-   ; (def selection selection)
    (when-not (access/entity-allows? entity-id #{:read})
      (throw
       (ex-info
@@ -2493,6 +2304,7 @@
        (when (some? roots)
          (log/tracef "[%s] Found roots: %s" entity-id (str/join ", " roots))
          (pull-roots connection schema roots))))))
+
 
 (defn purge-entity
   ([entity-id args selection]
@@ -2576,9 +2388,9 @@
             neyho.eywa.dataset.core/*user* 100]
     (time (selection->schema neyho.eywa.iam.uuids/user selection args)))
   (search-stack-from schema)
-  (def connection (jdbc/get-connection (:datasource *db*)))
   (search-entity-roots connection schema)
   (.close connection))
+
 
 (defn get-entity
   ([entity-id args selection]
@@ -2592,12 +2404,6 @@
    (log/debugf
     "[%s] Getting entity\nArgs:\n%s\nSelection:\n%s"
     entity-id (pprint args) (pprint selection))
-   ; (def entity-id entity-id)
-   ; (def args args)
-   ; (def selection selection)
-   ; (def selection selection)
-   ; (def args args)
-   ; (def entity-id entity-id)
    (let [args (reduce-kv
                (fn [args k v]
                  (assoc args k {:_eq v}))

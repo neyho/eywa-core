@@ -26,6 +26,8 @@
                      (.setJdbcUrl url)
                      (.setUsername user)
                      (.setPassword password)
+                     (.setLeakDetectionThreshold 2000)
+                     (.setInitializationFailTimeout 0)
                      (.addDataSourceProperty "connectionInitSql" "SET TIME ZONE 'UTC'")
                      (.setMaximumPoolSize max-connections)
                      (.setConnectionTestQuery "select 1")
@@ -40,8 +42,6 @@
 
 
 (comment
-
-
   (def db (connect (from-env)))
   (def db
     (connect
@@ -52,11 +52,7 @@
          :password "wZV2F9LZ8jeMmq7v"
          :max-connections 2
          :db "kb_dev"})))
-
-
   (.close (-> db :datasource))
-
-
   (def db
     (connect
       (neyho.eywa/map->Postgres
@@ -65,9 +61,7 @@
          :user "robert"
          :max-connections 2
          :password "mNg5OTMVEakGL9hpXDFslA"
-         :db "defaultdb"})))
-  
-  )
+         :db "defaultdb"}))))
 
 
 (defn check-connection-params
