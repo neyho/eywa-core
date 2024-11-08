@@ -689,14 +689,17 @@
                            (fn [args ids]
                              (reduce
                                (fn [args id]
-                                 (let [{aname :name :as attribute} (core/get-attribute entity id)]
+                                 (if-let [{aname :name :as attribute} (try
+                                                                          (core/get-attribute entity id)
+                                                                          (catch Throwable _ nil))]
                                    (assoc args (keyword (normalize-name aname)) 
                                           {:type (cond 
                                                    (scalar-attribute? attribute) 
                                                    (attribute-type->scalar entity attribute)
                                                    ;;
                                                    (reference-attribute? attribute)
-                                                   (reference-operator attribute))})))
+                                                   (reference-operator attribute))})
+                                   args))
                                args
                                ids))
                            {:euuid {:type 'UUID}}
@@ -1060,9 +1063,12 @@
                                 (fn [args ids]
                                   (reduce
                                     (fn [args id]
-                                      (let [{aname :name :as attribute} (core/get-attribute entity id)]
+                                      (if-let [{aname :name :as attribute} (try
+                                                                             (core/get-attribute entity id)
+                                                                             (catch Throwable _ nil))]
                                         (assoc args (keyword (normalize-name aname)) 
-                                               {:type (attribute-type->scalar entity attribute)})))
+                                               {:type (attribute-type->scalar entity attribute)})
+                                        args))
                                     args
                                     ids))
                                 {:euuid {:type 'UUID}}

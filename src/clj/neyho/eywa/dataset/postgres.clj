@@ -1145,45 +1145,53 @@
 ;; Version compatibility fix
 (defn fix-on-delete-set-null-to-references
   []
-  (binding [*model* (dataset/deployed-model)]
-    (let [model (dataset/deployed-model)
-          entities (core/get-entities model)]
-      (reduce
-        (fn [r entity]
-          (let [user-table-name (user-table)
-                entity-table (entity->table-name entity)
-                modified_by (str entity-table \_ "modified_by_fkey")
-                refered-attributes (filter
-                                     (comp
-                                       #{"user" "group" "role"}
-                                       :type)
-                                     (:attributes entity))
-                ;;
-                current-result
-                (conj r
-                      (format "alter table \"%s\" drop constraint \"%s\"" entity-table modified_by)
-                      (format
-                        "alter table \"%s\" add constraint \"%s\" foreign key (modified_by) references \"%s\"(_eid) on delete set null"
-                        entity-table modified_by user-table-name))]
-            (reduce
-              (fn [r {attribute-name :name
-                      attribute-type :type}]
-                (let [attribute-column (normalize-name attribute-name)
-                      constraint-name (str entity-table \_ attribute-column "_fkey")
-                      refered-table (case attribute-type
-                                      "user" (user-table)
-                                      "group" (group-table)
-                                      "role" (role-table))]
-                  (conj
-                    r
-                    (format "alter table \"%s\" drop constraint %s" entity-table constraint-name)
-                    (format
-                      "alter table \"%s\" add constraint \"%s\" foreign key (%s) references \"%s\"(_eid) on delete set null"
-                      entity-table constraint-name attribute-column refered-table))))
-              current-result
-              refered-attributes)))
-        []
-        entities))))
+  (let [statements (binding [*model* (dataset/deployed-model)]
+                     (let [model (dataset/deployed-model)
+                           entities (core/get-entities model)]
+                       (reduce
+                         (fn [r entity]
+                           (let [user-table-name (user-table)
+                                 entity-table (entity->table-name entity)
+                                 modified_by (str entity-table \_ "modified_by_fkey")
+                                 refered-attributes (filter
+                                                      (comp
+                                                        #{"user" "group" "role"}
+                                                        :type)
+                                                      (:attributes entity))
+                                 ;;
+                                 current-result
+                                 (conj r
+                                       (format "alter table \"%s\" drop constraint \"%s\"" entity-table modified_by)
+                                       (format
+                                         "alter table \"%s\" add constraint \"%s\" foreign key (modified_by) references \"%s\"(_eid) on delete set null"
+                                         entity-table modified_by user-table-name))]
+                             (reduce
+                               (fn [r {attribute-name :name
+                                       attribute-type :type}]
+                                 (let [attribute-column (normalize-name attribute-name)
+                                       constraint-name (str entity-table \_ attribute-column "_fkey")
+                                       refered-table (case attribute-type
+                                                       "user" (user-table)
+                                                       "group" (group-table)
+                                                       "role" (role-table))]
+                                   (conj
+                                     r
+                                     (format "alter table \"%s\" drop constraint %s" entity-table constraint-name)
+                                     (format
+                                       "alter table \"%s\" add constraint \"%s\" foreign key (%s) references \"%s\"(_eid) on delete set null"
+                                       entity-table constraint-name attribute-column refered-table))))
+                               current-result
+                               refered-attributes)))
+                         []
+                         entities)))]
+    (with-open [con (jdbc/get-connection (:datasource *db*))]
+      (doseq [statement statements]
+        (try
+          (execute-one! con [statement])
+          (println statement)
+          (catch Throwable ex
+            (println "EX: " ex)
+            (println statement)))))))
 
 
 (defn get-relation-indexes

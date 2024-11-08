@@ -2391,6 +2391,11 @@
               (aggregate-entity entity-id {:_eid {:_in rows}} selection)
               (aggregate-entity entity-id nil selection))))))))
 
+
+(comment
+  (delete-entity neyho.eywa.iam.uuids/user {:euuid #uuid "43da26b0-a976-11ee-8bcb-005056b2a4f0"}))
+
+
 (defn delete-entity
   [entity-id args]
   (let [{:keys [entity/table]} (binding [*operation-rules* #{:delete}]

@@ -178,6 +178,13 @@
     true))
 
 
+(comment
+  (def admin (from-env))
+  (backup
+    neyho.eywa.db/*db*
+    ))
+
+
 (defonce connection-agent (agent {:running? true}))
 
 
