@@ -293,7 +293,6 @@
 
 (defn wrap-protect
   [protection resolver]
-  (println "WRAPPING: " protection resolver)
   (if (not-empty protection)
     (fn wrapped-protection
       [ctx args value]
