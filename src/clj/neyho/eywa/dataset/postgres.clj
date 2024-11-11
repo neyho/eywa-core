@@ -16,7 +16,7 @@
      :refer [execute! execute-one!]]
     [neyho.eywa.db.postgres :as postgres]
     [neyho.eywa.dataset.sql.naming
-     :refer [normalize-name 
+     :refer [normalize-name
              column-name
              relation->table-name
              entity->relation-field
@@ -546,14 +546,6 @@
         old-from (core/suppress from) 
         old-to (core/suppress to)
         old-relation (core/suppress relation) 
-        _ (do
-            (def relation relation)
-            (def old-relation old-relation)
-            (def old-to old-to)
-            (def old-from old-from)
-            (def to-diff to-diff)
-            (def from-diff from-diff)
-            (:euuid old-relation))
         old-name (relation->table-name old-relation) 
         ;; Assoc old from and to entities
         ;; This will be handled latter

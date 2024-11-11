@@ -1,7 +1,7 @@
 (ns neyho.eywa.iam
   (:require
     [clojure.string :as str]
-    [clojure.java.io :as io]
+    clojure.set
     clojure.pprint
     clojure.data.json
     [clojure.tools.logging :as log]
@@ -20,10 +20,14 @@
              search-entity
              sync-entity
              delete-entity]]
+    [neyho.eywa.lacinia :as lacinia]
     [neyho.eywa.env :as env]
     [neyho.eywa.iam.gen :as gen]
+    [neyho.eywa.iam.access :as access]
     [neyho.eywa.iam.access.context :refer [*user*]]
-    [neyho.eywa.dataset.core :as core])
+    [neyho.eywa.dataset.core :as core]
+    [com.walmartlabs.lacinia.resolve :as resolve]
+    [com.walmartlabs.lacinia.selection :as selection])
   (:import
     [java.security KeyPairGenerator]))
 
@@ -287,6 +291,43 @@
      :settings nil}))
 
 
+(defn wrap-protect
+  [protection resolver]
+  (println "WRAPPING: " protection resolver)
+  (if (not-empty protection)
+    (fn wrapped-protection
+      [ctx args value]
+      ; (log/infof "RESOLVING: %s" resolver)
+      ; (def protection protection)
+      ; (def resolver resolver)
+      ; (def value value)
+      (comment
+        (type value))
+      (let [{:keys [scopes roles]}
+            (reduce
+              (fn [result definition]
+                (let [{:keys [scopes roles]} (selection/arguments definition)]
+                  (->
+                    result
+                    (update :scopes (fnil clojure.set/union #{}) (set scopes))
+                    (update :roles
+                            (fnil clojure.set/union #{})
+                            (map #(java.util.UUID/fromString %) roles)))))
+              nil
+              protection)]
+        (if (and
+              (or (empty? scopes)
+                  (access/scope-allowed? scopes))
+              (or (empty? roles)
+                  (access/roles-allowed? roles)))
+          (resolver ctx args value)
+          (resolve/resolve-as
+            nil
+            {:message "Access denied!"
+             :code :unauthorized}))))
+    resolver))
+
+
 (defn init
   []
   (log/info "Initializing IAM...")
@@ -295,6 +336,7 @@
     ;; TODO - Roles and permission shema should be initialized from database
     ;; and tracked by relations and entity changes just like in neyho.eywa.iam.access namespace
     ; (lacinia/add-shard ::graphql (slurp (io/resource "iam.graphql")))
+    (lacinia/add-directive :protect wrap-protect)
     (catch Throwable e
       (log/error e "Couldn't load role schema"))))
 

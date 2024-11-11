@@ -110,7 +110,6 @@
     resolver))
 
 
-
 ;; WRAPPERS
 (defn sync-entity [entity-id data] (db/sync-entity *db* entity-id data))
 (defn stack-entity [entity-id data] (db/stack-entity *db* entity-id data))

@@ -128,6 +128,34 @@
        (throw ex)))))
 
 
+(defn roles-allowed?
+  [roles]
+  (or
+    (superuser?)
+    (not-empty (set/intersection roles *roles*))))
+
+
+(defn scope-allowed?
+  ([permission]
+   (scope-allowed? *roles* permission))
+  ([roles scope]
+   (or
+     (superuser?)
+     (reduce-kv
+       (fn [_ _ scopes]
+         (if (contains? scopes scope) (reduced true)
+           false))
+       false
+       (select-keys *scopes* roles)))))
+
+
+(comment
+  (def roles #{#uuid "7fc035e2-812e-4861-a25c-eb172b39577f"
+               #uuid "48ef8d6d-e067-4e31-b4db-2a1ae49a0fcb"
+               #uuid "082ef416-d35c-40ab-a5ff-c68ff871ba4e"})
+  (time (scope-allowed? roles "dataset:delete")))
+
+
 ;; SCOPES
 (defn get-roles-scope-data
   []

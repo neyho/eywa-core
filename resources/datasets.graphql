@@ -1,4 +1,9 @@
 type Query {
+  # __type: __Schema
+  # @protected(scopes:["dataset:graphiql"])
+  # __schema: __Type
+  # @protected(scopes:["dataset:graphiql"])
+
   getDeployedModel:DatasetVersion
   @resolve(fn: "neyho.eywa.dataset/get-deployed-model")
 }
@@ -31,10 +36,12 @@ type EncryptionResponse {
 type Mutation {
   deployDataset(version: DatasetVersionInput):DatasetVersion
   @resolve(fn: "neyho.eywa.dataset/deploy-dataset")
+  @protect(scopes: ["dataset:deploy"])
 
   deleteDataset:Boolean
   @hook(fn: "neyho.eywa.dataset/prepare-deletion-context" metric: -1)
   @hook(fn: "neyho.eywa.dataset/destroy-linked-versions")
+  @protect(scopes: ["dataset:delete"])
 
   initializeEncryptionWithShare(share: SSShareInput): EncryptionResponse
   @resolve(fn: "neyho.eywa.dataset.encryption/init-with-share")
@@ -54,4 +61,5 @@ type Mutation {
 type Subscription {
   refreshedGlobalDataset:DatasetVersion
   @resolve(fn: "neyho.eywa.dataset/deploy-update-subscription")
+  @protect(scopes: ["dataset:subscription"])
 }

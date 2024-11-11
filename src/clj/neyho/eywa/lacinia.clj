@@ -9,9 +9,16 @@
     [com.walmartlabs.lacinia.selection :as selection]
     [com.walmartlabs.lacinia.resolve :as r]
     [com.walmartlabs.lacinia.schema :as schema]
-    [com.walmartlabs.lacinia.executor :as executor]
+    [com.walmartlabs.lacinia.introspection :as introspection]
     [com.walmartlabs.lacinia.parser.schema :refer [parse-schema]]))
 
+
+(comment
+  (-> compiled
+      deref
+      :Query
+      :fields
+      :__type))
 
 (defn deep-merge
   "Recursively merges maps."
@@ -160,6 +167,30 @@
       (r/resolve-as (get v alias)))))
 
 
+(defn protect-schema
+  [schema]
+  (-> 
+    schema
+    (deep-merge (introspection/introspection-schema))
+    (assoc-in [:queries :__type :directives]
+              [{:directive-type :protect,
+                :directive-args {:scopes ["dataset:graphiql"]}}])
+    (assoc-in [:queries :__schema :directives]
+              [{:directive-type :protect,
+                :directive-args {:scopes ["dataset:graphiql"]}}])))
+
+
+(comment
+  (->
+    (reduce
+      deep-merge
+      (map
+        (fn [s] (if (fn? s) (s) s))
+        (vals (:shards @state))))
+    bind-resolvers
+    protect-schema))
+
+
 (defn ^:private recompile []
   (let [{:keys [shards directives]} @state]
     (when (not-empty shards)
@@ -178,8 +209,10 @@
           ; schema
           (->
             schema
-            bind-resolvers)
-          {:default-field-resolver default-field-resolver
+            bind-resolvers
+            protect-schema)
+          {:enable-introspection? false
+           :default-field-resolver default-field-resolver
            :apply-field-directives
            (fn [field resolver-fn]
              (log/infof

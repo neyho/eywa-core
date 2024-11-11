@@ -19,6 +19,7 @@
    [neyho.eywa.iam.access.context
     :refer [*roles*
             *user*]]
+   neyho.eywa.dataset.sql.naming
    [neyho.eywa.db :refer [*db*] :as db]
    [neyho.eywa.db.postgres.next :as postgres]
    [neyho.eywa.dataset.encryption
@@ -2784,3 +2785,38 @@
   (db/delete-entity
     [_ entity-id data]
     (delete-entity entity-id data)))
+
+
+
+(extend-type neyho.eywa.Postgres 
+  neyho.eywa.dataset.sql.naming/SQLNameResolution
+  (table [_ value]
+    (let [schema (deployed-schema)]
+      (get-in schema [value :table])))
+  (relation [_ table value]
+    (let [{:keys [relations]} (deployed-schema-entity table)]
+      (if (keyword? value)
+        (get-in relations [value :table])
+        (some
+          (fn [[_ {:keys [relation table]}]]
+            (when (= relation value)
+              table))
+          relations))))
+  (relation-from-field [_ table value]
+    (let [{:keys [relations]} (deployed-schema-entity table)]
+      (if (keyword? value)
+        (get-in relations [value :from/field])
+        (some
+          (fn [[_ {:keys [relation :from/field]}]]
+            (when (= relation value)
+              field))
+          relations))))
+  (relation-to-field [_ table value]
+    (let [{:keys [relations]} (deployed-schema-entity table)]
+      (if (keyword? value)
+        (get-in relations [value :to/field])
+        (some
+          (fn [[_ {:keys [relation :to/field]}]]
+            (when (= relation value)
+              field))
+          relations)))))

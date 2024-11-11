@@ -73,3 +73,11 @@
                  (short-table (:name t)))] 
         (cond-> rn
           (> (count rn) 63) (subs 0 64))))))
+
+
+
+(defprotocol SQLNameResolution
+  (table [this euuid] "Returns table name based on input euuid")
+  (relation [this table value] "Returns relation table name based on value, that can be keyword or UUID")
+  (relation-from-field [this table value] "Returns name for relation field that is directed from current entity")
+  (relation-to-field [this table value] "Returns name for relation field that is directed towards referenced entity"))

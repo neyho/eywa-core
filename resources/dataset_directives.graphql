@@ -4,6 +4,17 @@ directive @resolve (
   metric: Int
 ) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
 
+
+directive @protect (
+  """This directive will protect query or mutation or subscription by
+  ensuring that authorized user has roles or scopes associated with
+  user roles that match scopes or roles specified in this directive
+  """
+  scopes: [String]
+  roles: [String]
+) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
+
+
 directive @hook (
   """Hooks that is attached to field resolver. Metric is optioinal
   argument that can position hook before field resolver to enable modifying
