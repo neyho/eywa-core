@@ -422,8 +422,9 @@
                      eywa-web-interceptor
                      router
                      (make-spa-interceptor (env :eywa-serve))
+                     http/not-found
                      ; (middlewares/resource "public")
-                     (interceptor/interceptor http/not-found)]
+                     #_(interceptor/interceptor http/not-found)]
                     ; ::http/secure-headers {:content-security-policy-settings {:object-src "none"}}
                     ; ::http/file-path "web/public"
                     }
