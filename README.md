@@ -148,5 +148,5 @@ how, run:
 eywa core -h
 ```
 
-[#### Docs](https://www.eywaonline.com/docs/graphql/graphql-main)
+[Docs](https://www.eywaonline.com/docs/graphql/graphql-main)
 
