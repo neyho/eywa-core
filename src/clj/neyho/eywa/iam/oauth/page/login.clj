@@ -117,9 +117,7 @@
 
 (defn login-html
   ([{error :neyho.eywa.iam.oauth.login/error
-     {:keys [authorization-code device-code] :as state} :neyho.eywa.iam.oauth.login/state}]
-   ; (def state state)
-   ; (def ctx ctx)
+     {:keys [authorization-code device-code]} :neyho.eywa.iam.oauth.login/state}]
    (let [client (cond
                   authorization-code (ac/get-code-client authorization-code)
                   device-code (dc/get-code-client device-code))

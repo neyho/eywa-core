@@ -141,14 +141,12 @@ For now we support:
  * Javascript - [eywa-client](https://www.npmjs.com/package/eywa-client)
  ```npm i eywa-client```
 
+EYWA can be controlled through environment variables as well. To see
+how, run:
 
-#### Development setup
-Check out [setup.md](./doc/setup.md)
+```
+eywa core -h
+```
 
+[#### Docs](https://www.eywaonline.com/docs/graphql/graphql-main)
 
-#### Dataset sources
-For working on datasets and testing reconsider following datasets:
- * https://musicbrainz.org/
- * https://developer.imdb.com/non-commercial-datasets/
- * https://archive.org/details/stackexchange
- * Python - [Faker](https://faker.readthedocs.io/en/master/)

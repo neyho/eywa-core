@@ -8,7 +8,7 @@
     [vura.core :as vura]
     [ring.util.codec :as codec]
     [clojure.data.json :as json]
-    [neyho.eywa.iam :as iam]
+    ;[neyho.eywa.iam :as iam]
     [neyho.eywa.iam.oauth.core :as core]
     [neyho.eywa.iam.oauth.authorization-code :as ac]
     [neyho.eywa.iam.oauth.device-code :as dc]

@@ -43,7 +43,7 @@
 
 
 (defn get-code-client [device-code]
-  (get-client (:client (get @*device-codes* device-code))))
+  (get-client (get-in @*device-codes* [device-code :request :client_id])))
 
 
 (def grant "urn:ietf:params:oauth:grant-type:device_code")

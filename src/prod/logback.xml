@@ -1,5 +1,9 @@
 <?xml version="1.0"?>
 <configuration>
+  <property name="EYWA_LOG_LEVEL" scope="system" value="${EYWA_LOG_LEVEL:-ERROR}" />
+  <property name="DATASET_LOG_LEVEL" scope="system" value="${EYWA_DATASET_LOG_LEVEL:-INFO}" />
+  <property name="GIT_LOG_LEVEL" scope="system" value="${EYWA_GIT_LOG_LEVEL:-INFO}" />
+  <property name="IAM_LOG_LEVEL" scope="system" value="${EYWA_IAM_LOG_LEVEL:-INFO}" />
   <appender name="eywa.system" class="ch.qos.logback.core.rolling.RollingFileAppender">
     <file>${HOME}/.eywa/logs/system.log</file>
     <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
@@ -8,15 +12,54 @@
     <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
       <fileNamePattern>${HOME}/.eywa/logs/system.%d{yyyy-MM-dd}.log</fileNamePattern>
       <maxHistory>7</maxHistory>
-      <totalSizeCap>100MB</totalSizeCap>
+      <totalSizeCap>600MB</totalSizeCap>
     </rollingPolicy>
   </appender>
 
-  <logger name="neyho.eywa" level="info">
-    <appender-ref ref="eywa.system"/>
+
+  <appender name="eywa.sql" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${HOME}/.eywa/logs/sql.log</file>
+    <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %level %logger{36} - %msg%n</pattern>
+    </encoder>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>${HOME}/.eywa/logs/sql.%d{yyyy-MM-dd}.log</fileNamePattern>
+      <maxHistory>7</maxHistory>
+      <totalSizeCap>200MB</totalSizeCap>
+    </rollingPolicy>
+  </appender>
+
+  <appender name="eywa.iam" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${HOME}/.eywa/logs/iam.log</file>
+    <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %level %logger{36} - %msg%n</pattern>
+    </encoder>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>${HOME}/.eywa/logs/iam.%d{yyyy-MM-dd}.log</fileNamePattern>
+      <maxHistory>7</maxHistory>
+      <totalSizeCap>200MB</totalSizeCap>
+    </rollingPolicy>
+  </appender>
+
+
+
+
+
+  <logger name="neyho.eywa.dataset" level="${DATASET_LOG_LEVEL}">
+    <appender-ref ref="eywa.sql"/>
+  </logger>
+  <logger name="neyho.eywa.iam" level="#{IAM_LOG_LEVEL}">
+    <appender-ref ref="eywa.iam"/>
   </logger>
 
-  <root level="info">
-    <!-- <appender-ref ref="eywa.dev"/> -->
+
+  <!-- <logger name="neyho.eywa.robotics.core" level="debug"> -->
+  <!--   <appender-ref ref="eywa.system"/> -->
+  <!-- </logger> -->
+
+
+
+  <root level="${EYWA_LOG_LEVEL}">
+    <appender-ref ref="eywa.system"/>
   </root>
 </configuration>

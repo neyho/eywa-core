@@ -331,11 +331,11 @@
   []
   (log/info "Initializing IAM...")
   (try
-    (log/info "IAM initialized")
     ;; TODO - Roles and permission shema should be initialized from database
     ;; and tracked by relations and entity changes just like in neyho.eywa.iam.access namespace
     ; (lacinia/add-shard ::graphql (slurp (io/resource "iam.graphql")))
     (lacinia/add-directive :protect wrap-protect)
+    (log/info "IAM initialized")
     (catch Throwable e
       (log/error e "Couldn't load role schema"))))
 

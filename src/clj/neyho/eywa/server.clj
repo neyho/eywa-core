@@ -202,7 +202,7 @@
                      ; eywa-web-interceptor
                      router
                      (make-spa-interceptor (env :eywa-serve))
-                     http/not-found
+                     ; http/not-found
                      ; (middlewares/resource "public")
                      ; (interceptor/interceptor http/not-found)
                      ]
@@ -216,4 +216,5 @@
 
 
 (comment
+  (stop)
   (start))

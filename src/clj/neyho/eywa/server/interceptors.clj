@@ -108,8 +108,15 @@
      {:name ::spa-dynamic 
       :enter
       (fn [{{:keys [path-info uri] :as request} :request
+            response :response
             :as context}]
-        (if-not root context
+        (when-not (= uri "/favicon.ico")
+          (def context context)
+          (def response response)
+          (def path-info path-info)
+          (def root root)
+          (def uri uri))
+        (if (or (not root) response) context
           (let [extension (re-find #"(?<=\.).*?$" uri)] 
             ;; If extension exists
             (if (some? extension)
@@ -121,13 +128,11 @@
                 (let [target (str root "/" path)]
                   (log/tracef "Returning resource file %s, for path %s" uri path-info)
                   (if (fs/exists? target)
-                    (assoc context :response
-                           (-> (response/file-response target)
-                               (head/head-response request)))
                     (chain/terminate
-                      (assoc context
-                             :response {:status 404
-                                        :body "Not found!"})))))
+                      (assoc context :response
+                             (-> (response/file-response target)
+                                 (head/head-response request))))
+                    context)))
               ;; Otherwise proceed
               context))))
       ;; Leave will only happen when requested URI ends without extension
@@ -136,35 +141,44 @@
       (fn [{{:keys [path-info uri] :as request} :request
             response :response
             :as context}]
+        (when-not (= uri "/favicon.ico")
+          (def context2 context)
+          (def response response)
+          (def path-info path-info)
+          (def root root)
+          (def uri uri))
+        ; (def request request)
         (if response
           ;; If there is some kind of response
           context
           ;; Otherwise return root html
           (if-not root
-            context 
+            (assoc context :response
+                   {:status 404
+                    :body "Not found!"})
             (loop [sections (remove empty? (str/split (or path-info uri) #"/"))]
               (if (empty? sections)
                 ;; If there are no more sections
-                (let [target (fs/file root "/index.html")]
+                (let [target (str root "/index.html")]
                   (if (fs/exists? target)
                     (assoc context :response
                            (-> (response/file-response target)
                                (assoc-in [:headers "Content-Type"] "text/html")
                                (head/head-response request)))
-                    (chain/terminate
-                      (assoc context
-                             :response {:status 404
-                                        :body "Not found!"}))))
+                    (assoc context
+                           :response {:status 404
+                                      :body "Not found!"})))
                 ;;
                 (let [target (str
                                root "/"
                                (str/join "/" sections)
                                "/index.html")]
                   (if (fs/exists? target)
-                    (assoc context :response
-                           (-> (response/file-response target)
-                               (assoc-in [:headers "Content-Type"] "text/html")
-                               (head/head-response request)))
+                    (chain/terminate
+                      (assoc context :response
+                             (-> (response/file-response target)
+                                 (assoc-in [:headers "Content-Type"] "text/html")
+                                 (head/head-response request))))
                     (recur (butlast sections)))))))))})))
 
 

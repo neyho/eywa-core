@@ -36,7 +36,8 @@
       [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;800;900&family=Roboto&display=swap"}]
       [:link {:rel "stylesheet" :href "../css/device.css"}]]
      [:body
-      [:svg
+      {:style {:background-color "#ededed"}}
+      #_[:svg
        {:id "background-viewbox"
         :viewBox "0 0 1000 1000"
         :style {:width "100%"
@@ -50,12 +51,12 @@
                        :py-8
                        :px-7
                        :rounded-lg
-                       {:background "#ffffffbd"
+                       {;:background "#ffffffbd"
                         :max-width "500px"}
                        ["& .header" :py-4 :flex :justify-center :items-center :select-none]
                        ["& .logo" :w-10 :h-10 :mr-4]
                        ["& h1, & button" :select-none {:color "#3a3c3f"}])}
-        [:div {:class (css :p-8 :bg-white :rounded-lg)}
+        [:div {:class (css :p-8 :rounded-lg)}
          [:div.header
           [:div.logo
            [:image {:src "https://my.eywaonline.com/images/eywa.svg"}]]

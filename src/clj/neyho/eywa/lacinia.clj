@@ -18,7 +18,13 @@
       deref
       :Query
       :fields
-      :__type))
+      :__type)
+  ;;
+  (-> compiled
+      deref
+      :Query
+      :fields
+      keys))
 
 (defn deep-merge
   "Recursively merges maps."
@@ -167,17 +173,17 @@
       (r/resolve-as (get v alias)))))
 
 
-(defn protect-schema
-  [schema]
-  (-> 
-    schema
-    (deep-merge (introspection/introspection-schema))
-    (assoc-in [:queries :__type :directives]
-              [{:directive-type :protect,
-                :directive-args {:scopes ["dataset:graphiql"]}}])
-    (assoc-in [:queries :__schema :directives]
-              [{:directive-type :protect,
-                :directive-args {:scopes ["dataset:graphiql"]}}])))
+; (defn protect-schema
+;   [schema]
+;   (-> 
+;     schema
+;     (deep-map-merge (introspection/introspection-schema))
+;     (update-in [:queries :__type :resolve]
+;               (fn [resolver]
+;                 (wrap-protect {:scopes ["dataset:graphiql"]} resolver)))
+;     (update-in [:queries :__schema :resolve]
+;                (fn [resolver]
+;                  (wrap-protect {:scopes ["dataset:graphiql"]} resolver)))))
 
 
 (comment
@@ -188,7 +194,13 @@
         (fn [s] (if (fn? s) (s) s))
         (vals (:shards @state))))
     bind-resolvers
-    protect-schema))
+    (deep-merge __schema))
+  )
+
+
+; (defonce __schema (dissoc (introspection/introspection-schema) :queries))
+(defonce __schema (introspection/introspection-schema))
+
 
 
 (defn ^:private recompile []
@@ -210,7 +222,7 @@
           (->
             schema
             bind-resolvers
-            protect-schema)
+            (deep-merge __schema))
           {:enable-introspection? false
            :default-field-resolver default-field-resolver
            :apply-field-directives
