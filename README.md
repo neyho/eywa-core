@@ -155,6 +155,7 @@ eywa core -h
 #### Features
 - [x] - GraphQL Sync Mutation
 - [x] - GraphQL Stack Mutation
+- [x] - GraphQL Slice Mutation
 - [x] - GraphQL Purge Mutation
 - [x] - GraphQL Delete Mutation
 - [x] - GraphQL Sync/Stack List mutation for batch insertion/update 
