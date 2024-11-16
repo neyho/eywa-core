@@ -175,6 +175,7 @@ eywa core -h
 - [ ] - MySQL implementation
 - [ ] - SQLite implementation 
 - [ ] - CochroachDB implementation 
+- [ ] - Datalevin
 - [ ] - XTDB implementation 
 
 
