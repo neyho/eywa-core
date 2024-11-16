@@ -198,6 +198,16 @@ eywa core -h
 - [ ] - JWKS key rotation
 
 
+#### Clients
+- [x] - JS
+- [x] - Python
+- [ ] - Clojure
+- [ ] - Clojurescript
+- [ ] - Babashka
+- [ ] - GO
+- [ ] - Ruby
+
+
 #### Misc
 - [ ] - Explore module - dynamic visualization
 - [ ] - Documentation
