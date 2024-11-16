@@ -150,3 +150,51 @@ eywa core -h
 
 [Docs](https://www.eywaonline.com/docs/graphql/graphql-main)
 
+
+
+#### Features
+- [x] - GraphQL Sync Mutation
+- [x] - GraphQL Stack Mutation
+- [x] - GraphQL Purge Mutation
+- [x] - GraphQL Delete Mutation
+- [x] - GraphQL Sync/Stack List mutation for batch insertion/update 
+- [x] - GraphQL Search Query
+- [x] - GraphQL Get Query
+- [x] - GraphQL SearchTree Query for recursive relations
+- [x] - Aggregate fields for Query operations (count, avg, max, min, sum)
+- [x] - Hash attribute type
+- [x] - Encryption attribute type
+- [ ] - Currency attribute type
+- [x] - Dynamic GraphQL schema hooks
+- [x] - Dynamic GraphQL schema resolvers for mutations, queries and subscriptions
+
+
+#### Supported DB
+- [x] - PostgreSQL implementation
+- [ ] - SQLite implementation 
+- [ ] - CochroachDB implementation 
+- [ ] - XTDB implementation 
+
+
+#### OAuth & OIDC
+- [x] - Authorization Code flow
+- [x] - Device Code flow
+- [ ] - MultiFactor authentication
+- [ ] - Passkey authentication
+- [x] - IAM Role Access Management
+- [x] - IAM Client registration
+- [x] - IAM API permission control
+- [ ] - External Identity Providers - module for easy onboarding 
+- [ ] - Google Identity Provider
+- [ ] - Github Identity Provider
+- [ ] - AuthO Identity Provider
+- [ ] - Amazon Identity Provider
+- [ ] - AD/LDAP Identity Provider
+- [ ] - Persistent sessions
+- [ ] - Persistent tokens
+- [ ] - Persistent JWKS certificate pairs
+- [ ] - JWKS key rotation
+
+
+#### Frontend
+- [ ] - Explore module - dynamic visualization
