@@ -199,8 +199,8 @@ eywa core -h
 
 
 #### Clients
-- [x] - JS
-- [x] - Python
+- [x] - [JS](https://www.npmjs.com/package/eywa-client)
+- [x] - [Python](https://pypi.org/project/eywa-client/)
 - [ ] - Clojure
 - [ ] - Clojurescript
 - [ ] - Babashka
