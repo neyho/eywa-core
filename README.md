@@ -171,6 +171,7 @@ eywa core -h
 
 #### Supported DB
 - [x] - PostgreSQL implementation
+- [ ] - MySQL implementation
 - [ ] - SQLite implementation 
 - [ ] - CochroachDB implementation 
 - [ ] - XTDB implementation 
@@ -196,5 +197,7 @@ eywa core -h
 - [ ] - JWKS key rotation
 
 
-#### Frontend
+#### Misc
 - [ ] - Explore module - dynamic visualization
+- [ ] - Documentation
+- [ ] - Use cases / examples
