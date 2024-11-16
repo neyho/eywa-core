@@ -212,3 +212,11 @@ eywa core -h
 - [ ] - Explore module - dynamic visualization
 - [ ] - Documentation
 - [ ] - Use cases / examples
+
+
+
+### Credits
+
+This project wouldn't be possible without [Lacinia](https://github.com/walmartlabs/lacinia)
+which powers backend and [helix](https://github.com/lilactown/helix) & [shadow-css](https://github.com/thheller/shadow-css)
+which power frontend. Many thanks to the people that created these projects as well as all other maintainers and contributors.
