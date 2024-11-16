@@ -165,6 +165,7 @@ eywa core -h
 - [x] - Hash attribute type
 - [x] - Encryption attribute type
 - [ ] - Currency attribute type
+- [x] - Enforcing read, write, delete righths through IAM Roles
 - [x] - Dynamic GraphQL schema hooks
 - [x] - Dynamic GraphQL schema resolvers for mutations, queries and subscriptions
 
