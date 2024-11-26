@@ -4,73 +4,96 @@
   <packaging>jar</packaging>
   <groupId>org.neyho</groupId>
   <artifactId>eywa-core</artifactId>
-  <version>0.1.2</version>
+  <version>0.3.1</version>
   <name>core</name>
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+      <distribution>repo</distribution>
+      </license>
+    </licenses>
   <dependencies>
     <dependency>
       <groupId>org.bouncycastle</groupId>
       <artifactId>bcprov-jdk15on</artifactId>
-      <version>1.68</version>
+      <version>1.70</version>
+    </dependency>
+    <dependency>
+      <groupId>buddy</groupId>
+      <artifactId>buddy-core</artifactId>
+      <version>1.11.423</version>
     </dependency>
     <dependency>
       <groupId>org.clojure</groupId>
       <artifactId>data.json</artifactId>
-      <version>2.4.0</version>
+      <version>2.5.0</version>
     </dependency>
     <dependency>
       <groupId>org.clojure</groupId>
       <artifactId>clojure</artifactId>
-      <version>1.11.1</version>
+      <version>1.12.0</version>
     </dependency>
     <dependency>
       <groupId>com.zaxxer</groupId>
       <artifactId>HikariCP</artifactId>
-      <version>3.4.5</version>
+      <version>5.1.0</version>
     </dependency>
     <dependency>
       <groupId>org.clojure</groupId>
       <artifactId>tools.logging</artifactId>
-      <version>1.2.4</version>
+      <version>1.3.0</version>
     </dependency>
     <dependency>
       <groupId>org.bouncycastle</groupId>
       <artifactId>bcpkix-jdk15on</artifactId>
-      <version>1.68</version>
+      <version>1.70</version>
     </dependency>
     <dependency>
       <groupId>io.pedestal</groupId>
       <artifactId>pedestal.jetty</artifactId>
-      <version>0.5.10</version>
+      <version>0.6.3</version>
     </dependency>
     <dependency>
       <groupId>com.walmartlabs</groupId>
       <artifactId>lacinia-pedestal</artifactId>
-      <version>1.1</version>
-    </dependency>
-    <dependency>
-      <groupId>org.clojure</groupId>
-      <artifactId>data.zip</artifactId>
-      <version>1.0.0</version>
+      <version>1.2</version>
+      <exclusions>
+        <exclusion>
+          <groupId>com.walmartlabs</groupId>
+          <artifactId>lacinia</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.pedestal</groupId>
       <artifactId>pedestal.service</artifactId>
-      <version>0.5.10</version>
+      <version>0.6.3</version>
     </dependency>
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
-      <version>42.2.19</version>
+      <version>42.7.2</version>
     </dependency>
     <dependency>
       <groupId>org.clojure</groupId>
       <artifactId>tools.namespace</artifactId>
-      <version>1.1.0</version>
+      <version>1.5.0</version>
     </dependency>
     <dependency>
       <groupId>com.walmartlabs</groupId>
       <artifactId>lacinia</artifactId>
-      <version>1.2-alpha-4</version>
+      <version>1.2.2</version>
+    </dependency>
+    <dependency>
+      <groupId>buddy</groupId>
+      <artifactId>buddy-hashers</artifactId>
+      <version>2.0.167</version>
+    </dependency>
+    <dependency>
+      <groupId>hiccup</groupId>
+      <artifactId>hiccup</artifactId>
+      <version>2.0.0-RC3</version>
     </dependency>
     <dependency>
       <groupId>environ</groupId>
@@ -78,83 +101,69 @@
       <version>1.2.0</version>
     </dependency>
     <dependency>
-      <groupId>buddy</groupId>
-      <artifactId>buddy</artifactId>
-      <version>2.0.0</version>
-      <exclusions>
-        <exclusion>
-          <groupId>org.bouncycastle</groupId>
-          <artifactId>bcprov-jdk15on</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>org.bouncycastle</groupId>
-          <artifactId>bcpkix-jdk15on</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>clout</groupId>
-          <artifactId>clout</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
       <groupId>org.clojure</groupId>
       <artifactId>data.csv</artifactId>
-      <version>1.0.0</version>
+      <version>1.1.0</version>
     </dependency>
     <dependency>
       <groupId>com.github.seancorfield</groupId>
       <artifactId>next.jdbc</artifactId>
-      <version>1.2.772</version>
+      <version>1.3.909</version>
     </dependency>
     <dependency>
       <groupId>nano-id</groupId>
       <artifactId>nano-id</artifactId>
-      <version>1.0.0</version>
+      <version>1.1.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.clojure</groupId>
+      <artifactId>math.combinatorics</artifactId>
+      <version>0.3.0</version>
     </dependency>
     <dependency>
       <groupId>com.taoensso</groupId>
       <artifactId>nippy</artifactId>
-      <version>3.2.0</version>
+      <version>3.3.0</version>
     </dependency>
     <dependency>
       <groupId>nrepl</groupId>
       <artifactId>nrepl</artifactId>
-      <version>0.9.0</version>
+      <version>1.1.1</version>
     </dependency>
     <dependency>
-      <groupId>com.github.gersak</groupId>
-      <artifactId>vura</artifactId>
-      <version>0.5.7-SNAPSHOT</version>
+      <groupId>buddy</groupId>
+      <artifactId>buddy-sign</artifactId>
+      <version>3.5.351</version>
     </dependency>
     <dependency>
       <groupId>io.pedestal</groupId>
       <artifactId>pedestal.route</artifactId>
-      <version>0.5.10</version>
+      <version>0.6.3</version>
     </dependency>
     <dependency>
       <groupId>babashka</groupId>
       <artifactId>fs</artifactId>
-      <version>0.2.12</version>
+      <version>0.5.20</version>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
-      <version>1.2.3</version>
+      <version>1.5.0</version>
     </dependency>
     <dependency>
       <groupId>camel-snake-kebab</groupId>
       <artifactId>camel-snake-kebab</artifactId>
-      <version>0.4.1</version>
+      <version>0.4.3</version>
     </dependency>
     <dependency>
       <groupId>org.clojure</groupId>
       <artifactId>core.async</artifactId>
-      <version>1.5.648</version>
+      <version>1.6.681</version>
     </dependency>
     <dependency>
       <groupId>org.clojure</groupId>
       <artifactId>data.codec</artifactId>
-      <version>0.1.1</version>
+      <version>0.2.0</version>
     </dependency>
   </dependencies>
   <build>
@@ -169,6 +178,7 @@
         <directory>resources</directory>
       </resource>
     </resources>
+    <sourceDirectory>src/clj</sourceDirectory>
   </build>
   <distributionManagement>
     <repository>

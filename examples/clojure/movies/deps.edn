@@ -1,0 +1,9 @@
+{:deps
+ {org.neyho/eywa-core                          {:mvn/version "0.3.1"}}
+  :paths ["src"]
+
+  :aliases
+  {:hr
+   {:jvm-opts ["-Duser.country=HR"
+               "-Duser.language=hr"
+               "-Dfile.encoding=UTF-8"]}}}

@@ -84,13 +84,13 @@ And output should look something like this
 ❯ eywa core -l          
 List of available versions. '*' installed, '-' not installed
 
-[-] 0.1.4
-[-] 0.1.3
+[-] 0.3.1
+[-] 0.3.0
 
 ```
 To install some version run
 ```
-eywa core -s 0.2.0
+eywa core -s 0.3.1
 ```
 Ok EYWA Core server is installed, now we need to initialize EYWA IAM and Datacraft. So we should run:
 ```
@@ -109,14 +109,13 @@ eywa core start
 And navigate to **https://my.eywaonline.com/eywa/** and login screen should be waiting for you. Use username and
 password from previous step to login.
 
-To track what is happening open log file at location __~/.eywa/logs/dev.log__
+To track what is happening open log file at location __~/.eywa/logs/system.log__
 
 
 If something went wrong or EYWA Core server isn't running as supposed to, run
 ```
 eywa core doctor
 ```
-
 
 
 #### CLI
@@ -184,6 +183,7 @@ eywa core -h
 #### OAuth & OIDC
 - [x] - Authorization Code flow
 - [x] - Device Code flow
+- [ ] - User Confirmation Page
 - [ ] - MultiFactor authentication
 - [ ] - Passkey authentication
 - [x] - IAM Role Access Management
@@ -201,11 +201,9 @@ eywa core -h
 - [ ] - JWKS key rotation
 
 
-#### Clients
+#### CLI clients
 - [x] - [JS](https://www.npmjs.com/package/eywa-client)
 - [x] - [Python](https://pypi.org/project/eywa-client/)
-- [ ] - Clojure
-- [ ] - Clojurescript
 - [ ] - Babashka
 - [ ] - GO
 - [ ] - Ruby

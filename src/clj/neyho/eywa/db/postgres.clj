@@ -87,7 +87,7 @@
                        :db db 
                        :password password 
                        :user user 
-                       :max-connections (Integer/parseInt (env :hikari-max-pool-size "2")))]
+                       :max-connections (Integer/parseInt (env :hikari-max-pool-size "20")))]
     (check-connection-params data)
     (eywa/map->Postgres data)))
 
@@ -106,7 +106,7 @@
                        :db admin-db
                        :password password 
                        :user user 
-                       :max-connections (Integer/parseInt (env :hikari-max-pool-size "2")))]
+                       :max-connections (Integer/parseInt (env :hikari-max-pool-size "20")))]
     (check-connection-params data)
     (eywa/map->Postgres data)))
 

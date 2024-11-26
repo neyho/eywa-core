@@ -254,7 +254,7 @@
 
 (defn get-client
   [id]
-  (let [client (iam/get-client id)]
+  (when-let [client (iam/get-client id)]
     (swap! *clients* update (:euuid client) merge client)
     client))
 
@@ -537,8 +537,8 @@
              (merge-with
                merge old-clients
                (reduce
-                 (fn [r {:keys [euuid]}]
-                   (assoc r euuid (get new-clients euuid)))
+                 (fn [r {:keys [euuid] :as client}]
+                   (assoc r euuid client))
                  nil
                  new-clients))))))
 

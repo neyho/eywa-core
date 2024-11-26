@@ -10,7 +10,7 @@
     [neyho.eywa.env :as env]
     neyho.eywa.lacinia
     neyho.eywa.server
-    neyho.eywa.server.jetty
+    ; neyho.eywa.server.jetty
     neyho.eywa.data
     neyho.eywa.db.postgres
     neyho.eywa.dataset
@@ -26,7 +26,7 @@
   (:gen-class :main true))
 
 
-(def version "0.3.1")
+(def version "0.3.2")
 
 
 (defn setup
@@ -268,7 +268,8 @@
                   (neyho.eywa.server/start
                     {:port (when-some [port (env :eywa-server-port "8080")] (if (number? port) port (Integer/parseInt port)))
                      :host (env :eywa-server-host "0.0.0.0")
-                     :context-configurator neyho.eywa.server.jetty/context-configuration}))
+                     ; :context-configurator neyho.eywa.server.jetty/context-configuration
+                     }))
         (do
           (.print System/err (str "Unknown args: " args))
           (System/exit 1)))

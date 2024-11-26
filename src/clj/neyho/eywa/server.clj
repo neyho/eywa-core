@@ -6,12 +6,8 @@
     clojure.string
     clojure.set
     [clojure.tools.logging :as log]
-    [ring.util.response :as response]
-    [ring.middleware.head :as head]
     [io.pedestal.http :as http]
     [io.pedestal.http.cors :as cors]
-    [io.pedestal.interceptor :as interceptor]
-    [io.pedestal.interceptor.chain :as chain]
     [io.pedestal.http.route :as route]
     [io.pedestal.http.content-negotiation :as conneg]
     [io.pedestal.http.ring-middlewares :as middlewares]
@@ -19,7 +15,7 @@
     neyho.eywa.lacinia
     [neyho.eywa.iam.oidc :as oidc]
     [neyho.eywa.iam.access.context :refer [*user* *roles* *groups*]]
-    [neyho.eywa.server.jetty :as jetty]
+    [neyho.eywa.server.ws.graphql :as ws.graphql]
     [neyho.eywa.server.interceptors :refer [json-response-interceptor make-spa-interceptor]]
     [neyho.eywa.server.interceptors.util :refer [coerce-body]]
     [neyho.eywa.server.interceptors.authentication :as authentication
@@ -104,65 +100,6 @@
    "s2" "service2"
    "ring" "ring"})
 
-
-(def eywa-web-interceptor
-  (let [eywa-spa {:status 200
-                  :headers {"Content-Type" "text/html"}
-                  :body index-html}]
-    (interceptor/interceptor
-      {:name :eywa/web
-       :enter (fn [{:keys [request] :as context}]
-                (let [path (:uri request)]
-                  (letfn [(resource-response []
-                            (let [path (subs path 1)]
-                              (if (io/resource path)
-                                (assoc context :response
-                                       (let [response (-> (response/resource-response path)
-                                                          (head/head-response request)
-                                                          (assoc-in [:headers "Cache-Control"] "max-age=500000"))]
-                                         (reset! _response response)
-                                         response))
-                                (chain/terminate
-                                  (assoc context
-                                         :response {:status 404
-                                                    :body "Not found!"})))))]
-                    (case path
-                      "/" (chain/terminate  (assoc context :response eywa-spa))
-                      "/index.html" (chain/terminate  (assoc context :response eywa-spa))
-                      ; "/index.html" (chain/terminate  (assoc context :response old-redirect))
-                      ; "/" (chain/terminate  (assoc context :response old-redirect)) 
-                      ;;
-                      "/eywa/index.html"
-                      (do
-                        (log/infof "Serving eywa/index.html")
-                        (chain/terminate (resource-response)))
-                      ;;
-                      (condp #(clojure.string/starts-with? %2 %1) path
-                        ;;
-                        "/eywa/css"
-                        (chain/terminate (resource-response))
-                        ;;
-                        "/eywa/images"
-                        (chain/terminate (resource-response))
-                        ;;
-                        "/eywa/js"
-                        (chain/terminate (resource-response))
-                        ;;
-                        "/eywa"
-                        (condp #(clojure.string/starts-with? %2 %1) path
-                          "/eywa/token" context
-                          "/eywa/whoami" context
-                          "/eywa/access" context
-                          "/eywa/login" context
-                          "/eywa/logout" context
-                          "/eywa/avatars" context
-                          "/eywa/app" context
-                          "/eywa/docs" context
-                          (chain/terminate (assoc context :response (-> eywa-spa (head/head-response request)))))
-                        ;; Try to resolve mapping
-                        context)))))})))
-
-
 (defn development-environment
   [service-map]
   (if-not (env :eywa-development) service-map
@@ -171,7 +108,9 @@
 
 (defn start
   ([] (start nil))
-  ([{:keys [host port context-configurator routes]
+  ([{:keys [host port
+            routes
+            service-initializer]
      :or {host "localhost"
           port 8080
           routes (route/expand-routes
@@ -179,7 +118,17 @@
                      default-routes
                      graphql-routes
                      oidc/routes))
-          context-configurator jetty/context-configuration}}]
+          service-initializer identity}}]
+   (comment
+     (do
+       (def host "localhost")
+       (def port 8080)
+       (def routes (route/expand-routes
+                     (clojure.set/union
+                       default-routes
+                       graphql-routes
+                       oidc/routes)))
+       (def router (route/router routes :map-tree))))
    (log/infof "Starting EYWA server %s:%s" host port)
    (stop)
    (let [router (route/router routes :map-tree)
@@ -188,7 +137,6 @@
                     ::http/join? false
                     ::http/host host 
                     ::http/port port 
-                    ::http/container-options {:context-configurator context-configurator}
                     ::http/interceptors
                     [;; Constantly true... If there is need for CORS protection than apply
                      ;; CORS protection at that routes, otherwise this is necessary because
@@ -198,18 +146,11 @@
                      (middlewares/content-type {:mime-types {}})
                      route/query-params
                      (route/method-param)
-                     ; (sec-headers/secure-headers {:content-security-policy-settings {:object-src "none"}})
-                     ; eywa-web-interceptor
                      router
-                     (make-spa-interceptor (env :eywa-serve))
-                     ; http/not-found
-                     ; (middlewares/resource "public")
-                     ; (interceptor/interceptor http/not-found)
-                     ]
-                    ; ::http/secure-headers {:content-security-policy-settings {:object-src "none"}}
-                    ; ::http/file-path "web/public"
-                    }
-                   development-environment
+                     (make-spa-interceptor (env :eywa-serve))]}
+                   ws.graphql/enable
+                   service-initializer
+                   ; development-environment
                    http/create-server)]
      (reset! server (http/start _server))
      (log/infof "EYWA server started @ %s:%s" host port))))

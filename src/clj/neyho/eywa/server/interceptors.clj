@@ -110,12 +110,6 @@
       (fn [{{:keys [path-info uri] :as request} :request
             response :response
             :as context}]
-        (when-not (= uri "/favicon.ico")
-          (def context context)
-          (def response response)
-          (def path-info path-info)
-          (def root root)
-          (def uri uri))
         (if (or (not root) response) context
           (let [extension (re-find #"(?<=\.).*?$" uri)] 
             ;; If extension exists
@@ -141,12 +135,6 @@
       (fn [{{:keys [path-info uri] :as request} :request
             response :response
             :as context}]
-        (when-not (= uri "/favicon.ico")
-          (def context2 context)
-          (def response response)
-          (def path-info path-info)
-          (def root root)
-          (def uri uri))
         ; (def request request)
         (if response
           ;; If there is some kind of response

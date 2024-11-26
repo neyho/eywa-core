@@ -680,7 +680,7 @@
                     (log/tracef
                      "[%s]Adding new recursions %s\n%s"
                      table (apply str bindings) sql)
-                    (future (jdbc/execute-batch! statement bindings (get postgres/defaults *return-type*)))
+                    (jdbc/execute-batch! statement bindings (get postgres/defaults *return-type*))
                     result)
                   (catch Throwable e
                     (log/error
@@ -716,7 +716,7 @@
             (log/tracef
              "[%s]Adding new relations\n%s\nIDS:\n%s"
              table sql-add new)
-            (future (jdbc/execute-batch! sql-add new (get postgres/defaults *return-type*)))
+            (jdbc/execute-batch! sql-add new (get postgres/defaults *return-type*))
             result))
         result
         one))
@@ -743,7 +743,7 @@
             (log/tracef
              "[%s]Adding new relations\n%s"
              table sql-add)
-            (future (jdbc/execute-batch! sql-add new (get postgres/defaults *return-type*)))
+            (jdbc/execute-batch! sql-add new (get postgres/defaults *return-type*))
             result))
         result
         many)))
