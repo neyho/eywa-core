@@ -1,6 +1,7 @@
 [![Clojars Project](https://img.shields.io/clojars/v/org.neyho/eywa-core.svg)](https://clojars.org/org.neyho/eywa-core)
 [![Clojars Project](https://img.shields.io/clojars/v/org.neyho/eywa-core-frontend.svg)](https://clojars.org/org.neyho/eywa-core-frontend)
 
+<p align="end"><img src="https://www.eywaonline.com/eywa/logo/eywa.svg" alt="Logo" width="80" /></div>
 
 #### EYWA Core
 EYWA Core is consisted of IAM and Dataset modeling. Dataset modeling is heart of this project and
