@@ -1,5 +1,4 @@
-[![Clojars Project](https://img.shields.io/clojars/v/org.neyho/eywa-core.svg)](https://clojars.org/org.neyho/eywa-core)
-[![Clojars Project](https://img.shields.io/clojars/v/org.neyho/eywa-core-frontend.svg)](https://clojars.org/org.neyho/eywa-core-frontend)
+
 
 <p align="end"><img src="https://www.eywaonline.com/eywa/logo/eywa.svg" alt="Logo" width="80" /></div>
 
@@ -12,7 +11,11 @@ reliable and provide common ground for extending application features.
 Identity Access Management is necessary to enable secure and consistent way to control modeling, deployment,
 and usage of deployed models so that only the right people/service/script can do the right thing. Therefore
 IAM is indivisable part of Dataset modeling.
+[![Clojars Project](https://img.shields.io/clojars/v/org.neyho/eywa-core.svg)](https://clojars.org/org.neyho/eywa-core)
+[![Clojars Project](https://img.shields.io/clojars/v/org.neyho/eywa-core-frontend.svg)](https://clojars.org/org.neyho/eywa-core-frontend)
 
+
+<p align="center"><img src="doc/screenshots/1.png" alt="Screenshot"/></div>
 
 #### Installation
 ##### Windows
