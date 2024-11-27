@@ -61,6 +61,7 @@ To extend GraphQL with custom fields, types, queries, or mutations, take a look 
 ```plaintext
 resources/datasets.graphql
 ```
+It can be imported and integrated into global GraphQL schema by using `neyho.eywa.lacinia/add-shard` function.
 
 
 EYWA simplifies complex workflows by combining **identity management** and **data modeling**, providing a foundation for rapid development with minimal overhead.
