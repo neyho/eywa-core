@@ -16,7 +16,7 @@
     [neyho.eywa.iam.oidc :as oidc]
     [neyho.eywa.iam.access.context :refer [*user* *roles* *groups*]]
     [neyho.eywa.server.ws.graphql :as ws.graphql]
-    [neyho.eywa.server.interceptors :refer [json-response-interceptor make-spa-interceptor]]
+    [neyho.eywa.server.interceptors :refer [make-info-interceptor json-response-interceptor make-spa-interceptor]]
     [neyho.eywa.server.interceptors.util :refer [coerce-body]]
     [neyho.eywa.server.interceptors.authentication :as authentication
      :refer [user-data
@@ -38,8 +38,10 @@
 (def content-neg-intc (conneg/negotiate-content supported-types))
 
 
-(def default-routes
-  #{["/eywa/whoami" :get [authenticate coerce-body content-neg-intc user-data] :route-name :eywa.identity/get]})
+(defn default-routes
+  [info]
+  #{["/eywa/whoami" :get [authenticate coerce-body content-neg-intc user-data] :route-name :eywa.identity/get]
+    ["/eywa/info" :get [authenticate coerce-body content-neg-intc (make-info-interceptor info)] :route-name :eywa.version/get]})
 
 
 (def graphql-routes
@@ -110,14 +112,10 @@
   ([] (start nil))
   ([{:keys [host port
             routes
-            service-initializer]
+            service-initializer
+            info]
      :or {host "localhost"
           port 8080
-          routes (route/expand-routes
-                   (clojure.set/union
-                     default-routes
-                     graphql-routes
-                     oidc/routes))
           service-initializer identity}}]
    (comment
      (do
@@ -125,13 +123,19 @@
        (def port 8080)
        (def routes (route/expand-routes
                      (clojure.set/union
-                       default-routes
+                       (default-routes)
                        graphql-routes
                        oidc/routes)))
        (def router (route/router routes :map-tree))))
    (log/infof "Starting EYWA server %s:%s" host port)
    (stop)
-   (let [router (route/router routes :map-tree)
+   (let [routes (or routes
+                    (route/expand-routes
+                      (clojure.set/union
+                        (default-routes info)
+                        graphql-routes
+                        oidc/routes)))
+         router (route/router routes :map-tree)
          _server (->
                    {::http/type :jetty
                     ::http/join? false

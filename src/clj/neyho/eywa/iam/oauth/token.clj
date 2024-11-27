@@ -163,7 +163,7 @@
                     (quot 1000)
                     (+ (access-token-expiry client))))
       {:alg :rs256}))
-  (def client (val (first @*clients*)))
+  (def client (val (nth (seq @core/*clients*) 1)))
   (unsign-data d))
 
 

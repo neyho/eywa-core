@@ -170,6 +170,17 @@
                     (recur (butlast sections)))))))))})))
 
 
+
+(defn make-info-interceptor
+  [info]
+  (interceptor
+    {:name ::info
+     :enter (fn [ctx]
+              (chain/terminate
+                (assoc ctx :response {:status 200
+                                      :body info})))}))
+
+
 (comment
   (def uri nil)
   (def path-info nil)

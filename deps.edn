@@ -24,15 +24,11 @@
   org.bouncycastle/bcprov-jdk15on              {:mvn/version "1.70" :scope "test"}
   org.bouncycastle/bcpkix-jdk15on              {:mvn/version "1.70" :scope "test"}
   org.clojure/data.codec                       {:mvn/version "0.2.0"}
-  ; org.clojure/data.zip                         {:mvn/version "1.1.0"}
   org.clojure/data.csv                         {:mvn/version "1.1.0"}
-  ; io.pedestal/pedestal.service                 {:mvn/version "0.6.3"}
-  ; io.pedestal/pedestal.route                   {:mvn/version "0.7.0"}
-  ; io.pedestal/pedestal.jetty                   {:mvn/version "0.6.3"}
   com.walmartlabs/lacinia                      {:mvn/version "1.2.2"}
+  com.github.gersak/lacinia-pedestal           {:mvn/version "1.3.1"
+                                                :exclusions [com.walmartlabs/lacinia]}
   ; com.walmartlabs/lacinia                      {:local/root "../../lacinia"}
-  com.github.gersak/lacinia-pedestal             {:mvn/version "1.3.1-SNAPSHOT"
-                                                  :exclusions [com.walmartlabs/lacinia]}
   ; com.walmartlabs/lacinia-pedestal             {:local/root "../../lacinia-pedestal"}
   org.clojure/math.combinatorics               {:mvn/version "0.3.0"}
   ;; Logging - chosen because it follows pedestal and lacinia
@@ -41,8 +37,8 @@
   org.clojure/tools.logging                    {:mvn/version "1.3.0"}
   ;;
   camel-snake-kebab/camel-snake-kebab          {:mvn/version "0.4.3"}
-  ; com.github.gersak/vura                       {:mvn/version "0.5.8"}
-  com.github.gersak/vura                       {:local/root "../../vura"}
+  com.github.gersak/vura                       {:mvn/version "0.6.0"}
+  ; com.github.gersak/vura                       {:local/root "../../vura"}
   com.github.gersak/shadow-css                 {:git/url "https://github.com/gersak/shadow-css.git"
                                                 :git/sha "697f2937345be9d187b6bce73ff4f50613f7ece8"}
   babashka/fs                                  {:mvn/version "0.5.20"}}

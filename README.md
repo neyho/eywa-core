@@ -213,6 +213,58 @@ eywa core -h
 [Docs](https://www.eywaonline.com/docs/graphql/graphql-main)
 
 
+## Environment
+Control EYWA with environment variables.
+
+##### EYWA_SERVE
+It is possible to serve some folder out of the box, without changing server
+routes. Specify EYWA_SERVE environment variables to serve some folder. Folder is
+served as SPA. Interceptor responsible for serving files will try to find file
+if URL has extension (.js, .css, .html) and if it doesn't interceptor will try
+to find index.html at every level. Like `/level1/level2/level3/level4`
+will try to serve level4 index.html, then level3 index.html and so on.
+
+
+##### EYWA_IAM_ENFORCE_ACCESS
+Enforing access is disabled by default. It is "annoying" to try something out and
+hack, or develop this project if you have to specify every detail. For this reason
+access enforcing is disabled by default and if you wan't to use it then set
+`EYWA_IAM_ENFORCE_ACCESS=true`
+
+
+##### Enterprise Environment
+Usually in enterprise environments there are two obstacles that will make EYWA harder to use.
+Enterprises use proxy to control http traffic so make sure to adjust `http_proxy`
+and `https_proxy` environment variables according to enterprise standards.
+
+Second one is less likely but still occurs. If your enterprise uses internal Certificate Authority(CA)
+for signing SSL traffic use keytool to add CA to java keystore. Specify
+`TRUST_STORE_PATH` and `TRUST_STORE_PASSWORD` so that eywa can use keystore
+and check if this incoming traffic is signed by trusted certificate.
+
+
+```
+  EYWA_SERVE              Apsolute path to directory that will be served
+  EYWA_HOME               working directory for EYWA
+  EYWA_LOG_DIR            logging directory for EYWA server
+  EYWA_CONFIG_DIR         configuration directory for EYWA server
+  EYWA_GIT_DIR            Git directory for EYWA Robotics
+  EYWA_BIN_DIR            bin directory for EYWA util executables
+  EYWA_PRO_DIR            directory where EYWA Pro versions will be stored
+  EYWA_PRO_SOURCE         prefix used to tap to custom pro source
+  EYWA_ROBOTICS_ENDPOINT  endpoint for robotics module
+  EYWA_LICENSE            license string used to connect to robotics module
+  TRUST_STORE_PATH        SSL certificate trust store path
+  TRUST_STORE_PASSWORD    SSL certificate trust store password
+  EYWA_IAM_ENFORCE_ACCESS set to true to activate role based access to entities/relations/attributes
+  EYWA_IAM_LOG_LEVEL      
+  EYWA_LOG_LEVEL          set default logging level (TRACE, DEBUG, WARN, INFO, ERROR)
+  EYWA_DATASET_LOG_LEVEL  
+  EYWA_GIT_LOG_LEVEL      
+  EYWA_ROBOTICS_LOG_LEVEL
+```
+
+
 
 #### Features
 - [x] - GraphQL Sync Mutation
