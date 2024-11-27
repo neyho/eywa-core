@@ -2,9 +2,6 @@
 
 <p align="end"><img src="https://www.eywaonline.com/eywa/logo/eywa.svg" alt="Logo" width="80" /></div>
 
-
-### EYWA Core
-
 The **EYWA project** is a fusion of **Identity Access Control** through OAuth2.1 (+OIDC) and deployable, exportable, transportable **Data Models**. Once deployed, these models are immediately exposed through **generic GraphQL queries and mutations**.
 
 
