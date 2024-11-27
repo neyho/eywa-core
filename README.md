@@ -7,7 +7,7 @@ The **EYWA project** is a fusion of **Identity Access Control** through OAuth2.1
 
 #### Why?
 
-Because it makes my day better. It won't fit every situation or scenario, but it can contribute at any point in your project. Starting a new project often comes with repetitive requirements: **user management** and **database design**. Why not handle both simultaneously to take you as far as possible, as quickly as possible?
+Because it makes my day better. It won't fit every situation or scenario, but it can contribute at any point. Starting a new project often comes with repetitive requirements: **user management** and **database design**. Why not handle both simultaneously to take you as far as possible, as quickly as possible?
 
 This is all available through a **graphical UI**. Visualizing how your data is structured, understanding relationships, and being able to share this view with your teammates ensures the entire team is on the same page. This process has led to **unexpected enhancements** and saved us from many **dead-end ideas**.
 
@@ -17,7 +17,7 @@ When expanding the scope or redesigning data "tables" and "columns" don’t you 
 
 #### How?
 
-The idea is simple: it all starts with **data modeling**. Data models consist of **entities** and **relations**, represented as **Clojure records** that implement protocols defined in the `neyho.eywa.dataset.core` namespace. These models work seamlessly with both **Clojure** and **ClojureScript**. This design ensures that data models are:
+The idea is simple: it all starts with **data modeling**. Data models consist of **entities** and **relations**, represented as Clojure records that implement protocols defined in the `neyho.eywa.dataset.core` namespace. These models work seamlessly with both Clojure and ClojureScript. This design ensures that data models are:
 
 - **Exportable** (via Transit)
 - **Importable** through the same engine
@@ -50,13 +50,13 @@ Great, now there are tables or spaces where data can be stored, and the structur
 - **`get-tree`**: Retrieves data by traversing a recursive relation.
 - **`search-tree`**: Retrieves data by traversing a recursive relation for multiple matching records.
 
-Each **entity** can be managed using the methods above. For each entity, a corresponding GraphQL **query** or **mutation** is exposed when the data models are deployed.
+Each **entity** can be managed using the methods above. For each entity, a corresponding GraphQL query or mutation is exposed when the data models are deployed.
 
 
 ##### Extending
 
 EYWA is designed for extensibility. Even **eywa-core** extends itself for tasks not covered by the generic methods, such as deploying data models and subscribing to datamodel changes.
-To extend GraphQL with custom types, queries, or methods, take a look at:
+To extend GraphQL with custom fields, types, queries, or mutations, take a look at:
 
 ```plaintext
 resources/datasets.graphql
