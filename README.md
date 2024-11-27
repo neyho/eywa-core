@@ -2,15 +2,76 @@
 
 <p align="end"><img src="https://www.eywaonline.com/eywa/logo/eywa.svg" alt="Logo" width="80" /></div>
 
-#### EYWA Core
-EYWA Core is consisted of IAM and Dataset modeling. Dataset modeling is heart of this project and
-its goal is to enable users to model their data and deploy modeled data painlessly to underlaying DB
-engine/service. With this approach data models are transportable (from DB to DB, from project to project),
-reliable and provide common ground for extending application features.
 
-Identity Access Management is necessary to enable secure and consistent way to control modeling, deployment,
-and usage of deployed models so that only the right people/service/script can do the right thing. Therefore
-IAM is indivisable part of Dataset modeling.
+### EYWA Core
+
+The **EYWA project** is a fusion of **Identity Access Control** through OAuth2.1 (+OIDC) and deployable, exportable, transportable **Data Models**. Once deployed, these models are immediately exposed through **generic GraphQL queries and mutations**.
+
+
+#### Why?
+
+Because it makes my day better. It won't fit every situation or scenario, but it can contribute at any point in your project. Starting a new project often comes with repetitive requirements: **user management** and **database design**. Why not handle both simultaneously to take you as far as possible, as quickly as possible?
+
+This is all available through a **graphical UI**. Visualizing how your data is structured, understanding relationships, and being able to share this view with your teammates ensures the entire team is on the same page. This process has led to **unexpected enhancements** and saved us from many **dead-end ideas**.
+
+When expanding the scope or redesigning data "tables" and "columns" don’t you want to see the impact your changes will have? Wouldn't it be better to see the differences between the current database state and the proposed future state? Do you really want to manually add or alter tables and columns?
+
+
+
+#### How?
+
+The idea is simple: it all starts with **data modeling**. Data models consist of **entities** and **relations**, represented as **Clojure records** that implement protocols defined in the `neyho.eywa.dataset.core` namespace. These models work seamlessly with both **Clojure** and **ClojureScript**. This design ensures that data models are:
+
+- **Exportable** (via Transit)
+- **Importable** through the same engine
+
+
+##### Projection
+
+Both **entity** and **relation** records implement the `ERDModelProjectionProtocol`. One of the key methods is `project`, which projects **this** onto **that**. 
+
+Imagine you have a globally active data model (`this`) and a new model (`that`). By projecting one onto the other, the projection highlights differences:
+
+- Was something **added**?
+- Was something **removed**?
+- Does something have a **diff**?
+
+From this point, it's just a matter of implementing the **DB DDL** to take control of the database.
+
+
+##### GraphQL
+
+Great, now there are tables or spaces where data can be stored, and the structure is well-defined. What’s next? Interaction with the database through a few **generic methods**:
+
+- **`sync`**: Save data exactly as provided (data not provided remains unchanged).
+- **`stack`**: Similar to `sync`, but stacking preserves related data.
+- **`slice`**: Removes relations between entities.
+- **`delete`**: Deletes specific records.
+- **`purge`**: Mass delete—works like "search & destroy."
+- **`get`**: Retrieves data starting from an exact record.
+- **`search`**: Retrieves data based on multiple records matching a condition.
+- **`get-tree`**: Retrieves data by traversing a recursive relation.
+- **`search-tree`**: Retrieves data by traversing a recursive relation for multiple matching records.
+
+Each **entity** can be managed using the methods above. For each entity, a corresponding GraphQL **query** or **mutation** is exposed when the data models are deployed.
+
+
+##### Extending
+
+EYWA is designed for extensibility. Even **eywa-core** extends itself for tasks not covered by the generic methods, such as deploying data models and subscribing to datamodel changes.
+To extend GraphQL with custom types, queries, or methods, take a look at:
+
+```plaintext
+resources/datasets.graphql
+```
+
+
+EYWA simplifies complex workflows by combining **identity management** and **data modeling**, providing a foundation for rapid development with minimal overhead.
+
+
+
+---
+
 [![Clojars Project](https://img.shields.io/clojars/v/org.neyho/eywa-core.svg)](https://clojars.org/org.neyho/eywa-core)
 [![Clojars Project](https://img.shields.io/clojars/v/org.neyho/eywa-core-frontend.svg)](https://clojars.org/org.neyho/eywa-core-frontend)
 
