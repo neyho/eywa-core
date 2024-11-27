@@ -71,7 +71,7 @@ EYWA simplifies complex workflows by combining **identity management** and **dat
 ---
 
 [![Clojars Project](https://img.shields.io/clojars/v/org.neyho/eywa-core.svg)](https://clojars.org/org.neyho/eywa-core)
-[![Clojars Project](https://img.shields.io/clojars/v/org.neyho/eywa-core-frontend.svg)](https://clojars.org/org.neyho/eywa-core-frontend)
+<!-- [![Clojars Project](https://img.shields.io/clojars/v/org.neyho/eywa-core-frontend.svg)](https://clojars.org/org.neyho/eywa-core-frontend) -->
 
 
 <p align="center"><img src="doc/screenshots/1.png" alt="Screenshot"/></div>
@@ -220,13 +220,13 @@ Control EYWA with environment variables.
 It is possible to serve some folder out of the box, without changing server
 routes. Specify EYWA_SERVE environment variables to serve some folder. Folder is
 served as SPA. Interceptor responsible for serving files will try to find file
-if URL has extension (.js, .css, .html) and if it doesn't interceptor will try
+if URL has extension (.js, .css, .html) and if it doesn't find file, interceptor will try
 to find index.html at every level. Like `/level1/level2/level3/level4`
 will try to serve level4 index.html, then level3 index.html and so on.
 
 
 ##### EYWA_IAM_ENFORCE_ACCESS
-Enforing access is disabled by default. It is "annoying" to try something out and
+Enforcing access is disabled by default. It is "annoying" to try something out and
 hack, or develop this project if you have to specify every detail. For this reason
 access enforcing is disabled by default and if you wan't to use it then set
 `EYWA_IAM_ENFORCE_ACCESS=true`
