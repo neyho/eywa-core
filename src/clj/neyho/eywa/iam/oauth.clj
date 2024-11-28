@@ -155,9 +155,16 @@
 (defonce maintenance-agent (agent {:running true :period (vura/seconds 30)}))
 
 
+(comment
+  (agent-error maintenance-agent)
+  (restart-agent maintenance-agent @maintenance-agent)
+  (start)
+  (stop))
+
+
 (defn maintenance
   [{:keys [running period] :as data}]
-  (when running
+  (when (and running period)
     (log/debug "[OAuth] Maintenance start")
     (send-off *agent* maintenance)
     (core/clean-sessions)
@@ -165,13 +172,13 @@
     (device-code/clean-expired-codes)
     (core/monitor-client-change)
     (log/debug "[OAuth] Maintenance finish")
-    (Thread/sleep period)
-    data))
+    (Thread/sleep period))
+  data)
 
 
 (defn start
   []
-  (send-off maintenance-agent assoc :running true)
+  (send-off maintenance-agent assoc :running true :period (vura/seconds 30))
   (send-off maintenance-agent maintenance))
 
 
