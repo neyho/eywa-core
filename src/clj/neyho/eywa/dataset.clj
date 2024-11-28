@@ -197,6 +197,8 @@
   (def user nil))
 
 
+
+;; @resolve
 (defn deploy-dataset
   ([model] (deploy-dataset nil model nil))
   ([context model] (deploy-dataset context model nil))
@@ -330,9 +332,9 @@
       (dataset/get-entities projection))))
 
 
-(defn init
+(defn start
   "Function initializes EYWA datasets by loading last deployed model."
-  ([] (init *db*))
+  ([] (start *db*))
   ([db]
    (log/info "Initializing Datasets...")
    (try
@@ -346,3 +348,10 @@
    (binding [dataset/*return-type* :edn]
      (bind-service-user #'neyho.eywa.data/*EYWA*))
    nil))
+
+
+
+(defn stop
+  []
+  (dosync
+    (ref-set *model* nil)))

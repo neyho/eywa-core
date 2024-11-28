@@ -749,6 +749,7 @@
         many)))
    analysis))
 
+
 (defn publish-delta
   [{many-relations :relations/many
     one-relations :relations/one
@@ -776,6 +777,7 @@
       :delta delta}))
   analysis)
 
+
 (defn set-entity
   ([entity-id data]
    (with-open [connection (jdbc/get-connection (:datasource *db*))]
@@ -802,6 +804,7 @@
          (link-relations tx result stack?)
          (publish-delta result)
          (pull-roots result))))))
+
 
 (comment
   (set-entity
@@ -857,10 +860,12 @@
    nil
    s))
 
+
 (def scalar-types
   #{"boolean" "string" "int" "float" "timestamp" "enum"
     "timeperiod" "currency" "json" "uuid"
     "encrypted" "hashed" "transit" "avatar"})
+
 
 (defn selection->schema
   ([entity-id selection]
@@ -1130,30 +1135,34 @@
                    (fn [schema {operations :selections}]
                      (reduce-kv
                        (fn [schema relation specifics]
-                         (reduce
-                           (fn [schema {:keys [alias args]}]
-                             (let [rkey (keyword (name relation))
-                                   rdata (get relations rkey)
-                                   akey (or alias rkey)
-                                   relation (->
-                                              rdata 
-                                              (dissoc :_count)
-                                              (dissoc :relations)
-                                              (clojure.set/rename-keys {:table :relation/table})
-                                              (assoc 
-                                                :pinned true
-                                                :entity/table (:to/table rdata)
-                                                :relation/as (str (gensym "link_"))
-                                                :entity/as (str (gensym "data_"))))]
-                               ;; Use original relation
-                               (assoc-in schema [:_count akey]
-                                         ;; and if there are arguments in _counted
-                                         ;; than use that arguments, otherwise use
-                                         ;; args from narrowed relation select
-                                         (cond-> relation 
-                                           args (assoc :args (clojure.set/rename-keys args {:_where :_maybe}))))))
-                           schema
-                           specifics))
+                         (let [rkey (keyword (name relation))
+                               rdata (get relations rkey)
+                               relation (->
+                                          rdata 
+                                          (dissoc :_count)
+                                          (dissoc :relations)
+                                          (clojure.set/rename-keys {:table :relation/table})
+                                          (assoc 
+                                            :pinned true
+                                            :entity/table (:to/table rdata)
+                                            :relation/as (str (gensym "link_"))
+                                            :entity/as (str (gensym "data_"))))]
+                           (case specifics
+                             ;;
+                             (nil [nil]) (assoc-in schema [:_count rkey] relation)
+                             ;;
+                             (reduce
+                               (fn [schema {:keys [alias args]}]
+                                 (let [akey (or alias rkey)]
+                                   ;; Use original relation
+                                   (assoc-in schema [:_count akey]
+                                             ;; and if there are arguments in _counted
+                                             ;; than use that arguments, otherwise use
+                                             ;; args from narrowed relation select
+                                             (cond-> relation 
+                                               args (assoc :args (clojure.set/rename-keys args {:_where :_maybe}))))))
+                               schema
+                               specifics))))
                        schema
                        operations))
                    schema
@@ -1183,13 +1192,17 @@
                                  (reduce-kv
                                    (fn [schema fkey selections]
                                      (let [fkey (keyword (name fkey))]
-                                       (reduce
-                                         (fn [schema {:keys [alias args]}]
-                                           (let [field (or alias fkey)]
-                                             (assoc-in schema [:_agg rkey operation field]
-                                                       [fkey (when args {:args args})])))
-                                         schema
-                                         selections)))
+                                       (case selections
+                                         ;;
+                                         (nil [nil]) (assoc-in schema [:_agg rkey operation fkey] [fkey nil]) 
+                                         ;;
+                                         (reduce
+                                           (fn [schema {:keys [alias args]}]
+                                             (let [field (or alias fkey)]
+                                               (assoc-in schema [:_agg rkey operation field]
+                                                         [fkey (when args {:args args})])))
+                                           schema
+                                           selections))))
                                    schema
                                    aggregates)))
                              schema
@@ -1224,6 +1237,7 @@
     []
     (vec (concat (interleave (repeat :relations) cursor)))))
 
+
 (defn schema->cursors
   "Given selection schema produces cursors that point
   to all connected entity tables. This is a way point to
@@ -1247,6 +1261,7 @@
     []
     cursors)))
 
+
 ; (defn unique-cursors 
 ;   "Removes cursor subsets and leaves only unique cursors"
 ;   [cursors]
@@ -1261,6 +1276,7 @@
 ;           (if (some #(subvector? c %) others)
 ;             uniques
 ;             (conj uniques c)))))))
+
 
 (defn get-cursor-schema
   ([schema cursor]
@@ -1282,6 +1298,7 @@
          :from/table :to/table})
        schema))))
 
+
 (defn wrap-basic-fields
   ([fields] (wrap-basic-fields fields nil))
   ([fields prefix]
@@ -1289,10 +1306,12 @@
      (map #(str (when prefix (str prefix \.)) (if (= :euuid %) "euuid" (name %))) (conj fields "_eid"))
      (map #(str \" (if (= :euuid %) "euuid" (name %)) \") (conj fields "_eid")))))
 
+
 (defn extend-fields
   ([fields] (extend-fields fields nil))
   ([fields prefix]
    (clojure.string/join ", " (wrap-basic-fields fields prefix))))
+
 
 ; (defn order-by->cursors 
 ;   [order-by]
@@ -1320,6 +1339,7 @@
 ;       (get schema :entity/as)
 ;       (get-in schema (conj (relations-cursor cursor') :entity/as)))))
 
+
 (defn distinct->sql
   ([{{args :_distinct} :args :as schema}]
    (when args
@@ -1342,6 +1362,7 @@
           []
           (process-distinct schema args))))
       \)))))
+
 
 (defn modifiers-selection->sql
   ([{operators :args :as schema}]
@@ -1384,8 +1405,10 @@
                    (process-order-by schema (get operators :_order_by))))))))]
      (if (empty? s) "" (clojure.string/join " " s)))))
 
+
 (def ^:dynamic *ignore-maybe* true)
 (def ^:dynamic *deep* true)
+
 
 ;; TODO - IMPORTANT check wyh query-selection->sql is not passing on data
 (defn query-selection->sql
@@ -1547,6 +1570,7 @@
       [[] data]
       operators))))
 
+
 (defn search-stack-args
   "Function takes table pile and root entity id and produces where statement"
   ([schema] (search-stack-args schema " and "))
@@ -1585,6 +1609,7 @@
                 (str (when-not (zero? idx) j) statement)))
             stack))
           data])))))
+
 
 ;; Maybe add type of join for focused relation in query...
 (letfn [(branch? [[_ {:keys [relations]}]] (not-empty relations))
@@ -1729,15 +1754,18 @@
    found-records
    parents]
   (log/tracef
-   "[%s] Pulling entity for parents %s\n%s"
+   "[%s] Pulling entity for parents\n[%s]\nwith found records [%s]"
    table (str/join ", " parents) (str/join ", " found-records))
   (let [[_ from maybe-data] (search-stack-from schema)
+        _ (log/tracef "[%s] Looking for WHERE args" table)
         [where d]  (search-stack-args schema)
-        [found fd] (when-some [found-records (not-empty (keep #(when (some? %) %) found-records))]
-                     (search-stack-args
-                      (assoc schema :args
-                             ; {:_eid {:_in found-records}})))
-                             {:_eid {:_in (long-array found-records)}})))
+        ; _ (log/tracef "[%s] Looking for FOUND args" table)
+        ; [found fd] (when-some [found-records (not-empty (keep #(when (some? %) %) found-records))]
+        ;              (search-stack-args
+        ;               (assoc schema :args
+        ;                      ; {:_eid {:_in found-records}})))
+        ;                      {:_eid {:_in (long-array found-records)}})))
+        _ (log/tracef "[%s] Looking for PARENT args" table)
         [parented pd] (if (= talias "_eid")
                         ;; If direct binding (in entity table)
                         (search-stack-args
@@ -1751,8 +1779,16 @@
                                  :args {(keyword falias) {:_in (long-array parents)}}
                                  ; :args {(keyword falias) {:_in parents}}
                                  :entity/as ras)))
-        [where data] [(clojure.string/join " and " (remove nil? [where found parented]))
-                      (reduce into [] (remove nil? [d fd pd]))]
+        ;; TODO - When using found records it breaks when _limit is set prior in query
+        ;; hierarchy... To the point... This will not work if lets say some search query
+        ;; is sent that has _limit: 100, because it will return 100 root records with 
+        ;; and if there are some _eids in related data it will be limited to 100 in
+        ;; found records
+        ;; ignore found records so that search is restarted
+        ; [where data] [(clojure.string/join " and " (remove nil? [where found parented]))
+        ;               (reduce into [] (remove nil? [d fd pd]))]
+        [where data] [(clojure.string/join " and " (remove nil? [where parented]))
+                      (reduce into [] (remove nil? [d pd]))]
         modifiers (modifiers-selection->sql schema)]
     (into
      [(str "select " (if (= talias "_eid")
@@ -1826,7 +1862,10 @@
                             [[] []]
                             counted)
                           ;;
-                          [where where-data]  (search-stack-args schema)
+                          ;; [where where-data]  (search-stack-args schema)
+                          ;; TODO - ignore where for now, as it should be part of
+                          ;; count-selections
+                          [where where-data] [nil nil]
                           ;;
                           [query-string :as query]
                           (as->
@@ -2149,9 +2188,11 @@
       final)))
 
 (defn pull-roots [con schema found-records]
+  ; (log/tracef "[%s] Found records\n%s" "fieoqj" (pprint found-records))
   (binding [*ignore-maybe* false]
     (let [db (pull-cursors con schema found-records)]
       (construct-response schema db found-records))))
+
 
 (defn schema->aggregate-cursors
   "Given election schema produces cursors that point
@@ -2273,6 +2314,7 @@
           ks))
        (if (nil? ids) {} nil)))))
 
+
 (comment
   (def args nil)
   (def entity-id #uuid "edcab1db-ee6f-4744-bfea-447828893223")
@@ -2289,8 +2331,12 @@
   (core/get-entity (neyho.eywa.dataset/deployed-model) entity-id)
   (time (search-entity entity-id args selection)))
 
+
 (defn search-entity
   ([entity-id args selection]
+   ; (def entity-id entity-id)
+   ; (def args args)
+   ; (def selection selection)
    (when-not (access/entity-allows? entity-id #{:read})
      (throw
       (ex-info
@@ -2319,13 +2365,13 @@
        ;   :selection selection
        ;   :schema schema)
        (if (and
-            (not= enforced-schema schema)
-            (not (access/superuser?)))
+             (not= enforced-schema schema)
+             (not (access/superuser?)))
          (throw
-          (ex-info
-           "Purge not allowed. User doesn't own all entites included in purge"
-           {:type ::enforce-purge
-            :roles *roles*}))
+           (ex-info
+             "Purge not allowed. User doesn't own all entites included in purge"
+             {:type ::enforce-purge
+              :roles *roles*}))
          (let [roots (search-entity-roots connection schema)]
            (if (some? roots)
              (letfn [(construct-statement
@@ -2343,6 +2389,7 @@
                    (postgres/execute! connection query *return-type*))
                  response))
              [])))))))
+
 
 (comment
   (def selection
@@ -2422,6 +2469,7 @@
               entity-id (pprint response))
              response)))))))
 
+
 (defn get-entity-tree
   [entity-id root on selection]
   (when-not (access/entity-allows? entity-id #{:read})
@@ -2484,6 +2532,7 @@
 ;             cursors))))
 ;     []
 ;     cursors)))
+
 
 (defn shave-schema-aggregates
   ([schema]
@@ -2665,6 +2714,7 @@
            ;    :args args})
            true))))))
 
+
 ;; FIXME
 (defn slice-entity
   ([entity-id args selection]
@@ -2756,6 +2806,7 @@
                           :delta {:slice {label slice}}}))
            result))))))
 
+
 (extend-type neyho.eywa.Postgres
   db/ModelQueryProtocol
   (db/sync-entity
@@ -2785,7 +2836,6 @@
   (db/delete-entity
     [_ entity-id data]
     (delete-entity entity-id data)))
-
 
 
 (extend-type neyho.eywa.Postgres 

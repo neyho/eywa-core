@@ -208,7 +208,10 @@
                :args {:_where {:type (entity->search-operator entity)}
                       :_maybe {:type (entity->search-operator entity)}}}))
           (has-numerics? [{:keys [attributes]}]
-            (some #({"int" "float"} (:type %)) attributes))
+            (some
+              (fn [{t :type}]
+                (#{"int" "float"} t))
+              attributes))
           (get-numerics [{:keys [attributes]}]
             (reduce
               (fn [fields {atype :type :as attribute}]
@@ -357,13 +360,15 @@
                                (if (empty? to-relations) fields
                                  (cond->
                                    (assoc fields :_count {:type (entity->count-object entity)})
-                                   ;;
-                                   (not-empty numerics)
-                                   (assoc
-                                     :_max {:type (entity->numeric-object entity)}
-                                     :_min {:type (entity->numeric-object entity)}
-                                     :_avg {:type (entity->numeric-object entity)}
-                                     :_sum {:type (entity->numeric-object entity)})
+                                   ;; FUTURE Self - This doesn't make sense since other
+                                   ;; entities will have _agg option. I can't think of use case
+                                   ;; where this is relevant at target entity level
+                                   ; (not-empty numerics)
+                                   ; (assoc
+                                   ;   :_max {:type (entity->numeric-object entity)}
+                                   ;   :_min {:type (entity->numeric-object entity)}
+                                   ;   :_avg {:type (entity->numeric-object entity)}
+                                   ;   :_sum {:type (entity->numeric-object entity)})
                                    ;;
                                    (some has-numerics? (map :to to-relations))
                                    (assoc :_agg {:type (entity->agg-object entity)}))))})
@@ -1099,7 +1104,8 @@
 
 
 (comment
-  (def model (dataset/deployed-model)))
+  (def model (dataset/deployed-model))
+  (do (generate-lacinia-objects model) nil))
 
 
 (defn generate-lacinia-schema

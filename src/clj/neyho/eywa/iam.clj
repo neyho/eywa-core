@@ -327,7 +327,7 @@
     resolver))
 
 
-(defn init
+(defn start
   []
   (log/info "Initializing IAM...")
   (try
@@ -338,6 +338,13 @@
     (log/info "IAM initialized")
     (catch Throwable e
       (log/error e "Couldn't load role schema"))))
+
+
+(defn stop
+  []
+  (dosync
+    (ref-set lacinia/compiled nil)
+    (ref-set lacinia/state nil)))
 
 
 (defn setup
@@ -385,7 +392,7 @@
                    (->
                      {:euuid #uuid "34c6eea5-3c95-4de1-a547-5e1b34ea16ea",
                       :id "MUMADPADAKQHSDFDGFAEJZJXUSFJGFOOYTWVAUDEFVPURUOP",
-                      :name "EYWA Frontend",
+                      :name "EYWA",
                       :type "public",
                       :active true,
                       :secret nil,

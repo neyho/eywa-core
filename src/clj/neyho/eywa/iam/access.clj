@@ -194,7 +194,7 @@
      #uuid "7fc035e2-812e-4861-a25c-eb172b39577f"]))
 
 
-(defn start-enforcing
+(defn start
   []
   (let [model (dataset/deployed-model)
         role-entity (core/get-entity model iu/user-role)
@@ -243,6 +243,12 @@
       (recur (async/<! delta-chan)))
     (load-rules)
     (load-scopes)))
+
+
+(defn stop
+  []
+  (alter-var-root #'*rules* (constantly nil))
+  (alter-var-root #'*scopes* (constantly nil)))
 
 
 (comment

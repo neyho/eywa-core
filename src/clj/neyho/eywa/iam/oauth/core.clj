@@ -530,22 +530,26 @@
 
 (defn reload-clients
   []
-  (let [ids (remove nil? (map :id (vals @*clients*)))
-        new-clients (iam/get-clients ids)]
-    (swap! *clients*
-           (fn [old-clients]
-             (merge-with
-               merge old-clients
-               (reduce
-                 (fn [r {:keys [euuid] :as client}]
-                   (assoc r euuid client))
-                 nil
-                 new-clients))))))
+  (try
+    (let [ids (remove nil? (map :id (vals @*clients*)))
+          new-clients (iam/get-clients ids)]
+      (swap! *clients*
+             (fn [old-clients]
+               (merge-with
+                 merge old-clients
+                 (reduce
+                   (fn [r {:keys [euuid] :as client}]
+                     (assoc r euuid client))
+                   nil
+                   new-clients)))))
+    (catch Throwable ex
+      (log/errorf ex "[OAuth] Couldn't reload clients"))))
 
 
 (defn monitor-client-change
   []
-  (let [delta-chan (async/chan (async/sliding-buffer 1))]
+  (let [delta-chan (async/chan (async/sliding-buffer 1))
+        close-chan (async/promise-chan)]
     (async/sub core/delta-publisher iu/app delta-chan)
     ;; Start idle service that will listen on delta changes
     (async/go-loop
@@ -555,6 +559,8 @@
       (loop [[idle-value] (async/alts!
                             [;; That will check for new delta values
                              delta-chan
+                             ;;
+                             close-chan
                              ;; Or timeout
                              (async/go
                                (async/<! (async/timeout 5000))

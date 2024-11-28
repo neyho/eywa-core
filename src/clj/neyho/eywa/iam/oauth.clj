@@ -169,9 +169,18 @@
     data))
 
 
-(defn start-maintenance
+(defn start
   []
+  (send-off maintenance-agent assoc :running true)
   (send-off maintenance-agent maintenance))
+
+
+(defn stop
+  []
+  (send-off maintenance-agent assoc :running false)
+  (doseq [x [core/*resource-owners* core/*clients*
+             core/*sessions* token/*tokens*]]
+    (reset! x nil)))
 
 
 (def state-interceptor

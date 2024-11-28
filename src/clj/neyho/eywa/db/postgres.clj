@@ -11,7 +11,7 @@
     [com.zaxxer.hikari HikariDataSource]))
 
 
-(defn postgres-connected? [datasource] (not (.isClosed datasource)))
+(defn postgres-connected? [datasource] (when datasource (not (.isClosed datasource))))
 
 
 (defn connect
@@ -220,11 +220,17 @@
       (alter-var-root #'neyho.eywa.db/*db* (constantly nil)))))
 
 
-(defn init
+(defn start
   "Initializes database connection and returns HikariDataSource instance"
-  ([] (init (from-env)))
+  ([] (start (from-env)))
   ([database]
    (when-let [db (connect database)]
      (alter-var-root #'neyho.eywa.db/*db* (constantly db))
      nil)
    (start-connection-monitor database)))
+
+
+(defn stop
+  ([]
+   (stop-connection-monitor)
+   (alter-var-root #'neyho.eywa.db/*db* (constantly nil))))

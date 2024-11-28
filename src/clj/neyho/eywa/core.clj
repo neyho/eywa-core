@@ -10,7 +10,6 @@
     [neyho.eywa.env :as env]
     neyho.eywa.lacinia
     neyho.eywa.server
-    ; neyho.eywa.server.jetty
     neyho.eywa.data
     neyho.eywa.db.postgres
     neyho.eywa.dataset
@@ -30,83 +29,76 @@
 
 
 (defn setup
-  []
-  (neyho.eywa.transit/init)
-  (let [db (neyho.eywa.db.postgres/from-env)]
-    (neyho.eywa.dataset.core/setup db)))
+  ([] (setup (neyho.eywa.db.postgres/from-env)))
+  ([db]
+   (neyho.eywa.transit/init)
+   (neyho.eywa.dataset.core/setup db)))
 
 
-(defn tear-down
-  []
-  (let [db (neyho.eywa.db.postgres/from-env)]
-    (neyho.eywa.dataset.core/tear-down db)))
+
 
 
 (defn warmup
-  []
+  [db]
   (neyho.eywa.transit/init)
-  (neyho.eywa.db.postgres/init)
-  (neyho.eywa.dataset/init))
+  (neyho.eywa.db.postgres/start db)
+  (neyho.eywa.dataset/start))
 
 
 (defn set-superuser
-  []
-  (let [user (env :eywa-user)
-        password (env :eywa-password)]
-    (try
-      (when (and user password)
-        (println "Initializing user: " user)
-        (warmup)
-        (neyho.eywa.iam/setup
-          {:users
-           [{:name user :password password :active true
-             :roles [neyho.eywa.data/*ROOT*]}]
-           :roles [neyho.eywa.data/*ROOT*]}))
-      (catch Throwable ex
-        (log/errorf ex "Couldn't finish EYWA setup.")
-        (.println System/err
-                  (str/join
-                    "\n"
-                    ["Couldn't finish EYWA initialization"
-                     (ex-message ex)
-                     (str "For more info check \"" env/log-dir "\" files")]))
-        (System/exit 1)))))
+  ([] (set-superuser (neyho.eywa.db.postgres/from-env)))
+  ([db]
+   (set-superuser
+     db
+     {:username  (env :eywa-user)
+      :password (env :eywa-password)}))
+  ([db {:keys [username password]}]
+   (when (and username password)
+     (println "Initializing user: " username)
+     (warmup db)
+     (neyho.eywa.iam/setup
+       {:users
+        [{:name username :password password :active true
+          :roles [neyho.eywa.data/*ROOT*]}]
+        :roles [neyho.eywa.data/*ROOT*]}))))
 
 
 (defn delete-superuser
-  []
-  (warmup)
-  (let [user (env :eywa-user)
-        {:keys [euuid]} (neyho.eywa.dataset/get-entity
-                          neyho.eywa.iam.uuids/user
-                          {:name user}
-                          {:euuid nil})]
-    (when euuid
-      (neyho.eywa.dataset/delete-entity
-        neyho.eywa.iam.uuids/user
-        {:euuid euuid}))))
+  ([] (delete-superuser (neyho.eywa.db.postgres/from-env)))
+  ([db] (delete-superuser db (env :eywa-user)))
+  ([db {:keys [username]}]
+   (warmup db)
+   (let [{:keys [euuid]} (neyho.eywa.dataset/get-entity
+                           neyho.eywa.iam.uuids/user
+                           {:name username}
+                           {:euuid nil})]
+     (when euuid
+       (neyho.eywa.dataset/delete-entity
+         neyho.eywa.iam.uuids/user
+         {:euuid euuid})))))
 
 
 (defn list-superusers
-  []
-  (warmup)
-  (let [{users :users} (neyho.eywa.dataset/get-entity
-                         neyho.eywa.iam.uuids/user-role
-                         {:euuid (:euuid neyho.eywa.data/*ROOT*)}
-                         {:euuid nil
-                          :users [{:selections
-                                   {:name nil}}]})]
-    (println (str/join "\n" (map :name users)))))
+  ([] (list-superusers (neyho.eywa.db.postgres/from-env)))
+  ([db]
+   (warmup db)
+   (let [{users :users} (neyho.eywa.dataset/get-entity
+                          neyho.eywa.iam.uuids/user-role
+                          {:euuid (:euuid neyho.eywa.data/*ROOT*)}
+                          {:euuid nil
+                           :users [{:selections
+                                    {:name nil}}]})]
+     (println (str/join "\n" (map :name users))))))
 
 
 (defn initialize
-  []
-  (neyho.eywa.transit/init)
-  (println "Setting up DB")
-  (let [db (neyho.eywa.db.postgres/from-env)]
-    (neyho.eywa.dataset.core/setup db))
-  (set-superuser)
-  (System/exit 0))
+  ([]
+   (initialize (neyho.eywa.db.postgres/from-env)))
+  ([db]
+   (neyho.eywa.transit/init)
+   (println "Setting up DB")
+   (neyho.eywa.dataset.core/setup db)
+   (set-superuser)))
 
 
 (let [padding-left "    "
@@ -168,17 +160,13 @@
 (defn is-initialized
   []
   (let [postgres-error (try
-                         (neyho.eywa.db.postgres/init)
+                         (neyho.eywa.db.postgres/start)
                          nil
                          (catch Throwable ex (ex-message ex)))]
     (when-not postgres-error
-      (try
-        (neyho.eywa.dataset.core/get-last-deployed neyho.eywa.db/*db*)
+      (neyho.eywa.dataset.core/get-last-deployed neyho.eywa.db/*db*)
         (println "EYWA is initialized")
-        (System/exit 0)
-        (catch Throwable ex
-          (println "EYWA not initialized")
-          (System/exit 1))))))
+      )))
 
 
 (defn dataset-doctor
@@ -186,7 +174,7 @@
   (neyho.eywa.transit/init)
   (neyho.eywa.iam/init-default-encryption)
   (let [postgres-error (try
-                         (neyho.eywa.db.postgres/init)
+                         (neyho.eywa.db.postgres/start)
                          nil
                          (catch Throwable ex (ex-message ex)))
         dataset-error (when-not postgres-error
@@ -226,6 +214,43 @@
     (spit (str target) (str pid))))
 
 
+(defn start
+  ([] (start (neyho.eywa.db.postgres/from-env)))
+  ([db]
+   (neyho.eywa.transit/init)
+   (neyho.eywa.iam/init-default-encryption)
+   (oauth/start)
+   (neyho.eywa.db.postgres/start db)
+   (neyho.eywa.dataset/start)
+   (neyho.eywa.iam/start)
+   (neyho.eywa.dataset.encryption/start)
+   (when (#{"true" "TRUE" "YES" "yes" "y"} (env :eywa-iam-enforce-access))
+     (neyho.eywa.iam.access/start))
+   (neyho.eywa.server/start
+     {:port (when-some [port (env :eywa-server-port "8080")] (if (number? port) port (Integer/parseInt port)))
+      :host (env :eywa-server-host "0.0.0.0")
+      :info {:version version
+             :release-type "core"}})))
+
+
+(defn stop
+  []
+  (oauth/stop)
+  (neyho.eywa.db.postgres/stop)
+  (neyho.eywa.dataset/stop)
+  (neyho.eywa.iam/stop)
+  (neyho.eywa.dataset.encryption/stop)
+  (neyho.eywa.server/stop)
+  nil)
+
+
+(defn tear-down
+  ([] (tear-down (neyho.eywa.db.postgres/from-env)))
+  ([db]
+   (stop)
+   (neyho.eywa.dataset.core/tear-down db)))
+
+
 (defn -main
   [& args]
   (let [[command subcommand] args]
@@ -234,13 +259,29 @@
       (System/exit 0))
     (try
       (case command
-        "init" (initialize)
-        "is-initialized" (is-initialized)
+        "init" (do
+                 (initialize)
+                 (System/exit 0))
+        "is-initialized" (try
+                           (is-initialized)
+                           (System/exit 0)
+                           (catch Throwable ex
+                             (println "EYWA not initialized")
+                             (System/exit 1)))
         "super" (case subcommand
                   "add"
-                  (do
+                  (try
                     (set-superuser)
-                    (System/exit 0))
+                    (System/exit 0)
+                    (catch Throwable ex
+                      (log/errorf ex "Couldn't finish EYWA setup.")
+                      (.println System/err
+                                (str/join
+                                  "\n"
+                                  ["Couldn't finish EYWA initialization"
+                                   (ex-message ex)
+                                   (str "For more info check \"" env/log-dir "\" files")]))
+                      (System/exit 1)))
                   "delete"
                   (do
                     (delete-superuser)
@@ -252,21 +293,7 @@
         "doctor" (do
                    (doctor)
                    (System/exit 0))
-        "start" (do
-                  (neyho.eywa.transit/init)
-                  (neyho.eywa.iam/init-default-encryption)
-                  (oauth/start-maintenance)
-                  (neyho.eywa.db.postgres/init)
-                  (neyho.eywa.dataset/init)
-                  (neyho.eywa.iam/init)
-                  (neyho.eywa.dataset.encryption/init)
-                  (when (#{"true" "TRUE" "YES" "yes" "y"} (env :eywa-iam-enforce-access))
-                    (neyho.eywa.iam.access/start-enforcing))
-                  (neyho.eywa.server/start
-                    {:port (when-some [port (env :eywa-server-port "8080")] (if (number? port) port (Integer/parseInt port)))
-                     :host (env :eywa-server-host "0.0.0.0")
-                     :info {:version version
-                            :release-type "core"}}))
+        "start" (start)
         (do
           (.print System/err (str "Unknown args: " args))
           (System/exit 1)))
@@ -279,4 +306,6 @@
 (comment
   (str/replace "09jfiqo-123 39:foiq" #"[^\w^\d^\-^\.^_:]" "")
   (re-find #"^[\w\d\-\._]" "09jfiqo-123 39")
+  (start)
+  (stop)
   )

@@ -244,8 +244,8 @@
 (defn initialized? [] (some? *master-key*))
 
 
-(defn init
-  ([] (init (env :eywa-encryption-master-key)))
+(defn start
+  ([] (start (env :eywa-encryption-master-key)))
   ([master]
    (when (not-empty master)
      (let [bs (take 32
@@ -269,6 +269,12 @@
 
 
 (defonce ^:private available-shares (atom nil))
+
+
+(defn stop
+  []
+  (doseq [_atom [available-shares deks]]
+    (reset! _atom nil)))
 
 
 (defn process-init-abuse
@@ -302,7 +308,7 @@
                               (let [{:keys [status] :as response}
                                     (try
                                       (let [secret (reconstruct-secret shares)]
-                                        (when (init (str secret))
+                                        (when (start (str secret))
                                           {:status :INITIALIZED
                                            :shares (map first shares)
                                            :message "You have successfully unseald encryption!"}))
@@ -324,7 +330,7 @@
     (some? *master-key*) (process-init-abuse ctx)
     ;;
     :else (try
-            (init master)
+            (start master)
             {:status :INITIALIZED
              :message "You have successfully initialized encryption!"}
             (catch Throwable _
@@ -347,7 +353,7 @@
     ;;
     :else
     (let [master (.toString (java.math.BigInteger. (.getEncoded (gen-key))))]
-      (init master)
+      (start master)
       master)))
 
 
@@ -367,7 +373,7 @@
     :else
     (let [master (java.math.BigInteger. 128 (Random.))
           shares (create-shares master shares threshold)]
-      (init (str master))
+      (start (str master))
       (map (fn [[id share]] {:id id :value (str share)}) shares))))
 
 

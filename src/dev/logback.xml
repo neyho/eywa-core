@@ -12,7 +12,11 @@
     </rollingPolicy>
   </appender>
 
-  <logger name="neyho.eywa" level="debug">
+  <!-- <logger name="neyho.eywa" level="INFO"> -->
+  <!--   <appender-ref ref="eywa.dev"/> -->
+  <!-- </logger> -->
+
+  <logger name="neyho.eywa.dataset" level="TRACE">
     <appender-ref ref="eywa.dev"/>
   </logger>
 
