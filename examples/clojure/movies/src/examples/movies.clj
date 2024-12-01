@@ -1,5 +1,8 @@
 (ns examples.movies
   (:require
+    [camel-snake-kebab.core :as csk]
+    [camel-snake-kebab.extras :as cske]
+    [clojure.data.json :as json]
     [neyho.eywa]
     [neyho.eywa.core :as core]
     [neyho.eywa.dataset :as dataset]
@@ -40,92 +43,24 @@
 
 
 
-(defn insert-movies
-  []
-  (println "Inserting Movies")
-  (dataset/sync-entity -movie- (load-dataset "movies")))
-
-
-(defn insert-actors
-  []
-  (println "Inserting actors")
-  (let [actors (load-dataset "movie_actors")]
-    (dataset/sync-entity -actor- actors)))
-
-
-(defn insert-genres
-  []
-  (println "Inserting genres")
-  (let [genres (load-dataset "movie_genres")]
-    (dataset/sync-entity -genre- genres)))
-
-
-(defn insert-users
-  []
-  (let [users (map
-                #(update % :join-date (fn [d] (java.util.Date. d)))
-                (load-dataset "movie_users"))]
-    (println "Inserting " (count users) " users")
-    (dataset/sync-entity -user- users)))
-
-
-(defn insert-ratings
-  []
-  (let [ratings (map
-                  (fn [{:keys [movie-id user-id] :as data}]
-                    (assoc data
-                           :movie {:euuid movie-id}
-                           :user {:euuid user-id}))
-                  (load-dataset "user_ratings"))]
-    (println "Inserting " (count ratings) " ratings")
-    (doseq [part (partition 5000 ratings)]
-      (dataset/sync-entity -rating- part))))
-
-
-(defn insert-actor-mapping
-  []
-  (let [actor-mapping (load-dataset "movie_actors_mapping")
-        per-actor (reduce-kv
-                    (fn [r euuid movies]
-                      (conj
-                        r
-                        (hash-map :euuid euuid :movies
-                                  (map #(hash-map :euuid (:movie-id %)) movies))))
-                    []
-                    (group-by :actor-id actor-mapping))]
-    (println "Linking " (count per-actor) " actors with movies")
-    (dataset/sync-entity -actor- per-actor)))
-
-(defn insert-genre-mapping
-  []
-  (let [genre-mapping (load-dataset "movie_genres_mapping")
-        per-genre (reduce-kv
-                    (fn [r euuid movies]
-                      (conj
-                        r
-                        (hash-map :euuid euuid :movies
-                                  (map #(hash-map :euuid (:movie-id %)) movies))))
-                    []
-                    (group-by :genre-id genre-mapping))]
-    (println "Linking " (count per-genre) " movies to genres")
-    (dataset/sync-entity -genre- per-genre)))
-
-
-
 (defn all
   []
   (deploy-dataset)
-  (insert-movies)
-  (insert-actors)
-  (insert-genres)
-  (insert-users)
-  (insert-actor-mapping)
-  (insert-genre-mapping)
-  (insert-ratings))
+  (doseq [[entity dataset] [[-movie- "movies"]
+                            [-actor- "movie_actors"]
+                            [-genre- "movie_genres"]
+                            [-user- "movie_users"]
+                            [-actor- "movie_actors_mapping"]
+                            [-genre- "movie_genres_mapping"]
+                            [-rating- "user_ratings"]]]
+    (doseq [part (partition-all 10000 (load-dataset dataset))]
+      (println "Loading " dataset \[ (count part) \])
+      (dataset/stack-entity entity part))))
 
 
 
 (comment
+
   (def db
     (neyho.eywa/map->Postgres
       {:host "localhost"
@@ -186,5 +121,4 @@
                             :country nil}}]}}]}))
 
   ;; To drop database run
-  (core/tear-down db)
-  )
+  (core/tear-down db))
