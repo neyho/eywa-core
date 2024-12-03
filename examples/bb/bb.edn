@@ -1,0 +1,2 @@
+{:paths ["src"]
+ :deps {org.neyho/eywa-examples-bb {:local/root "."}}}

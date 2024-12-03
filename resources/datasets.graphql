@@ -41,6 +41,11 @@ type Mutation {
   @resolve(fn: "neyho.eywa.dataset/deploy-dataset")
   @protect(scopes: ["dataset:deploy"])
 
+  importDataset(dataset: Transit):DatasetVersion
+  @resolve(fn: "neyho.eywa.dataset/import-dataset")
+  @protect(scopes: ["dataset:deploy"])
+
+
   deleteDataset:Boolean
   @hook(fn: "neyho.eywa.dataset/prepare-deletion-context" metric: -1)
   @hook(fn: "neyho.eywa.dataset/destroy-linked-versions")

@@ -16,7 +16,7 @@
   <!--   <appender-ref ref="eywa.dev"/> -->
   <!-- </logger> -->
 
-  <logger name="neyho.eywa.dataset" level="TRACE">
+  <logger name="neyho.eywa.dataset" level="INFO">
     <appender-ref ref="eywa.dev"/>
   </logger>
 

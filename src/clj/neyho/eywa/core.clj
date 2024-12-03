@@ -214,9 +214,21 @@
     (spit (str target) (str pid))))
 
 
+(defn stop
+  []
+  (oauth/stop)
+  (neyho.eywa.db.postgres/stop)
+  (neyho.eywa.dataset/stop)
+  (neyho.eywa.iam/stop)
+  (neyho.eywa.dataset.encryption/stop)
+  (neyho.eywa.server/stop)
+  nil)
+
+
 (defn start
   ([] (start (neyho.eywa.db.postgres/from-env)))
   ([db]
+   (stop)
    (neyho.eywa.transit/init)
    (neyho.eywa.iam/init-default-encryption)
    (oauth/start)
@@ -231,17 +243,6 @@
       :host (env :eywa-server-host "0.0.0.0")
       :info {:version version
              :release-type "core"}})))
-
-
-(defn stop
-  []
-  (oauth/stop)
-  (neyho.eywa.db.postgres/stop)
-  (neyho.eywa.dataset/stop)
-  (neyho.eywa.iam/stop)
-  (neyho.eywa.dataset.encryption/stop)
-  (neyho.eywa.server/stop)
-  nil)
 
 
 (defn tear-down

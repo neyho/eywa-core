@@ -2266,17 +2266,27 @@
    ; (log/tracef "Searching entity roots for schema:\n%s" (pprint schema))
    ;; Prepare tables target table by inner joining all required tables
    ; (def schema schema)
+   (comment
+     (def focused-schema (focus-order schema))
+     (search-stack-from focused-schema))
    (let [focused-schema (focus-order schema)
-         [tables from] (search-stack-from focused-schema)
+         [[root-table :as tables] from] (search-stack-from focused-schema)
          ;; then prepare where statements and target data
          [where data] (search-stack-args focused-schema)
          ;; select only _eid for each table
+         ;; TODO - this is potentially unnecessary... I've thought
+         ;; to focus as much as possible roots and pin all records
+         ;; at all tables for defined conditions. But this will
+         ;; not work on LEFT JOIN, because it will break _limit
          selected-ids (clojure.string/join
                        ", "
                        (map
                         #(str (name %) "._eid as " (name %))
                         tables))
-         distinct-on (distinct->sql schema)
+         ; selected-ids (str (name (first tables)) "._eid as " (name (first tables)))
+         distinct-on (or (distinct->sql schema)
+                         (when (contains? (:args focused-schema) :_limit)
+                           (format "distinct on (%s._eid)" (name root-table))))
          ;; Create query
          modifiers (modifiers-selection->sql schema)
          query (as-> (format "select %s %s from %s" (str distinct-on) selected-ids from) query

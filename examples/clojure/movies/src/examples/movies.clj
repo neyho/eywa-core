@@ -1,8 +1,5 @@
 (ns examples.movies
   (:require
-    [camel-snake-kebab.core :as csk]
-    [camel-snake-kebab.extras :as cske]
-    [clojure.data.json :as json]
     [neyho.eywa]
     [neyho.eywa.core :as core]
     [neyho.eywa.dataset :as dataset]
@@ -18,16 +15,6 @@
 (defn load-dataset
   [name]
   (<-json (slurp-dataset name)))
-
-
-
-
-(comment
-  (def md (slurp-dataset "movies"))
-  (def md (load-dataset "movies"))
-  (count md)
-  (first md)
-  )
 
 
 (def -actor- #uuid "f274cee0-681f-48d5-a67d-b0232f456f86")

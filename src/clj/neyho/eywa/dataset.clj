@@ -7,6 +7,7 @@
     [clojure.tools.logging :as log]
     [clojure.core.async :as async]
     neyho.eywa
+    [neyho.eywa.transit :refer [<-transit]]
     [neyho.eywa.data]
     [neyho.eywa.iam.uuids :as au]
     [neyho.eywa.dataset.core :as dataset]
@@ -257,6 +258,12 @@
            nil
            {:message (.getMessage e)
             :type ::dataset/error-unknown}))))))
+
+
+;; @resolve
+(defn import-dataset
+  ([context {dataset :dataset} _]
+   (deploy-dataset context {:version dataset} nil)))
 
 
 ;; @hook
