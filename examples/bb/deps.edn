@@ -1,4 +1,0 @@
-{:deps
- {org.neyho/eywa-client             {:mvn/version "0.1.0-SNAPSHOT"}
-  com.github.gersak/toddler-graphql {:mvn/version "0.1.0"}}
- :paths ["src"]}
