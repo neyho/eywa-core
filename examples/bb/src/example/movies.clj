@@ -58,11 +58,7 @@
                         :selection {:euuid nil}
                         :types {:movie_genre :MovieGenreInput}
                         :variables {:movie_genre (<-json (slurp-dataset "movie_genres_mapping"))}}]]
-        (doseq [mutation mutations]
-          (println "Running: " (:mutation mutation))
-          (eywa/graphql
-            (graphql/mutations
-              [mutation])))))
+        (eywa/graphql (graphql/mutations mutations))))
     (doseq [part (partition-all 10000 (<-json (slurp-dataset "user_ratings")))]
       (println "Importing ratings...")
       (time
@@ -94,7 +90,7 @@
    (graphql/queries
      [{:query :searchMovie
        :args (cond-> {:_limit limit}
-               title (assoc :title {:_ilike (format "%title%" title)}))
+               title (assoc :title {:_ilike (str \% title \%)}))
        :selection
        {:title nil
         :release_year nil
@@ -125,12 +121,12 @@
   (deploy-movie-model)
   (load-datasets)
 
-  (println (statistics-query))
+  (println (statistics-query {:title "enhanced"}))
   (async/go
     (pprint
       (time
         (async/<!
-          (eywa/graphql {:query (statistics-query)})))))
+          (eywa/graphql {:query (statistics-query {:title "enhanced"})})))))
 
   (delete-movies)
   )
