@@ -49,3 +49,4 @@ cljs-runtime/
 *.pdf
 *.png
 *.jpg
+*.old
