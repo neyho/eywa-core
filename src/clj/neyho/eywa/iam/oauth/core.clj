@@ -56,16 +56,6 @@
 (defonce ^:dynamic *encryption-key* (nano-id/nano-id 32))
 (defonce ^:dynamic *initialization-vector* (nano-id/nano-id 12))
 
-;
-; (defn encrypt
-;   [data]
-;   (String. (codecs/bytes->b64 (nippy/freeze data {:password [:salted *encryption-key*]}))))
-;
-;
-; (defn decrypt
-;   [data]
-;   (nippy/thaw (codecs/b64->bytes data) {:password [:salted *encryption-key*]}))
-
 
 (defn encrypt
   [data]

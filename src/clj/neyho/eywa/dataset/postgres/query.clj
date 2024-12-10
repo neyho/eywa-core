@@ -1626,6 +1626,9 @@
   First is sequence of table aliases, and second one is FROM
   statment itself."
   [schema]
+  ; (def schema schema)
+  (comment
+    (println (second *1)))
   (letfn [(targeting-args? [args]
             (when args
               (if (vector? args)
@@ -1716,7 +1719,8 @@
                                      next-tables
                                      next-stack)))))
                            [[] []]
-                           locations)]
+                           locations)
+          stack (distinct stack)]
       [(distinct (mapv keyword (into (cond-> [as] rtable (conj rtable)) tables)))
        (if rtable
          (str
@@ -2285,7 +2289,14 @@
                         tables))
          ; selected-ids (str (name (first tables)) "._eid as " (name (first tables)))
          distinct-on (or (distinct->sql schema)
-                         (when (contains? (:args focused-schema) :_limit)
+                         (when (and
+                                 (contains? (:args focused-schema) :_limit)
+                                 ;; BUG - bellow is hotfix for
+                                 ;; ERROR: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
+                                 ;; Distinct on was inserted so that when left join is used
+                                 ;; in combination with _limit, that proper results will
+                                 ;; be returned. Left joining with _limit is problematic
+                                 (not (contains? (:args focused-schema) :_order_by)))
                            (format "distinct on (%s._eid)" (name root-table))))
          ;; Create query
          modifiers (modifiers-selection->sql schema)

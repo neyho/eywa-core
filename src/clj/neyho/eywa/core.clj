@@ -227,7 +227,13 @@
 
 (defn start
   ([] (start (neyho.eywa.db.postgres/from-env)))
-  ([db]
+  ([db] (start
+          db
+          {:port (when-some [port (env :eywa-server-port "8080")] (if (number? port) port (Integer/parseInt port)))
+           :host (env :eywa-server-host "0.0.0.0")
+           :info {:version version
+                  :release-type "core"}}))
+  ([db options]
    (stop)
    (neyho.eywa.transit/init)
    (neyho.eywa.iam/init-default-encryption)
@@ -238,11 +244,7 @@
    (neyho.eywa.dataset.encryption/start)
    (when (#{"true" "TRUE" "YES" "yes" "y"} (env :eywa-iam-enforce-access))
      (neyho.eywa.iam.access/start))
-   (neyho.eywa.server/start
-     {:port (when-some [port (env :eywa-server-port "8080")] (if (number? port) port (Integer/parseInt port)))
-      :host (env :eywa-server-host "0.0.0.0")
-      :info {:version version
-             :release-type "core"}})))
+   (neyho.eywa.server/start options)))
 
 
 (defn tear-down

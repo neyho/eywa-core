@@ -17,16 +17,19 @@
 
 
 (def version
-  (let [{:keys [out err]} (sh "clj" "-M" "-m" "neyho.eywa.core" "version")
+  (let [{:keys [out err]} (sh "clj" "-M:dev" "-m" "neyho.eywa.core" "version")
         version (some not-empty [out err])]
     (when (empty? version)
       (throw
         (ex-info "Couldn't resolve version"
-                 {:command "clj -M -m neyho.eywa.cli -v"})))
-    (str/trim version)))
+                 {:command "clj -M -m neyho.eywa.core version"})))
+    (re-find #"\d+\.\d+\.\d+" version)))
 
 
 (def uber-file (format "target/eywa.%s.jar" version))
+
+
+(println "UBER FILE: " uber-file)
 
 
 (defn clean [_]

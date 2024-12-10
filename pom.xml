@@ -4,7 +4,7 @@
   <packaging>jar</packaging>
   <groupId>org.neyho</groupId>
   <artifactId>eywa-core</artifactId>
-  <version>0.3.2-SNAPSHOT</version>
+  <version>0.3.2</version>
   <name>core</name>
   <licenses>
     <license>
@@ -27,7 +27,7 @@
     <dependency>
       <groupId>org.clojure</groupId>
       <artifactId>data.json</artifactId>
-      <version>2.5.0</version>
+      <version>2.5.1</version>
     </dependency>
     <dependency>
       <groupId>org.clojure</groupId>
@@ -37,7 +37,7 @@
     <dependency>
       <groupId>com.zaxxer</groupId>
       <artifactId>HikariCP</artifactId>
-      <version>5.1.0</version>
+      <version>6.2.1</version>
     </dependency>
     <dependency>
       <groupId>org.clojure</groupId>
@@ -52,12 +52,7 @@
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
-      <version>42.7.2</version>
-    </dependency>
-    <dependency>
-      <groupId>org.clojure</groupId>
-      <artifactId>tools.namespace</artifactId>
-      <version>1.5.0</version>
+      <version>42.7.4</version>
     </dependency>
     <dependency>
       <groupId>com.walmartlabs</groupId>
@@ -82,7 +77,7 @@
     <dependency>
       <groupId>com.github.gersak</groupId>
       <artifactId>shadow-css</artifactId>
-      <version>0.4.5-SNAPSHOT</version>
+      <version>0.5.0</version>
     </dependency>
     <dependency>
       <groupId>org.clojure</groupId>
@@ -105,16 +100,6 @@
       <version>0.3.0</version>
     </dependency>
     <dependency>
-      <groupId>com.taoensso</groupId>
-      <artifactId>nippy</artifactId>
-      <version>3.3.0</version>
-    </dependency>
-    <dependency>
-      <groupId>nrepl</groupId>
-      <artifactId>nrepl</artifactId>
-      <version>1.1.1</version>
-    </dependency>
-    <dependency>
       <groupId>com.github.gersak</groupId>
       <artifactId>vura</artifactId>
       <version>0.6.0</version>
@@ -127,12 +112,12 @@
     <dependency>
       <groupId>babashka</groupId>
       <artifactId>fs</artifactId>
-      <version>0.5.20</version>
+      <version>0.5.22</version>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
-      <version>1.5.0</version>
+      <version>1.5.12</version>
     </dependency>
     <dependency>
       <groupId>camel-snake-kebab</groupId>

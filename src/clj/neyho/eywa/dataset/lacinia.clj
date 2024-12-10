@@ -14,8 +14,8 @@
              purge-entity
              search-entity-tree
              search-entity
-             aggregate-entity
-             aggregate-entity-tree
+             ; aggregate-entity
+             ; aggregate-entity-tree
              delete-entity]]
     [neyho.eywa.lacinia]
     [com.walmartlabs.lacinia.parser :as parser]
