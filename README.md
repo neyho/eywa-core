@@ -318,7 +318,7 @@ and check if this incoming traffic is signed by trusted certificate.
 #### CLI clients
 - [x] - [JS](https://www.npmjs.com/package/eywa-client)
 - [x] - [Python](https://pypi.org/project/eywa-client/)
-- [ ] - Babashka
+- [x] - [Babashka](https://www.clojars.org/org.neyho/eywa-client)
 - [ ] - GO
 - [ ] - Ruby
 
@@ -326,7 +326,7 @@ and check if this incoming traffic is signed by trusted certificate.
 #### Misc
 - [ ] - Explore module - dynamic visualization
 - [ ] - Documentation
-- [ ] - Use cases / examples
+- [x] - Use cases / [examples](https://github.com/neyho/eywa-examples)
 
 
 

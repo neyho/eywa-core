@@ -36,13 +36,12 @@
   camel-snake-kebab/camel-snake-kebab          {:mvn/version "0.4.3"}
   com.github.gersak/vura                       {:mvn/version "0.6.0"}
   ; com.github.gersak/vura                       {:local/root "../../vura"}
-  com.github.gersak/shadow-css                 {:local/root "../../shadow-css"} 
-  ; com.github.gersak/shadow-css                 {:mvn/version "0.5.0"} 
+  ; com.github.gersak/shadow-css                 {:local/root "../../shadow-css"}
+  com.github.gersak/shadow-css                 {:mvn/version "0.5.0"}
   babashka/fs                                  {:mvn/version "0.5.22"}}
 
  :paths ["src/clj" "src/cljc" "src/cljs" "src/css" "resources"]
  :version "0.4.30"
-
 
  :aliases
  {:dev
