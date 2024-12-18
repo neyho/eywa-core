@@ -4,6 +4,11 @@
 
 The **EYWA project** is a fusion of **Identity Access Control** through OAuth2.1 (+OIDC) and deployable, exportable, transportable **Data Models**. Once deployed, these models are immediately exposed through **generic GraphQL queries and mutations**.
 
+- [Installation](#installation)
+- [Examples](https://github.com/neyho/eywa-examples)
+- [Frontend](https://github.com/neyho/eywa-frontend)
+- Motivation
+- Disclaimer
 
 #### Why?
 
@@ -158,7 +163,7 @@ Ok EYWA Core server is installed, now we need to initialize EYWA IAM and Datacra
 ```
 eywa core init
 ```
-If above command didn't throw any error that implies that initialization were successfull and DB is initialized.
+If above command didn't throw any error that implies that initialization was successfull and DB is initialized.
 So everything is ready to start EYWA server, except there is no user that can login to EYWA.
 ```
 eywa core super -s admin
@@ -209,8 +214,6 @@ how, run:
 ```
 eywa core -h
 ```
-
-[Docs](https://www.eywaonline.com/docs/graphql/graphql-main)
 
 
 ## Environment
