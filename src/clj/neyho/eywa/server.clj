@@ -1,26 +1,26 @@
 (ns neyho.eywa.server
   (:require
-    [environ.core :refer [env]]
-    [clojure.java.io :as io]
-    clojure.pprint
-    clojure.string
-    clojure.set
-    [clojure.tools.logging :as log]
-    [io.pedestal.http :as http]
-    [io.pedestal.http.cors :as cors]
-    [io.pedestal.http.route :as route]
-    [io.pedestal.http.content-negotiation :as conneg]
-    [io.pedestal.http.ring-middlewares :as middlewares]
-    [com.walmartlabs.lacinia.pedestal2 :as lp]
-    neyho.eywa.lacinia
-    [neyho.eywa.iam.oidc :as oidc]
-    [neyho.eywa.iam.access.context :refer [*user* *roles* *groups*]]
-    [neyho.eywa.server.ws.graphql :as ws.graphql]
-    [neyho.eywa.server.interceptors :refer [make-info-interceptor json-response-interceptor make-spa-interceptor]]
-    [neyho.eywa.server.interceptors.util :refer [coerce-body]]
-    [neyho.eywa.server.interceptors.authentication :as authentication
-     :refer [user-data
-             authenticate]]))
+   [environ.core :refer [env]]
+   [clojure.java.io :as io]
+   clojure.pprint
+   clojure.string
+   clojure.set
+   [clojure.tools.logging :as log]
+   [io.pedestal.http :as http]
+   [io.pedestal.http.cors :as cors]
+   [io.pedestal.http.route :as route]
+   [io.pedestal.http.content-negotiation :as conneg]
+   [io.pedestal.http.ring-middlewares :as middlewares]
+   [com.walmartlabs.lacinia.pedestal2 :as lp]
+   neyho.eywa.lacinia
+   [neyho.eywa.iam.oidc :as oidc]
+   [neyho.eywa.iam.access.context :refer [*user* *roles* *groups*]]
+   [neyho.eywa.server.ws.graphql :as ws.graphql]
+   [neyho.eywa.server.interceptors :refer [make-info-interceptor json-response-interceptor make-spa-interceptor]]
+   [neyho.eywa.server.interceptors.util :refer [coerce-body]]
+   [neyho.eywa.server.interceptors.authentication :as authentication
+    :refer [user-data
+            authenticate]]))
 
 (def echo-integration
   {:name :eywa/transit-integration-echo
@@ -33,16 +33,13 @@
                     (select-keys request [:json-params :transit-params])))]
        (assoc context :response {:status 200 :body params})))})
 
-
 (def supported-types ["text/html" "application/transit+json" "application/edn" "application/json" "text/plain"])
 (def content-neg-intc (conneg/negotiate-content supported-types))
-
 
 (defn default-routes
   [info]
   #{["/eywa/whoami" :get [authenticate coerce-body content-neg-intc user-data] :route-name :eywa.identity/get]
     ["/eywa/info" :get [authenticate coerce-body content-neg-intc (make-info-interceptor info)] :route-name :eywa.version/get]})
-
 
 (def graphql-routes
   (let [_schema (fn [] (deref neyho.eywa.lacinia/compiled))
@@ -68,45 +65,31 @@
                       lp/enable-tracing-interceptor
                       wrapped-query-executor]]
     (into
-      #{["/graphql" :post interceptors :route-name ::graphql-api]})))
-
-
+     #{["/graphql" :post interceptors :route-name ::graphql-api]})))
 
 (defonce server (atom nil))
-
 
 (defn stop []
   (when (some? @server)
     (log/info "Restarting server")
     (http/stop @server)))
 
-
 (def index-html
   (try
     (slurp
-      (or
+     (or
         ;; This is production
-        (io/resource "eywa/index.html")
+      (io/resource "eywa/index.html")
         ;; This is development
-        (io/resource "index.html")))
+      (io/resource "index.html")))
     (catch Throwable _ "EYWA N/A")))
 
-
 (defonce _response (atom nil))
-
-
-;; { "site-name" "resource-directory" } e.g.
-;; { "ring" "tmp/ring}
-(def sites-map
-  {"s1" "service1"
-   "s2" "service2"
-   "ring" "ring"})
 
 (defn development-environment
   [service-map]
   (if-not (env :eywa-development) service-map
-    (http/dev-interceptors service-map)))
-
+          (http/dev-interceptors service-map)))
 
 (defn start
   ([] (start nil))
@@ -122,43 +105,42 @@
        (def host "localhost")
        (def port 8080)
        (def routes (route/expand-routes
-                     (clojure.set/union
-                       (default-routes)
-                       graphql-routes
-                       oidc/routes)))
+                    (clojure.set/union
+                      (default-routes)
+                      graphql-routes
+                      oidc/routes)))
        (def router (route/router routes :map-tree))))
    (log/infof "Starting EYWA server %s:%s" host port)
    (stop)
    (let [routes (or routes
                     (route/expand-routes
-                      (clojure.set/union
-                        (default-routes info)
-                        graphql-routes
-                        oidc/routes)))
+                     (clojure.set/union
+                       (default-routes info)
+                       graphql-routes
+                       oidc/routes)))
          router (route/router routes :map-tree)
          _server (->
-                   {::http/type :jetty
-                    ::http/join? false
-                    ::http/host host 
-                    ::http/port port 
-                    ::http/interceptors
-                    [;; Constantly true... If there is need for CORS protection than apply
+                  {::http/type :jetty
+                   ::http/join? false
+                   ::http/host host
+                   ::http/port port
+                   ::http/interceptors
+                   [;; Constantly true... If there is need for CORS protection than apply
                      ;; CORS protection at that routes, otherwise this is necessary because
                      ;; Access-Control-Allow-Headers have to be returned, otherwise browser
                      ;; will report error
-                     (cors/allow-origin {:allowed-origins (constantly true)})
-                     (middlewares/content-type {:mime-types {}})
-                     route/query-params
-                     (route/method-param)
-                     router
-                     (make-spa-interceptor (env :eywa-serve))]}
-                   ws.graphql/enable
-                   service-initializer
+                    (cors/allow-origin {:allowed-origins (constantly true)})
+                    (middlewares/content-type {:mime-types {}})
+                    route/query-params
+                    (route/method-param)
+                    router
+                    (make-spa-interceptor (env :eywa-serve))]}
+                  ws.graphql/enable
+                  service-initializer
                    ; development-environment
-                   http/create-server)]
+                  http/create-server)]
      (reset! server (http/start _server))
      (log/infof "EYWA server started @ %s:%s" host port))))
-
 
 (comment
   (stop)

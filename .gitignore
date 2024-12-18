@@ -12,14 +12,11 @@ target/
 dumps/
 tmp/
 assets/
-eywa.properties
 .venv/
 
 resources/app/eywa/js/*
-ws/robotics/dev/css/ui.css
-ws/administration/dev/css/ui.css
-src/dev/development/
 eywa.edn
+eywa.json
 *.old
 # Clients
 # Workspace files are user-specific
@@ -30,8 +27,6 @@ tags
 .nrepl*
 .nrepl-history
 conjure-log*
-module-loader.edn
-module-loader.json
 .clj-kondo/
 cljs-runtime/
 .calva/

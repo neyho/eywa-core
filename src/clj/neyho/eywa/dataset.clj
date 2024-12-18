@@ -64,34 +64,48 @@
 ;       [ctx args (resolver ctx args value)])))
 
 (defn wrap-hooks
+  "Function will wrap all hooks that were defined for some
+  field definition and sort those hooks by :metric attribute.
+  
+  Every time field is required by selection hook chain will be
+  called.
+  
+  Hooks accept args [ctx args value] and should return 'modified'
+  [ctx args value]"
   [hooks resolver]
   (if (not-empty hooks)
     (let [hooks (keep
                  (fn [definition]
                    (let [{resolver :fn :as hook} (selection/arguments definition)]
-                     (when-some [resolved (try
-                                            (resolve (symbol resolver))
-                                            (catch Throwable e
-                                              (log/errorf e "Couldn't resolve symbol %s" resolver)
-                                              nil))]
-                       (assoc hook :fn resolved))))
+                     (if-some [resolved (try
+                                          (resolve (symbol resolver))
+                                          (catch Throwable e
+                                            (log/errorf e "Couldn't resolve symbol %s" resolver)
+                                            nil))]
+                       (assoc hook :fn resolved)
+                       (assoc hook :fn (fn [ctx args v]
+                                         (log/error "Couldn't resolve '%s'" resolver)
+                                         [ctx args v])))))
                  hooks)
-          {:keys [pre post]} (group-by
-                              #(cond
-                                 (neg? (:metric % 1)) :pre
-                                 (pos? (:metric % 1)) :post
-                                 :else :resolver)
-                              hooks)
-          steps (cond-> (or (some-> (not-empty (map :fn pre)) vec)
-                            [])
-                  ;;
-                  (some? resolver)
-                  (conj (fn wrapped-resolver [ctx args value]
-                          (let [new-value (resolver ctx args value)]
-                            [ctx args new-value])))
-                  ;;
-                  (not-empty post)
-                  (into (map :fn post)))]
+          ;;
+          {:keys [pre post]}
+          (group-by
+           #(cond
+              (neg? (:metric % 1)) :pre
+              (pos? (:metric % 1)) :post
+              :else :resolver)
+           hooks)
+          ;;
+          steps
+          (cond-> (or (some-> (not-empty (map :fn pre)) vec) [])
+            ;;
+            (some? resolver)
+            (conj (fn wrapped-resolver [ctx args value]
+                    (let [new-value (resolver ctx args value)]
+                      [ctx args new-value])))
+            ;;
+            (not-empty post)
+            (into (map :fn post)))]
       ;; FINAL RESOLVER
       (fn wrapped-hooks-resolver [ctx args value]
         ; (log/infof "RESOLVING: %s" resolver)
@@ -308,6 +322,7 @@
   (def euuid #uuid "ae3e0f7f-dd0a-468c-9885-caac4141a5c3")
   (dataset/get-relation (deployed-model) #uuid "ae3e0f7f-dd0a-468c-9885-caac4141a5c3")
   (lacinia/generate-lacinia-schema db)
+  (def dataset-euuid #uuid "5bd79e74-8ada-4b51-9692-f402d3008e93")
   (do
     (def file "./first_ai_test.edm")
     (def model (neyho.eywa.transit/<-trasit (slurp file)))
@@ -317,6 +332,50 @@
     (filter
      dataset/entity-changed?
      (dataset/get-entities projection))))
+
+(defn latest-deployed-version
+  [dataset-euuid]
+  (let [{[{version :name}] :versions}
+        (get-entity
+         du/dataset
+         {:euuid dataset-euuid}
+         {:versions
+          [{:selections {:name nil}
+            :args {:_where {:deployed {:_boolean :TRUE}}
+                   :_limit 1
+                   :_order_by {:modified_on :desc}}}]})]
+    version))
+
+(defn latest-deployed-versions
+  []
+  (map
+   (fn [{[{version :name :keys [model]}] :versions
+         :keys [euuid name]}]
+     {:euuid euuid :name name :version version :model model})
+   (search-entity
+    du/dataset
+    nil
+    {:euuid nil
+     :name nil
+     :versions
+     [{:selections {:name nil
+                    :model nil}
+       :args {:_where {:deployed {:_boolean :TRUE}}
+              :_limit 1
+              :_order_by {:modified_on :desc}}}]})))
+
+(defn latest-deployed-model
+  [dataset-euuid]
+  (let [{[{model :model}] :versions}
+        (get-entity
+         du/dataset
+         {:euuid dataset-euuid}
+         {:versions
+          [{:selections {:model nil}
+            :args {:_where {:deployed {:_boolean :TRUE}}
+                   :_limit 1
+                   :_order_by {:modified_on :desc}}}]})]
+    model))
 
 (defn start
   "Function initializes EYWA datasets by loading last deployed model."
