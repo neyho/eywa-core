@@ -39,6 +39,11 @@
    (neyho.eywa.db.postgres/start db)
    (neyho.eywa.dataset/start)))
 
+(comment
+  (set-superuser
+   {:username "admin"
+    :password "admin"}))
+
 (defn set-superuser
   ([] (set-superuser {:username  (env :eywa-user)
                       :password (env :eywa-password)}))

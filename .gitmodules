@@ -5,5 +5,5 @@
 	path = clients
 	url = git@github.com:neyho/eywa-clients.git
 [submodule "eywa-frontend"]
-	path = eywa-frontend
+	path = frontend
 	url = git@github.com:neyho/eywa-frontend.git
