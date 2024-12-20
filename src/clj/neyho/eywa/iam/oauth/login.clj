@@ -1,33 +1,32 @@
 (ns neyho.eywa.iam.oauth.login
   (:require
-    clojure.java.io
-    clojure.pprint
-    [clojure.string :as str]
-    [clojure.set :as set]
-    [clojure.tools.logging :as log]
-    [vura.core :as vura]
-    [ring.util.codec :as codec]
-    [clojure.data.json :as json]
+   clojure.java.io
+   clojure.pprint
+   [environ.core :refer [env]]
+   [clojure.string :as str]
+   [clojure.set :as set]
+   [clojure.tools.logging :as log]
+   [vura.core :as vura]
+   [ring.util.codec :as codec]
+   [clojure.data.json :as json]
     ;[neyho.eywa.iam :as iam]
-    [neyho.eywa.iam.oauth.core :as core]
-    [neyho.eywa.iam.oauth.authorization-code :as ac]
-    [neyho.eywa.iam.oauth.device-code :as dc]
-    [neyho.eywa.iam.oauth.page.login :refer [login-html]]
-    [neyho.eywa.iam.oauth.token :as token]
-    [io.pedestal.interceptor.chain :as chain]
-    [io.pedestal.http.body-params :as bp]
-    [io.pedestal.http.cors :refer [allow-origin]]
-    [io.pedestal.http.ring-middlewares :as middleware]))
-
+   [neyho.eywa.iam.oauth.core :as core]
+   [neyho.eywa.iam.oauth.authorization-code :as ac]
+   [neyho.eywa.iam.oauth.device-code :as dc]
+   [neyho.eywa.iam.oauth.page.login :refer [login-html]]
+   [neyho.eywa.iam.oauth.token :as token]
+   [io.pedestal.interceptor.chain :as chain]
+   [io.pedestal.http.body-params :as bp]
+   [io.pedestal.http.cors :refer [allow-origin]]
+   [io.pedestal.http.ring-middlewares :as middleware]))
 
 (def redirect-to-login
   {:enter (fn [{{query :query-string} :request :as ctx}]
             (chain/terminate
-              (assoc ctx :response
-                     {:status 302
-                      :headers {"Location" (str "/oauth/login/index.html" (when query (str "?" query)))
-                                "Cache-Control" "no-cache"}})))})
-
+             (assoc ctx :response
+                    {:status 302
+                     :headers {"Location" (str "/oauth/login/index.html" (when query (str "?" query)))
+                               "Cache-Control" "no-cache"}})))})
 
 (defn security-check
   [{{params :params
@@ -48,16 +47,14 @@
       "user_agent"
       ;;
       (not
-        (contains?
-          (case flow
-            "device_code" (get-in @dc/*device-codes* [device-code :challenges])
-            nil)
-          challenge))
+       (contains?
+        (case flow
+          "device_code" (get-in @dc/*device-codes* [device-code :challenges])
+          nil)
+        challenge))
       "challenge"
       ;;
       :else nil)))
-
-
 
 (def login-interceptor
   {:name ::login
@@ -92,13 +89,13 @@
                  ;;
                  (nil? prepared-code)
                  (chain/terminate
-                   (assoc ctx :response
-                          {:status 302
-                           :headers {"Location" (str "/oauth/status" "?" (codec/form-encode
-                                                                           {:value "error"
-                                                                            :flow "authorization_code"
-                                                                            :error "expired_code"
-                                                                            :error_description "Your login grace period has expired. Return to your client application and retry login procedure"}))}}))
+                  (assoc ctx :response
+                         {:status 302
+                          :headers {"Location" (str "/oauth/status" "?" (codec/form-encode
+                                                                         {:value "error"
+                                                                          :flow "authorization_code"
+                                                                          :error "expired_code"
+                                                                          :error_description "Your login grace period has expired. Return to your client application and retry login procedure"}))}}))
                  ;; When user isn't authenticated, leave for some other interceptor
                  ;; to return response
                  (nil? resource-owner)
@@ -113,20 +110,20 @@
                                               :last-active now})
                    (core/set-session-audience-scope session audience scope)
                    (core/set-session-resource-owner session resource-owner)
-                   (core/set-session-authorized-at session now) 
+                   (core/set-session-authorized-at session now)
                    (ac/mark-code-issued session authorization-code)
                    (log/debugf "[%s] Validating resource owner: %s" session username)
                    (chain/terminate
-                     (-> 
-                       (assoc ctx
-                              ::state flow-state
-                              ::session session
-                              :response {:status 302
-                                         :headers {"Location" (str redirect-uri "?"
-                                                                   (codec/form-encode
-                                                                     (if (empty? state) {:code authorization-code}
-                                                                       {:state state
-                                                                        :code authorization-code})))}}))))
+                    (->
+                     (assoc ctx
+                       ::state flow-state
+                       ::session session
+                       :response {:status 302
+                                  :headers {"Location" (str redirect-uri "?"
+                                                            (codec/form-encode
+                                                             (if (empty? state) {:code authorization-code}
+                                                                 {:state state
+                                                                  :code authorization-code})))}}))))
                  ;; Otherwise let someone after handle error
                  :else
                  (assoc ctx ::state flow-state ::error :unknown)))
@@ -137,12 +134,12 @@
                    security-error (security-check ctx)]
                (letfn [(error [value]
                          (chain/terminate
-                           (assoc ctx :response
-                                  {:status 302
-                                   :headers {"Location" (str "/oauth/status" "?" (codec/form-encode
-                                                                                   {:value "error"
-                                                                                    :flow "device_code"
-                                                                                    :error value}))}})))]
+                          (assoc ctx :response
+                                 {:status 302
+                                  :headers {"Location" (str "/oauth/status" "?" (codec/form-encode
+                                                                                 {:value "error"
+                                                                                  :flow "device_code"
+                                                                                  :error value}))}})))]
                  (cond
                    (some? session)
                    (error "already_authorized")
@@ -165,11 +162,11 @@
                      (swap! dc/*device-codes* update device-code
                             (fn [data]
                               (->
-                                data
-                                (assoc
-                                  :confirmed false
-                                  :session session)
-                                (dissoc :challenges))))
+                               data
+                               (assoc
+                                :confirmed false
+                                :session session)
+                               (dissoc :challenges))))
                      ;;
                      (core/set-session session {:flow "device_code"
                                                 :code device-code
@@ -179,11 +176,11 @@
                      (core/set-session-resource-owner session resource-owner)
                      (core/set-session-authorized-at session now)
                      (chain/terminate
-                       (assoc ctx :response
-                              {:status 302
-                               :headers {"Location" (format
-                                                      "/oauth/status?value=success&client=%s&user=%s"
-                                                      client (:name resource-owner))}}))))))
+                      (assoc ctx :response
+                             {:status 302
+                              :headers {"Location" (format
+                                                    "/oauth/status?value=success&client=%s&user=%s"
+                                                    client (:name resource-owner))}}))))))
              (assoc ctx :response
                     {:status 302
                      :headers {"Location" "/oauth/status?value=error&error=broken_flow"}}))))))
@@ -198,21 +195,17 @@
    ;                       :secure true
    ;                       :expires "Session"})))
    })
-
-
 (def login-page
   {:enter (fn [ctx]
             (assoc ctx :response {:status (if (::error ctx) 400 200)
                                   :headers {"Content-Type" "text/html"}
                                   :body (str (login-html ctx))}))})
 
-
 (defn request-error
   [code & description]
   {:status code
    :headers {"Content-Type" "text/html"}
    :body (json/write-str (str/join "\n" description))})
-
 
 (let [invalid-token (request-error 400 "Token is not valid")
       session-not-found (request-error 400 "Session is not active")
@@ -278,13 +271,14 @@
          ; (def post-redirect-ok? post-redirect-ok?)
          ; (def post_logout_redirect_uri)
          ; (def response response)
-         ; (chain/terminate
-         ;   (assoc ctx :response {:status 200 :body "PUSI KURAC"}))
          (assoc ctx :response response)))}))
 
-
 (let [logout (conj core/oauth-common-interceptor core/idsrv-session-remove core/idsrv-session-read logout-interceptor)
-      only-identity-provider (allow-origin {:allowed-origins [(core/domain+)]})]
+      only-identity-provider (allow-origin {:allowed-origins
+                                            (conj
+                                             (remove empty? (str/split (env :eywa-allowed-origins "") #"\s*,\s*"))
+                                              ;; Bellow is compatibility
+                                             (env :eywa-iam-root-url "http://localhost:8080"))})]
   (def routes
     #{["/oauth/login" :get [only-identity-provider redirect-to-login] :route-name ::short-login]
       ["/oauth/login/index.html" :post [only-identity-provider middleware/cookies login-interceptor login-page] :route-name ::handle-login]

@@ -197,33 +197,34 @@
              device-code (gen-device-code)
              user-code (gen-user-code)]
          (log/debugf "Device code request:\n%s" request)
-         (chain/terminate
-          (assoc context :response
-                 (try
-                   (let [client (validate-client params)
-                         expires-at (->
-                                     (System/currentTimeMillis)
-                                     (+ (vura/minutes 5)))]
-                     (swap! core/*clients* assoc (:euuid client) client)
-                     (swap! *device-codes* assoc device-code
-                            {:user-code user-code
-                             :expires-at expires-at
-                             :request params
-                             :device/agent user-agent
-                             :device/ip remote-addr
-                             :interval 5
-                             :client (:euuid client)})
-                     {:status 200
-                      :headers {"Content-Type" "application/json"}
-                      :body (json/write-str
-                             {:device_code device-code
-                              :user_code user-code
-                              :verification_uri (core/domain+ "/oauth/device/activate")
-                              :verification_uri_complete (core/domain+ (str "/oauth/device/activate?user_code=" user-code))
-                              :interval 5
-                              :expires_in 900})})
-                   (catch clojure.lang.ExceptionInfo ex
-                     (core/handle-request-error (ex-data ex)))))))))})
+         (binding [core/*domain* (core/original-uri request)]
+           (chain/terminate
+            (assoc context :response
+                   (try
+                     (let [client (validate-client params)
+                           expires-at (->
+                                       (System/currentTimeMillis)
+                                       (+ (vura/minutes 5)))]
+                       (swap! core/*clients* assoc (:euuid client) client)
+                       (swap! *device-codes* assoc device-code
+                              {:user-code user-code
+                               :expires-at expires-at
+                               :request params
+                               :device/agent user-agent
+                               :device/ip remote-addr
+                               :interval 5
+                               :client (:euuid client)})
+                       {:status 200
+                        :headers {"Content-Type" "application/json"}
+                        :body (json/write-str
+                               {:device_code device-code
+                                :user_code user-code
+                                :verification_uri (core/domain+ "/oauth/device/activate")
+                                :verification_uri_complete (core/domain+ (str "/oauth/device/activate?user_code=" user-code))
+                                :interval 5
+                                :expires_in 900})})
+                     (catch clojure.lang.ExceptionInfo ex
+                       (core/handle-request-error (ex-data ex))))))))))})
 
 (def ^{:doc "This interceptor should be used for device activation. Both
             for GET and POST methods. When GET is intercepted ctx will

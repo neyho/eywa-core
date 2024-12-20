@@ -1,129 +1,109 @@
 (ns neyho.eywa.iam.oauth.core
   (:require
-    [clojure.string :as str]
-    clojure.java.io
-    clojure.pprint
-    [clojure.core.async :as async]
-    [clojure.tools.logging :as log]
-    [clojure.walk :refer [keywordize-keys]]
-    [clojure.spec.alpha :as s]
-    [nano-id.core :as nano-id]
-    [vura.core :as vura]
-    [ring.util.codec :as codec]
-    [ring.util.response :as response]
-    [clojure.data.json :as json]
-    [buddy.core.codecs :as codecs]
-    [buddy.core.crypto :as crypto]
-    [neyho.eywa.iam :as iam]
-    [neyho.eywa.dataset.core :as core]
-    [neyho.eywa.iam.access :as access]
-    [neyho.eywa.env :as env]
-    [neyho.eywa.iam.uuids :as iu]
-    [io.pedestal.http.body-params :as bp]
-    [io.pedestal.http.ring-middlewares :as middleware])
+   [clojure.string :as str]
+   clojure.java.io
+   clojure.pprint
+   [clojure.core.async :as async]
+   [clojure.tools.logging :as log]
+   [clojure.walk :refer [keywordize-keys]]
+   [clojure.spec.alpha :as s]
+   [nano-id.core :as nano-id]
+   [vura.core :as vura]
+   [ring.util.codec :as codec]
+   [ring.util.response :as response]
+   [clojure.data.json :as json]
+   [buddy.core.codecs :as codecs]
+   [buddy.core.crypto :as crypto]
+   [neyho.eywa.iam :as iam]
+   [neyho.eywa.dataset.core :as core]
+   [neyho.eywa.iam.access :as access]
+   [neyho.eywa.env :as env]
+   [neyho.eywa.iam.uuids :as iu]
+   [io.pedestal.http.body-params :as bp]
+   [io.pedestal.http.ring-middlewares :as middleware])
   (:import
-    [java.util Base64]))
-
+   [java.util Base64]))
 
 (defn pprint [data] (with-out-str (clojure.pprint/pprint data)))
-
 
 (defonce subscription (async/chan (async/sliding-buffer 10000)))
 (defonce publisher
   (async/pub
-    subscription
-    (fn [{:keys [topic]
-          :or {topic ::broadcast}}]
-      topic)))
-
+   subscription
+   (fn [{:keys [topic]
+         :or {topic ::broadcast}}]
+     topic)))
 
 (defn publish [topic data]
   (async/put! subscription (assoc data :topic topic)))
 
-
 (defonce ^:dynamic *resource-owners* (atom nil))
 (defonce ^:dynamic *clients* (atom nil))
 (defonce ^:dynamic *sessions* (atom nil))
-
+(defonce ^:dynamic *domain* nil)
 
 (defn domain+
   ([] (domain+ ""))
   ([path]
-   (str env/iam-root-url path)))
-
-
+   (str (or env/iam-root-url *domain*) path)))
 
 (defonce ^:dynamic *encryption-key* (nano-id/nano-id 32))
 (defonce ^:dynamic *initialization-vector* (nano-id/nano-id 12))
-
 
 (defn encrypt
   [data]
   (let [json-data (.getBytes (json/write-str data))]
     (String.
-      (codecs/bytes->b64
-        (crypto/encrypt
-          json-data *encryption-key* *initialization-vector*
-          {:alg :aes256-gcm})))))
-
+     (codecs/bytes->b64
+      (crypto/encrypt
+       json-data *encryption-key* *initialization-vector*
+       {:alg :aes256-gcm})))))
 
 (defn decrypt [encrypted-data]
   (try
     (json/read-str
-      (String.
-        (crypto/decrypt
-          (codecs/b64->bytes encrypted-data) *encryption-key* *initialization-vector*
-          {:alg :aes256-gcm}))
-      :key-fn keyword)
+     (String.
+      (crypto/decrypt
+       (codecs/b64->bytes encrypted-data) *encryption-key* *initialization-vector*
+       {:alg :aes256-gcm}))
+     :key-fn keyword)
     (catch Throwable _ nil)))
-
 
 (comment
   (time
-    (decrypt
+   (decrypt
     (encrypt
-      {:device-code 100
-       :user-code 200
-       :ip "a"
-       :user-agent "jfioq"}))))
-
-
-
-
+     {:device-code 100
+      :user-code 200
+      :ip "a"
+      :user-agent "jfioq"}))))
 
 (let [alphabet "ACDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]
   (def gen-session-id (nano-id/custom alphabet 30)))
-
 
 (let [default (vura/hours 2)]
   (defn access-token-expiry
     [{{{expiry "access"} "token-expiry"} :settings}]
     (or expiry default)))
 
-
 (let [default (vura/days 1.5)]
   (defn refresh-token-expiry
     [{{{expiry "refresh"} "token-expiry"} :settings}]
     (or expiry default)))
 
-
 (defmulti sign-token (fn [_ token-key _] token-key))
-
 
 (defmethod sign-token :default
   [session token-key data]
   (log/errorf "[%s] Couldn't signt token `%s`" session token-key)
   data)
 
-
 (defn get-session-client [session]
   (let [euuid (get-in @*sessions* [session :client])]
     (get @*clients* euuid)))
 
-
 (defprotocol LazyOAuth
   (get-resource-owner [this]))
-
 
 (extend-protocol LazyOAuth
   java.util.UUID
@@ -136,18 +116,15 @@
         (swap! *resource-owners*
                (fn [resource-owners]
                  (->
-                   resource-owners 
-                   (assoc euuid resource-owner)
-                   (update ::name-mapping assoc name euuid))))))))
-
+                  resource-owners
+                  (assoc euuid resource-owner)
+                  (update ::name-mapping assoc name euuid))))))))
 
 (defn get-session-resource-owner [session]
   (let [euuid (get-in @*sessions* [session :resource-owner])]
     (get @*resource-owners* euuid)))
 
-
 (defmulti process-scope (fn [_ _ scope] scope))
-
 
 (defmethod process-scope :default
   [session tokens scope]
@@ -157,8 +134,6 @@
       (update-in tokens [:access_token :scope] (fnil conj []) scope)
       tokens)))
 
-
-
 (defn token-error [code & description]
   ; (log/debugf "Returning error: %s\n%s" code (str/join "\n" description))
   {:status 400
@@ -166,9 +141,8 @@
              "Pragma" "no-cache"
              "Cache-Control" "no-store"}
    :body (json/write-str
-           {:error code
-            :error_description (str/join "\n" description)})})
-
+          {:error code
+           :error_description (str/join "\n" description)})})
 
 (defn get-base-uri
   "Returns the base URI without query parameters from the given URL."
@@ -177,15 +151,13 @@
     (let [uri (java.net.URI. url)]
       (str (java.net.URI. (.getScheme uri) (.getAuthority uri) (.getPath uri) nil nil)))))
 
-
 (defn validate-resource-owner [username password]
   (let [{db-password :password
          active :active
          :as resource-owner} (iam/get-user-details username)]
     (if-not active nil
-      (when (iam/validate-password password db-password)
-        (dissoc resource-owner :password)))))
-
+            (when (iam/validate-password password db-password)
+              (dissoc resource-owner :password)))))
 
 (defn set-session-resource-owner
   [session {:keys [euuid] username :name :as resource-owner}]
@@ -193,15 +165,14 @@
   (swap! *resource-owners*
          (fn [resource-owners]
            (->
-             resource-owners
-             (update euuid (fn [current]
-                             (->
-                               current 
-                               (merge resource-owner)
-                               (update :sessions (fnil conj #{}) session))))
-             (update ::name-mapping assoc username euuid))))
+            resource-owners
+            (update euuid (fn [current]
+                            (->
+                             current
+                             (merge resource-owner)
+                             (update :sessions (fnil conj #{}) session))))
+            (update ::name-mapping assoc username euuid))))
   nil)
-
 
 (defn remove-session-resource-owner [session]
   (let [euuid (get-in @*sessions* [session :resource-owner])]
@@ -216,18 +187,15 @@
                    resource-owners)))))
     nil))
 
-
 (defn set-session-audience-scope
   ([session scope] (set-session-audience-scope session nil scope))
   ([session audience scope]
    (swap! *sessions* assoc-in [session :scopes audience] scope)))
 
-
 (defn get-session-audience-scope
   ([session] (get-session-audience-scope session nil))
   ([session audience]
    (get-in @*sessions* [session :scopes audience])))
-
 
 (defn clients-match? [session {:keys [client_id client_secret]}]
   (let [{known-id :id
@@ -238,16 +206,13 @@
       (and known-secret (not= client_secret known-secret)) false
       :else true)))
 
-
 (def clients-doesnt-match? (complement clients-match?))
-
 
 (defn get-client
   [id]
   (when-let [client (iam/get-client id)]
     (swap! *clients* update (:euuid client) merge client)
     client))
-
 
 (defn remove-session-client [session]
   (let [euuid (get-in @*sessions* [session :client])]
@@ -257,7 +222,6 @@
              (fn [current]
                (update current :sessions (fnil disj #{}) session))))
     nil))
-
 
 (defn get-session [id] (get @*sessions* id))
 (defn set-session [id data] (swap! *sessions* assoc id data))
@@ -277,61 +241,56 @@
                (update current :sessions (fnil disj #{}) id))))
     nil))
 
-
 (defn get-session-tokens [session]
   (reduce
-    (fn [r tokens]
-      (reduce
-        (fn [r [k token]] (update r k (fnil conj []) token))
-        r
-        (partition 2 (interleave (keys tokens) (vals tokens)))))
-    nil
-    (vals (:tokens (get-session session)))))
-
+   (fn [r tokens]
+     (reduce
+      (fn [r [k token]] (update r k (fnil conj []) token))
+      r
+      (partition 2 (interleave (keys tokens) (vals tokens)))))
+   nil
+   (vals (:tokens (get-session session)))))
 
 (comment
   (def session "YiSclFaUmCFKhSRrHNshCYDKlMjQKz"))
-
 
 (defn get-redirection-uris [session]
   (let [{{:strs [redirections]} :settings} (get-session-client session)]
     redirections))
 
-
 (def request-errors
   (reduce-kv
-    (fn [r k v]
-      (assoc r k (str/join "\n" v)))
-    nil
-    {"invalid_request"
-     ["The request is missing a required parameter, includes an"
-      "invalid parameter value, includes a parameter more than" 
-      "once, or is otherwise malformed."]
+   (fn [r k v]
+     (assoc r k (str/join "\n" v)))
+   nil
+   {"invalid_request"
+    ["The request is missing a required parameter, includes an"
+     "invalid parameter value, includes a parameter more than"
+     "once, or is otherwise malformed."]
      ;;
-     "unauthorized_client"
-     ["The client is not authorized to request an authorization"
-      "code using this method."]
+    "unauthorized_client"
+    ["The client is not authorized to request an authorization"
+     "code using this method."]
      ;;
-     "access_denied"
-     ["The resource owner or authorization server denied the"
-      "request."]
+    "access_denied"
+    ["The resource owner or authorization server denied the"
+     "request."]
      ;;
-     "unsupported_response_type"
-     ["The authorization server does not support obtaining an"
-      "authorization code using this method."]
+    "unsupported_response_type"
+    ["The authorization server does not support obtaining an"
+     "authorization code using this method."]
      ;;
-     "invalid_scope"
-     ["The requested scope is invalid, unknown, or malformed."]
+    "invalid_scope"
+    ["The requested scope is invalid, unknown, or malformed."]
      ;;
-     "server_error"
-     ["The authorization server encountered an unexpected"
-      "condition that prevented it from fulfilling the request."]
+    "server_error"
+    ["The authorization server encountered an unexpected"
+     "condition that prevented it from fulfilling the request."]
      ;;
-     "temporarily_unavailable"
-     ["The authorization server is currently unable to handle"
-      "the request due to a temporary overloading or maintenance"
-      "of the server."]}))
-
+    "temporarily_unavailable"
+    ["The authorization server is currently unable to handle"
+     "the request due to a temporary overloading or maintenance"
+     "of the server."]}))
 
 ;; TODO - this is bad... Go through OAuth spec check what
 ;; should be returned to client and what should be redirected
@@ -343,42 +302,39 @@
     request :request
     description :description}]
   (let [{:keys [state redirect_uri]} (or
-                                       request
-                                       (:request (get-session session)))
+                                      request
+                                      (:request (get-session session)))
         base-redirect-uri (get-base-uri redirect_uri)]
     (when session (remove-session session))
     (case t
       ;; When redirection uri error than redirect to 
       ("no_redirections"
-        "missing_redirect" "redirect_missmatch" "missing_response_type"
-        "client_not_registered" "corrupt_session" "unsupported_grant_type")
+       "missing_redirect" "redirect_missmatch" "missing_response_type"
+       "client_not_registered" "corrupt_session" "unsupported_grant_type")
       {:status 302
        :headers {"Location" (str "/oauth/status?"
                                  (codec/form-encode
-                                   {:value "error"
-                                    :error t}))
+                                  {:value "error"
+                                   :error t}))
                  "Cache-Control" "no-cache"}}
       ;; Otherwise
       {:status 302
        ;; TODO - handle when redirect uri already has parameters
        :headers {"Location" (str base-redirect-uri "?"
                                  (codec/form-encode
-                                   (cond->
-                                     {:error t}
-                                     description (assoc :error_description description)
-                                     state (assoc :state state))))
+                                  (cond->
+                                   {:error t}
+                                    description (assoc :error_description description)
+                                    state (assoc :state state))))
                  "Cache-Control" "no-cache"}})))
-
 
 (defn set-session-authorized-at
   [session timestamp]
   (swap! *sessions* assoc-in [session :authorized-at] timestamp))
 
-
 (defn get-session-authorized-at
   [session]
   (get-in @*sessions* [session :authorized-at]))
-
 
 (defn kill-session
   [session]
@@ -390,13 +346,10 @@
              {:session session
               :data session-data})))
 
-
 (defn kill-sessions
   []
   (doseq [[session] @*sessions*]
     (kill-session session)))
-
-
 
 (s/def ::authorization-code-grant #{"authorization_code"})
 (s/def ::password-grant #{"password"})
@@ -404,14 +357,12 @@
 (s/def ::refresh-token-grant #{"refresh_token"})
 (s/def ::client-credentials-grant #{"client_credentials"})
 
-
 (s/def ::grant_type
   (s/or
-    :authorization-code ::authorization-code-grant
-    :password ::password-grant
-    :refresh-token ::refresh-token-grant
-    :implicit ::implict-grant))
-
+   :authorization-code ::authorization-code-grant
+   :password ::password-grant
+   :refresh-token ::refresh-token-grant
+   :implicit ::implict-grant))
 
 (defn json-error
   [status & description]
@@ -424,16 +375,14 @@
                "Pragma" "no-cache"
                "Cache-Control" "no-store"}
      :body (json/write-str
-             {:error code
-              :error_description (str/join "\n" description)})}))
-
+            {:error code
+             :error_description (str/join "\n" description)})}))
 
 (defn reset
   []
   (reset! *sessions* nil)
   (reset! *resource-owners* nil)
   (reset! *clients* nil))
-
 
 ;; Interceptors
 (defn- decode-base64-credentials
@@ -443,18 +392,35 @@
           decoded (String. decoded-bytes)]
       (str/split decoded #":" 2))))
 
-
 (def basic-authorization-interceptor
   {:name ::authentication-basic
    :enter
    (fn [{{{authorization "authorization"} :headers} :request :as context}]
      (if-not authorization context
-       (let [[_ credentials] (re-find #"Basic\s+(.*)" authorization)
-             [id secret] (decode-base64-credentials credentials)]
-         (update-in context [:request :params] assoc
-                    :client_id id
-                    :client_secret secret))))})
+             (let [[_ credentials] (re-find #"Basic\s+(.*)" authorization)
+                   [id secret] (decode-base64-credentials credentials)]
+               (update-in context [:request :params] assoc
+                          :client_id id
+                          :client_secret secret))))})
 
+(defn original-uri
+  [{original-uri :uri
+    {forwarded-host "x-forwarded-host"
+     forwarded-proto "x-forwarded-proto"
+     host "host"} :headers
+    :keys [scheme]}]
+  ; (def request request)
+  (comment
+    (original-uri request))
+  (format
+   "%s://%s"
+   (or forwarded-proto (name scheme))
+   (or forwarded-host host original-uri)))
+
+(def original-uri-interceptor
+  {:enter
+   (fn [{request :request :as ctx}]
+     (assoc ctx ::uri (original-uri request)))})
 
 (def keywordize-params
   {:name ::keywordize-params
@@ -462,13 +428,11 @@
    (fn [ctx]
      (update-in ctx [:request :params] keywordize-keys))})
 
-
 (def scope->set
   {:name ::keywordize-params
    :enter
    (fn [ctx]
      (update-in ctx [:request :params :scope] (fn [scope] (when scope (set (str/split scope #"\s+"))))))})
-
 
 (def oauth-common-interceptor
   [basic-authorization-interceptor
@@ -476,13 +440,11 @@
    (bp/body-params)
    keywordize-params])
 
-
 (def idsrv-session-read
   {:enter (fn [ctx]
             (let [{{{{idsrv-session :value} "idsrv.session"} :cookies} :request} ctx]
               (if (empty? idsrv-session) ctx
-                (assoc-in ctx [:request :params :idsrv/session] idsrv-session))))})
-
+                  (assoc-in ctx [:request :params :idsrv/session] idsrv-session))))})
 
 (def idsrv-session-remove
   {:leave (fn [ctx]
@@ -493,11 +455,9 @@
                        :secure true
                        :max-age 0}))})
 
-
 (def serve-resource
   {:enter (fn [{{:keys [uri]} :request :as ctx}]
             (assoc ctx :response (response/resource-response uri)))})
-
 
 ;; Maintenance
 (defn clean-sessions
@@ -510,13 +470,12 @@
      (doseq [[session {:keys [authorized-at tokens]}] @*sessions*
              :let [authorized-at (when authorized-at (vura/time->value authorized-at))]
              :when (or
-                     (nil? authorized-at)
-                     (and
-                       (< (+ authorized-at timeout) now)
-                       (every? empty? (vals tokens))))]
+                    (nil? authorized-at)
+                    (and
+                     (< (+ authorized-at timeout) now)
+                     (every? empty? (vals tokens))))]
        (log/debugf "[%s] Session timed out. No code or access token was assigned to this session" session)
        (kill-session session)))))
-
 
 (defn reload-clients
   []
@@ -526,15 +485,14 @@
       (swap! *clients*
              (fn [old-clients]
                (merge-with
-                 merge old-clients
-                 (reduce
-                   (fn [r {:keys [euuid] :as client}]
-                     (assoc r euuid client))
-                   nil
-                   new-clients)))))
+                merge old-clients
+                (reduce
+                 (fn [r {:keys [euuid] :as client}]
+                   (assoc r euuid client))
+                 nil
+                 new-clients)))))
     (catch Throwable ex
       (log/errorf ex "[OAuth] Couldn't reload clients"))))
-
 
 (defn monitor-client-change
   []
@@ -543,18 +501,18 @@
     (async/sub core/delta-publisher iu/app delta-chan)
     ;; Start idle service that will listen on delta changes
     (async/go-loop
-      [_ (async/<! delta-chan)]
+     [_ (async/<! delta-chan)]
       (log/debugf "[IAM] Received client delta")
       ;; When first delta change is received start inner loop
       (loop [[idle-value] (async/alts!
-                            [;; That will check for new delta values
-                             delta-chan
+                           [;; That will check for new delta values
+                            delta-chan
                              ;;
-                             close-chan
+                            close-chan
                              ;; Or timeout
-                             (async/go
-                               (async/<! (async/timeout 5000))
-                               ::TIMEOUT)])]
+                            (async/go
+                              (async/<! (async/timeout 5000))
+                              ::TIMEOUT)])]
         (log/debugf "[IAM] Next idle value is: %s" idle-value)
         ;; IF timeout is received than reload rules
         (if (= ::TIMEOUT idle-value)
@@ -564,16 +522,15 @@
           ;; Otherwise some other delta has been received and
           ;; inner loop will be repeated
           (recur (async/alts!
-                   [;; That will check for new delta values
-                    delta-chan
+                  [;; That will check for new delta values
+                   delta-chan
                     ;; Or timeout
-                    (async/go
-                      (async/<! (async/timeout 5000))
-                      ::TIMEOUT)]))))
+                   (async/go
+                     (async/<! (async/timeout 5000))
+                     ::TIMEOUT)]))))
       ;; when reloading is complete, wait for new delta value
       ;; and repeat process
       (recur (async/<! delta-chan)))))
-
 
 (comment
   (clean-codes)

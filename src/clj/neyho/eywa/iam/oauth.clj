@@ -1,28 +1,27 @@
 (ns neyho.eywa.iam.oauth
   (:require
-    [clojure.string :as str]
-    clojure.java.io
-    clojure.pprint
-    [clojure.tools.logging :as log]
-    [vura.core :as vura]
-    [buddy.core.hash :as hash]
-    [ring.util.codec :as codec]
-    [io.pedestal.interceptor.chain :as chain]
-    [io.pedestal.http.body-params :as bp]
-    [neyho.eywa.iam.oauth.core :as core]
-    [neyho.eywa.iam.oauth.token :as token
-     :refer [token-interceptor
-             revoke-token-interceptor]]
-    [neyho.eywa.iam.oauth.authorization-code
-     :as authorization-code
-     :refer [*authorization-codes*
-             gen-authorization-code
-             get-code-session
-             validate-client
-             mark-code-issued]]
-    [neyho.eywa.iam.oauth.device-code :as device-code]
-    [neyho.eywa.iam.oauth.page.status :refer [status-page]]))
-
+   [clojure.string :as str]
+   clojure.java.io
+   clojure.pprint
+   [clojure.tools.logging :as log]
+   [vura.core :as vura]
+   [buddy.core.hash :as hash]
+   [ring.util.codec :as codec]
+   [io.pedestal.interceptor.chain :as chain]
+   [io.pedestal.http.body-params :as bp]
+   [neyho.eywa.iam.oauth.core :as core]
+   [neyho.eywa.iam.oauth.token :as token
+    :refer [token-interceptor
+            revoke-token-interceptor]]
+   [neyho.eywa.iam.oauth.authorization-code
+    :as authorization-code
+    :refer [*authorization-codes*
+            gen-authorization-code
+            get-code-session
+            validate-client
+            mark-code-issued]]
+   [neyho.eywa.iam.oauth.device-code :as device-code]
+   [neyho.eywa.iam.oauth.page.status :refer [status-page]]))
 
 (defn generate-code-challenge
   ([code-verifier] (generate-code-challenge code-verifier "S256"))
@@ -38,26 +37,24 @@
            (.replace "/" "_")
            (.replace "=" ""))))))
 
-
 (def pkce-interceptor
   {:enter
    (fn [ctx]
      (let [{{{:keys [code code_verifier grant_type]} :params} :request} ctx
            {{:keys [code_challenge code_challenge_method] :as request}
             :request} (-> code
-                          get-code-session 
+                          get-code-session
                           core/get-session)
            is-pkce? (and code_challenge code_challenge_method)]
        (when is-pkce?
          (log/debug "Noticed PKCE in requst: %s" request))
        (if (or (not is-pkce?) (not= "authorization_code" grant_type)) ctx
-         (let [current-challenge (generate-code-challenge code_verifier code_challenge_method)]
-           (if (= current-challenge code_challenge) ctx
-             (chain/terminate
-               (core/json-error
-                 "invalid_request"
-                 "Proof Key for Code Exchange failed")))))))})
-
+           (let [current-challenge (generate-code-challenge code_verifier code_challenge_method)]
+             (if (= current-challenge code_challenge) ctx
+                 (chain/terminate
+                  (core/json-error
+                   "invalid_request"
+                   "Proof Key for Code Exchange failed")))))))})
 
 (def authorization-request
   {:name ::authorize-request
@@ -72,7 +69,7 @@
                  request))
              (error [data]
                (chain/terminate
-                 (assoc ctx :response (core/handle-request-error data))))]
+                (assoc ctx :response (core/handle-request-error data))))]
        (let [{:keys [response_type redirect_uri]
               :as request}
              (-> request
@@ -99,11 +96,11 @@
                                  (assoc codes code (merge data {:request request}))))))]
                (cond
                  ;; Check that there isn't some other code active
-                 (and silent? (contains? (core/get-session cookie-session) :code)) 
+                 (and silent? (contains? (core/get-session cookie-session) :code))
                  (error
-                   {:request request
-                    :type "invalid_request"
-                    :description "Your session has unused access code active"})
+                  {:request request
+                   :type "invalid_request"
+                   :description "Your session has unused access code active"})
                  ;; When silent and above checks passed, than return directly to
                  ;; requested redirect_uri, with prepared authorization code
                  silent?
@@ -118,13 +115,13 @@
                                  :user/ip remote-addr})
                      (mark-code-issued cookie-session code)
                      (assoc ctx
-                            ::code code
-                            :respone {:status 302
-                                      :headers {"Location" (str redirect_uri "?"
-                                                                (codec/form-encode
-                                                                  (cond->
-                                                                    {:code code}
-                                                                    (not-empty state) (assoc :state state))))}}))
+                       ::code code
+                       :respone {:status 302
+                                 :headers {"Location" (str redirect_uri "?"
+                                                           (codec/form-encode
+                                                            (cond->
+                                                             {:code code}
+                                                              (not-empty state) (assoc :state state))))}}))
                    (catch clojure.lang.ExceptionInfo ex
                      (core/handle-request-error (ex-data ex))))
                  ;;
@@ -137,13 +134,13 @@
                                  :user/agent user-agent
                                  :user/ip remote-addr})
                      (assoc ctx
-                            :code code
-                            :response {:status 302
-                                       :headers {"Location" (str "/oauth/login?" (codec/form-encode
-                                                                                   {:state (core/encrypt
-                                                                                             {:authorization-code code
-                                                                                              :flow "authorization_code"})}))
-                                                 "Cache-Control" "no-cache"}}))
+                       :code code
+                       :response {:status 302
+                                  :headers {"Location" (str "/oauth/login?" (codec/form-encode
+                                                                             {:state (core/encrypt
+                                                                                      {:authorization-code code
+                                                                                       :flow "authorization_code"})}))
+                                            "Cache-Control" "no-cache"}}))
                    (catch clojure.lang.ExceptionInfo ex
                      (error (ex-data ex)))))))
            ;;
@@ -151,16 +148,13 @@
            (error {:type "server_error"
                    :request request})))))})
 
-
 (defonce maintenance-agent (agent {:running true :period (vura/seconds 30)}))
-
 
 (comment
   (agent-error maintenance-agent)
   (restart-agent maintenance-agent @maintenance-agent)
   (start)
   (stop))
-
 
 (defn maintenance
   [{:keys [running period] :as data}]
@@ -175,12 +169,10 @@
     (Thread/sleep period))
   data)
 
-
 (defn start
   []
   (send-off maintenance-agent assoc :running true :period (vura/seconds 30))
   (send-off maintenance-agent maintenance))
-
 
 (defn stop
   []
@@ -188,7 +180,6 @@
   (doseq [x [core/*resource-owners* core/*clients*
              core/*sessions* token/*tokens*]]
     (reset! x nil)))
-
 
 (def state-interceptor
   {:name ::state
@@ -200,7 +191,6 @@
            ;;
            {state :state} (update data :state (fn [x] (when x (core/decrypt x))))]
        (assoc ctx ::state state)))})
-
 
 (let [token (conj core/oauth-common-interceptor core/scope->set pkce-interceptor token-interceptor)
       revoke (conj core/oauth-common-interceptor core/idsrv-session-read revoke-token-interceptor)]
