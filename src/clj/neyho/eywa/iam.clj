@@ -343,6 +343,11 @@
                     "exports/role_iam_user.json"]]
         (import-role role)))))
 
+(comment
+  (vrs/newer?
+   "0.1.3-beta1"
+   "0.1.3-alpha93"))
+
 (defn start
   []
   (log/info "Initializing IAM...")

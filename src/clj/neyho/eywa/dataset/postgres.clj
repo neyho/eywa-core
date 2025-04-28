@@ -24,7 +24,6 @@
    [neyho.eywa.db
     :refer [*db*
             sync-entity
-            search-entity
             delete-entity]]
    [neyho.eywa.dataset.lacinia
     :refer [normalized-enum-value]]
@@ -178,6 +177,11 @@
         to-table (entity->table-name t)
         from-field (entity->relation-field f)
         to-field (entity->relation-field t)]
+    (comment
+      (entity->relation-field (:from relation))
+      (core/cloned? (:to relation))
+      (core/cloned? (:from relation))
+      (entity->relation-field (:to relation)))
     (format
      "create table %s(\n %s\n)"
      table
@@ -749,6 +753,8 @@
                         (fn [relations
                              {:keys [euuid from to to-label cardinality]
                               :as relation}]
+                          ;; ENTITY MIGHT BE CLONE... So get original entity for
+                          ;; schema
                           (if (and
                                (some? from) (some? to)
                                (not-empty to-label))
@@ -764,7 +770,9 @@
                                       :from (:euuid from)
                                       :from/field (entity->relation-field from)
                                       :from/table (entity->table-name from)
-                                      :to (:euuid to)
+                                      :to (if (contains? (:clones model) (:euuid to))
+                                            (get-in model [:clones  (:euuid to) :entity])
+                                            (:euuid to))
                                       :to/field (entity->relation-field to)
                                       :to/table (entity->table-name to)
                                       :table (relation->table-name relation)
@@ -804,75 +812,83 @@
 
 (def dataset-versions #uuid "d922edda-f8de-486a-8407-e62ad67bf44c")
 
-(defn db->model
-  [this]
-  (let [entities (keep
-                  (fn [{:keys [attributes] :as e}]
-                    (when-let [attributes (not-empty
-                                           (map
-                                            #(core/map->ERDEntityAttribute %)
-                                            attributes))]
-                      (core/map->ERDEntity (assoc e :attributes attributes))))
-                  (search-entity
-                   this du/dataset-entity  nil
-                   {:_eid nil
-                    :euuid nil
-                    :name nil
-                    :locators nil
-                    :constraints nil
-                    :height nil
-                    :width nil
-                    :configuration nil
-                    :attributes [{:selections
-                                  {:euuid nil
-                                   :seq nil
-                                   :name nil
-                                   :type nil
-                                   :constraint nil
-                                   :configuration nil
-                                   :active nil}}]}))
-        relations (map
-                   (fn [r]
-                     (core/map->ERDRelation
-                      (->
-                       r
-                       (update :from #(hash-map :euuid %))
-                       (update :to #(hash-map :euuid %))
-                       (clojure.set/rename-keys
-                        {:from_label :from-label
-                         :to_label :to-label}))))
-                   (search-entity
-                    this du/dataset-relation nil
-                    {:euuid nil
-                     :from nil
-                     :to nil
-                     :path nil
-                     :from_label nil
-                     :to_label nil
-                     :cardinality nil}))
-        versions (mapcat
-                  :versions
-                  (search-entity
-                   this du/dataset nil
-                   {:name nil
-                    :versions [{:args {:_order_by [{:modified_on :desc}]
-                                       :_where {:deployed {:_eq true}}
-                                       :_limit 1}
-                                :selections {:name nil
-                                             :configuration nil}}]}))
-        configuration (apply core/deep-merge (map :configuration versions))]
-    (reduce
-     core/set-relation
-     (reduce
-      core/set-entity
-      (core/map->ERDModel {:configuration configuration})
-      entities)
-     relations)))
+;; I understand that this was used in some old logic, but i can't see advantage of
+;; this approach when we have get-last-deployed
+#_(defn db->model
+    [this]
+    (let [entities (keep
+                    (fn [{:keys [attributes] :as e}]
+                      (when-let [attributes (not-empty
+                                             (map
+                                              #(core/map->ERDEntityAttribute %)
+                                              attributes))]
+                        (core/map->ERDEntity (assoc e :attributes attributes))))
+                    (search-entity
+                     this du/dataset-entity  nil
+                     {:_eid nil
+                      :euuid nil
+                      :name nil
+                      :locators nil
+                      :constraints nil
+                      :height nil
+                      :width nil
+                      :configuration nil
+                      :attributes [{:selections
+                                    {:euuid nil
+                                     :seq nil
+                                     :name nil
+                                     :type nil
+                                     :constraint nil
+                                     :configuration nil
+                                     :active nil}}]}))
+          relations (map
+                     (fn [r]
+                       (core/map->ERDRelation
+                        (->
+                         r
+                         (update :from #(hash-map :euuid %))
+                         (update :to #(hash-map :euuid %))
+                         (clojure.set/rename-keys
+                          {:from_label :from-label
+                           :to_label :to-label}))))
+                     (search-entity
+                      this du/dataset-relation nil
+                      {:euuid nil
+                       :from nil
+                       :to nil
+                       :path nil
+                       :from_label nil
+                       :to_label nil
+                       :cardinality nil}))
+          versions (mapcat
+                    :versions
+                    (search-entity
+                     this du/dataset nil
+                     {:name nil
+                      :versions [{:args {:_order_by [{:modified_on :desc}]
+                                         :_where {:deployed {:_eq true}}
+                                         :_limit 1}
+                                  :selections {:name nil
+                                               :configuration nil}}]}))
+          configuration (apply core/deep-merge (map :configuration versions))]
+      (reduce
+       core/set-relation
+       (reduce
+        core/set-entity
+        (core/map->ERDModel {:configuration configuration})
+        entities)
+       relations)))
 
 (extend-type neyho.eywa.Postgres
   core/DatasetProtocol
   (core/deploy! [this {:keys [model]  :as version}]
     (try
+      (def this this)
+      (def current-model (core/get-model this))
+      (def version version)
+      (def model model)
+      (comment
+        (def dataset' (assoc version :model (core/join-models current-model model))))
       (let [dataset' (core/mount this version)
             version'' (assoc
                        version
@@ -904,7 +920,7 @@
   ;;
   (core/recall! [this version]
     (core/unmount this version)
-    (let [db-model (db->model this)
+    (let [db-model (core/get-last-deployed this) #_(db->model this)
           model (core/get-model this)]
       (delete-entity this du/dataset-version {:euuid (:euuid version)})
       (dataset/save-model db-model)
@@ -937,10 +953,7 @@
     (dataset/deployed-model))
   (core/reload
     ([this]
-     (comment
-       (model->schema (dataset/deployed-model))
-       (def this neyho.eywa.db/*db*))
-     (let [model' (db->model this)
+     (let [model' (core/get-last-deployed this) #_(db->model this)
            schema (model->schema model')]
        (dataset/save-model model')
        (query/deploy-schema schema)
@@ -970,7 +983,15 @@
       (let [current-model (or
                            (core/get-model this)
                            (core/map->ERDModel nil))
+            ; _ (do
+            ;     (def current-model current-model)
+            ;     (def model model))
             projection (core/project current-model model)]
+        (comment
+          (core/get-entity model #uuid "c3835dcb-b8d7-40b7-be1c-97b7f50225d0")
+          (def relation (first (core/get-relations model)))
+          (def projection (core/project current-model model))
+          (analyze-projection (core/project current-model model)))
         (binding [*model* current-model]
           (transform-database
            con projection

@@ -15,6 +15,7 @@
    [next.jdbc.prepare :as p]
    [neyho.eywa.transit :refer [<-transit ->transit]]
    [neyho.eywa.lacinia :refer [deep-merge]]
+   [neyho.eywa.iam.uuids]
    [neyho.eywa.iam.access :as access]
    [neyho.eywa.iam.access.context
     :refer [*roles*
@@ -97,14 +98,17 @@
 ;; EXPERIMENTAL = NEW DB INSERTION
 (defn tmp-key [] (nano-id 10))
 
-(defn throw-relation [id]
+(defn throw-relation [id [from-euuid _]]
   (let [{{from :name} :from
          {to :name} :to
-         :keys [from-label to-label]} (deployed-relation id)]
+         :keys [from-label to-label] :as relation} (deployed-relation id)
+        [from from-label to to-label] (if (= from-euuid (:euuid (:from relation)))
+                                        [from to-label to from-label]
+                                        [to from-label from to-label])]
     (throw
      (ex-info
       (format
-       "You don't have sufficent privilages to read relation [%s]%s <-> %s[%s]"
+       "You don't have sufficent privilages to read relation [%s]%s -> %s[%s]"
        from from-label to-label to)
       {:type ::enforce-search-access
        :roles *roles*}))))
@@ -129,7 +133,7 @@
   [relation direction scope]
   (let [allowed? (access/relation-allows? relation direction scope)]
     (when-not allowed?
-      (throw-relation relation))
+      (throw-relation relation direction))
     true))
 
 (defn analyze-data
@@ -294,11 +298,10 @@
                                             (reduce
                                              (fn [result field]
                                                (if (contains? recursions field) result
-                                                   (let [{:keys [relation to]} (get relations field)
-                                                         direction (if (= to entity-euuid) :from :to)]
+                                                   (let [{:keys [relation to from]} (get relations field)]
                                                      (if-not relation
                                                        result
-                                                       (when (relation-accessible? relation direction #{:write :owns})
+                                                       (when (relation-accessible? relation [from to] #{:write :owns})
                                                          (conj result field))))))
                                              []
                                              (keys relations)))
@@ -469,7 +472,7 @@
        (let [multi? (> (count constraint-keys) 1)
              pattern (if multi?
                        (str \( (clojure.string/join ", " (repeat (count constraint-keys) \?)) \))
-                       (str "?"))
+                       "?")
               ;; order is not guaranteed
              columns (map name constraint-keys)
              query (str
@@ -550,18 +553,18 @@
     :modified_by [{:selections
                    {:name nil}}]
     :modified_on nil})
-  (time
-   (set-entity
-    neyho.eywa.iam.uuids/user
-    [{:name "test1" :active true
-      :type :PERSON
-      :roles [neyho.eywa.data/*ROOT*]}
-     {:name "test2" :active true
-      :type :PERSON
-      :roles [neyho.eywa.data/*ROOT*]}
-     {:name "test3" :active true
-      :type :PERSON
-      :roles [neyho.eywa.data/*ROOT*]}])))
+  #_(time
+     (set-entity
+      neyho.eywa.iam.uuids/user
+      [{:name "test1" :active true
+        :type :PERSON
+        :roles [neyho.eywa.data/*ROOT*]}
+       {:name "test2" :active true
+        :type :PERSON
+        :roles [neyho.eywa.data/*ROOT*]}
+       {:name "test3" :active true
+        :type :PERSON
+        :roles [neyho.eywa.data/*ROOT*]}])))
 
 (defn store-entity-records
   [tx {:keys [entity constraint] :as analysis}]
@@ -810,6 +813,9 @@
      (jdbc/with-transaction [tx connection]
        (set-entity tx entity-id data stack?))))
   ([tx entity-id data stack?]
+   ; (def entity-id entity-id)
+   ; (def data data)
+   ; (def stack? stack?)
    (letfn [(pull-roots [{:keys [root entity root/table]}]
              (log/tracef
               "[%s]Pulling root(%s) entity after mutation"
@@ -957,16 +963,6 @@
                            ;; If there are some recursions add that relations as well
                            (not-empty recursions)
                            (clojure.set/union (set recursions)))
-         ; valid-relations (reduce
-         ;                  (fn [result field]
-         ;                    (println "CHECKING FIELD: " field)
-         ;                    (if (contains? recursions field) result
-         ;                        (let [{:keys [relation to]} (get relations field)
-         ;                              direction (if (= to entity-id) :from :to)]
-         ;                          (relation-accessible? relation direction *operation-rules*)
-         ;                          result)))
-         ;                  valid-relations
-         ;                  valid-relations)
          type-mapping (zipmap (map :key fields) (map :type fields))
          decoders (reduce
                    (fn [r k]
@@ -1047,11 +1043,12 @@
                                  (reduce
                                   (fn [final {:keys [selections alias]
                                               new-args :args}]
-                                    (let [{:keys [relation to]} rdata]
-                                      ;; 002ef628-bce5-4b94-84ff-36a1266bd037
-                                      ;; 1c094c9f-3f6e-441b-b02b-7b8a5d5245e8
-                                      ;; 2194990e-0a0a-4f4e-8a9c-ac70037de505
-                                      (relation-accessible? relation [entity-id to] #{:read})
+                                    (let [{:keys [relation from to]} rdata]
+                                      ; (def relation relation)
+                                      ; (def from from)
+                                      ; (def to to)
+                                      ; (def direction [from to])
+                                      (relation-accessible? relation [from to] #{:read})
                                       (assoc final (or alias rkey)
                                              (merge
                                               (clojure.set/rename-keys rdata {:table :relation/table})
@@ -1472,12 +1469,7 @@
                           ")"))))
                  ;; Ignore limit distinct offset
                 (:_limit :_offset :_order_by :_distinct)
-                (do
-                   ; (log/trace
-                   ;   :query.selection :ignore/field
-                   ;   :field field
-                   ;   :constraints constraints)
-                  [statements data])
+                [statements data]
                 ;; Default handlers
                 (if (keyword? constraints)
                   (case constraints
@@ -1485,9 +1477,6 @@
                     :is_not_null [(conj statements (format "%s is not null" field')) data])
                   (reduce-kv
                    (fn [[statements' data'] cn cv]
-                       ; (log/trace
-                       ;   :constraint/name cn
-                       ;   :constraint/value cv)
                      (if (or
                           (and
                            (vector? cv)
@@ -1798,72 +1787,73 @@
                                                     zip/node
                                                     second
                                                     :from/table))))]
-                (if-not (contains? schema :_count) nil
-                        (future
-                          (let [schema (as-> schema schema
-                                         (assoc schema :relations
-                                                (reduce-kv
-                                                 (fn [r k _]
-                                                   (->
-                                                    r
-                                                    (assoc-in [k :pinned] true)
-                                                    (assoc-in [k :args :_join] :LEFT)))
-                                                 (:_count schema)
-                                                 (:_count schema)))
-                                         (dissoc schema :_count :fields)
-                                         (if-not parents schema
-                                                 (update schema :args assoc-in [:_eid :_in] (long-array parents))))
+                (if-not (contains? schema :_count)
+                  nil
+                  (future
+                    (let [schema (as-> schema schema
+                                   (assoc schema :relations
+                                          (reduce-kv
+                                           (fn [r k _]
+                                             (->
+                                              r
+                                              (assoc-in [k :pinned] true)
+                                              (assoc-in [k :args :_join] :LEFT)))
+                                           (:_count schema)
+                                           (:_count schema)))
+                                   (dissoc schema :_count :fields)
+                                   (if-not parents schema
+                                           (update schema :args assoc-in [:_eid :_in] (long-array parents))))
                           ; _ (def schema schema)
-                                [_ from] (search-stack-from schema)
+                          [_ from] (search-stack-from schema)
                           ;;
-                                [count-selections from-data]
-                                (reduce-kv
-                                 (fn [[statements data] as {etable :entity/as :as schema}]
-                                   (let [t (name as)
-                                         [[[_ [statement]]] statement-data] (binding [*ignore-maybe* false]
-                                                                              (-> schema query-selection->sql))]
-                                     [(conj statements (if (empty? statement)
-                                                         (format
-                                                          "count(distinct %s._eid) as %s"
-                                                          etable t)
-                                                         (format
-                                                          "count(distinct case when %s then %s._eid end) as %s"
-                                                          statement etable t)))
-                                      (if statement-data (into data statement-data)
-                                          data)]))
-                                 [[] []]
-                                 counted)
+                          [count-selections from-data]
+                          (reduce-kv
+                           (fn [[statements data] as {etable :entity/as :as schema}]
+                             (let [t (name as)
+                                   [[[_ [statement]]] statement-data] (binding [*ignore-maybe* false]
+                                                                        (-> schema query-selection->sql))]
+                               [(conj statements (if (empty? statement)
+                                                   (format
+                                                    "count(distinct %s._eid) as %s"
+                                                    etable t)
+                                                   (format
+                                                    "count(distinct case when %s then %s._eid end) as %s"
+                                                    statement etable t)))
+                                (if statement-data (into data statement-data)
+                                    data)]))
+                           [[] []]
+                           counted)
                           ;;
                           ;; [where where-data]  (search-stack-args schema)
                           ;; TODO - ignore where for now, as it should be part of
                           ;; count-selections
-                                [where where-data] [nil nil]
+                          [where where-data] [nil nil]
                           ;;
-                                [query-string :as query]
-                                (as->
-                                 (format
-                                  "select %s._eid as parent_id, %s\nfrom %s"
-                                  as (str/join ", " count-selections) from)
-                                 query
+                          [query-string :as query]
+                          (as->
+                           (format
+                            "select %s._eid as parent_id, %s\nfrom %s"
+                            as (str/join ", " count-selections) from)
+                           query
                             ;;
-                                  (if-not where query
-                                          (str query \newline
-                                               (str "where " where)))
+                            (if-not where
+                              query
+                              (str query \newline "where " where))
                             ;;
-                                  (str query \newline
-                                       (format "group by %s._eid" as))
+                            (str query \newline
+                                 (format "group by %s._eid" as))
                             ;;
-                                  (reduce into [query] (remove nil? [from-data where-data])))
+                            (reduce into [query] (remove nil? [from-data where-data])))
                           ;;
-                                _ (log/tracef
-                                   "[%s] Sending counts aggregate query:\n%s"
-                                   table query-string)
-                                result (postgres/execute! con query *return-type*)]
-                            (reduce
-                             (fn [r {:keys [parent_id] :as data}]
-                               (assoc r parent_id {:_count (dissoc data :parent_id)}))
-                             nil
-                             result))))))
+                          _ (log/tracef
+                             "[%s] Sending counts aggregate query:\n%s"
+                             table query-string)
+                          result (postgres/execute! con query *return-type*)]
+                      (reduce
+                       (fn [r {:keys [parent_id] :as data}]
+                         (assoc r parent_id {:_count (dissoc data :parent_id)}))
+                       nil
+                       result))))))
             (pull-numerics
               [_ location]
               (let [[_ {as :entity/as
@@ -1920,7 +1910,7 @@
                                              (if (empty? statement)
                                                (str as "." (name field-key))
                                                (str "case when " statement
-                                                    " then " (str as "." (name field-key))
+                                                    " then " as "." (name field-key)
                                                     " else null end"))
                                              (name rkey) (name operation) (name target-key)))
                                       (if-not statement-data data
@@ -1940,9 +1930,9 @@
                             as (str/join ", " numerics-selections) from)
                            query
                             ;;
-                            (if-not where query
-                                    (str query \newline
-                                         (str "where " where)))
+                            (if-not where
+                              query
+                              (str query \newline "where " where))
                             ;;
                             (str query \newline
                                  (format "group by %s._eid" as))
@@ -2234,9 +2224,9 @@
    ; (log/tracef "Searching entity roots for schema:\n%s" (pprint schema))
    ;; Prepare tables target table by inner joining all required tables
    ; (def schema schema)
-   (comment
-     (def focused-schema (focus-order schema))
-     (search-stack-from focused-schema))
+   ; (comment
+   ;   (def focused-schema (focus-order schema))
+   ;   (search-stack-from focused-schema))
    (let [focused-schema (focus-order schema)
          [[root-table :as tables] from] (search-stack-from focused-schema)
          ;; then prepare where statements and target data
@@ -2303,23 +2293,21 @@
   (def args nil)
   (def entity-id #uuid "edcab1db-ee6f-4744-bfea-447828893223")
   (def schema (time (selection->schema entity-id selection args)))
-  (def con connection)
   (schema->cursors schema)
-  (def roots (search-entity-roots connection schema))
   (time (search-entity entity-id args selection))
 
   (def entity-id #uuid "a800516e-9cfa-4414-9874-60f2285ec330")
   (def entity-id #uuid "a800516e-9cfa-4414-9874-60f2285ec330")
   (def relation-id #uuid "cab89384-7b0b-44f0-8d36-fed5bc671ce5")
-  (binding [*user* user
-            *roles* roles]
-    #_(access/entity-allows? entity-id #{:read})
-    (access/relation-allows? relation-id :chat_message #{:read}))
+  ; (binding [*user* user
+  ;           *roles* roles]
+  ;   #_(access/entity-allows? entity-id #{:read})
+  ;   (access/relation-allows? relation-id :chat_message #{:read}))
   ;;
-  (binding [*operation-rules* #{:read}
-            *user* user
-            *roles* roles]
-    (selection->schema entity-id selection args))
+  ; (binding [*operation-rules* #{:read}
+  ;           *user* user
+  ;           *roles* roles]
+  ;   (selection->schema entity-id selection args))
   (core/get-entity (neyho.eywa.dataset/deployed-model) entity-id)
   (time (search-entity entity-id args selection)))
 
@@ -2391,7 +2379,6 @@
         :User/type [nil],
         :User/avatar [nil]}}]})
   (def args {:euuid #uuid "fbcf3bb9-7728-4b80-8b09-b27cca84e663"})
-  (def entity-id neyho.eywa.iam.uuids/user-group)
   (def args
     (reduce-kv
      (fn [args k v]
@@ -2415,15 +2402,16 @@
      :service_locations [{:selections
                           {:euuid nil
                            :name nil}}]})
-  (binding [neyho.eywa.iam.access.context/*roles* #{#_(:euuid neyho.eywa.data/*ROOT*)
-                                                    #uuid "97b95ab8-4ca3-498d-b578-b12e6d1a2df8"
-                                                    ; #uuid "7fc035e2-812e-4861-a25c-eb172b39577f"
-                                                    }
-            neyho.eywa.dataset.core/*user* 100]
-    (time (selection->schema neyho.eywa.iam.uuids/user selection args)))
+  ; (binding [neyho.eywa.iam.access.context/*roles* #{#_(:euuid neyho.eywa.data/*ROOT*)
+  ;                                                   #uuid "97b95ab8-4ca3-498d-b578-b12e6d1a2df8"
+  ;                                                   ; #uuid "7fc035e2-812e-4861-a25c-eb172b39577f"
+  ;                                                   }
+  ;           neyho.eywa.dataset.core/*user* 100]
+  ;   (time (selection->schema neyho.eywa.iam.uuids/user selection args)))
   (search-stack-from schema)
-  (search-entity-roots connection schema)
-  (.close connection))
+  ; (search-entity-roots connection schema)
+  ; (.close connection)
+  )
 
 (defn get-entity
   ([entity-id args selection]

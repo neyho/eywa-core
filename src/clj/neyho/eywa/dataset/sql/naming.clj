@@ -39,11 +39,13 @@
        (cond-> f
          (> (count f) 63) (subs 0 64))))))
 
-(def
-  entity->relation-field
-  (comp
-   relation-field
-   entity->table-name))
+(defn entity->relation-field
+  [entity]
+  (as-> (entity->table-name entity) field-name
+    (if (core/cloned? entity)
+      (str field-name "_cloned")
+      field-name)
+    (relation-field field-name)))
 
 (def
   ^{:doc "Returns relation DB table name"}
