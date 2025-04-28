@@ -7,6 +7,7 @@
   buddy/buddy-core                             {:mvn/version "1.11.423"}
   buddy/buddy-hashers                          {:mvn/version "2.0.167"}
   environ/environ                              {:mvn/version "1.2.0"}
+  version-clj/version-clj                      {:mvn/version "2.0.3"}
   hiccup/hiccup                                {:mvn/version "2.0.0-RC3"}
 
   ;; CORE

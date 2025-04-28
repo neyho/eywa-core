@@ -23,9 +23,6 @@
 
 (defonce ^:dynamic *tokens* (atom nil))
 
-(def token
-  "eyJhbGciOiJSUzI1NiIsImtpZCI6Imc0MU9yWkVUbVhndmZDTTAvRVo4eGpMSm9KdFlMYlRGeG5YSGhSMUtVNUEiLCJ0eXBlIjoiSldUIn0.eyJhdWQiOiJJUElRS1lZR1RQUlRNWE5ZSUtXS1VETFpaVkxKVFZZVFNKQVlQUFVaVlZGSVBFR1AiLCJzdWIiOiJhNjQzYzIxMS01MWQxLTRjNzktYmRiMS05NDQwZTNjYzYwNGIiLCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjgwODAiLCJleHAiOjE3Mjc3MTc1MDIsInNjb3BlIjoic3ViIGVtYWlsIG9wZW5pZCIsImNsaWVudF9pZCI6IklQSVFLWVlHVFBSVE1YTllJS1dLVURMWlpWTEpUVllUU0pBWVBQVVpWVkZJUEVHUCIsImlhdCI6MTcyNzcxMzkwMiwic2lkIjoiU0NLdExRcGtVbFlzYnZPamdPaUx0bHd6RGV4WE5ZIiwic2Vzc2lvbiI6IlNDS3RMUXBrVWxZc2J2T2pnT2lMdGx3ekRleFhOWSJ9.Q-K7O-vA9rymat6-YBK5B5KZL_rraDrLSROC--XW-EYNyWOdsMK9YRweld5nVrenmEp-UNzTAOFiestxTA_DD-Atd1R0PI_wMFaCEgVQWjrBofn5UMiUU6hL4BjXGd7nKUwrb4_G37A0wnz1Ud3ptV0gOjVR832IUZ32qy2H-migt_6zRJazQCv9uMji3dztFJOwL1KSgzrzj4pyKddSy87K59tRaX7MQFuk_10eyV25wx5w3kpMJc1f1vnJ2JtGyYAGSvT_ckyN2PFnDl6lZLxDptkKiFr_dLe8X8MUZMGyvAsNIRO7I5OsaaA01gP88sgMeCsOTGvjxU3MtGNRQw")
-
 (let [alphabet "ACDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]
   (def gen-token (nano-id/custom alphabet 50)))
 
@@ -265,54 +262,63 @@
   [{:keys [refresh_token scope audience]
     cookie-session :idsrv/session
     :as request}]
+  ; (def refresh_token refresh_token)
+  ; (def audience audience)
+  ; (def scope scope)
   ; (comment
   ;   (def refresh_token "rPDPDWYaoCLRdDrFIsdhiaGUMbVqvlXQslKIgoMMISSgQSSKbn")
   ;   (def session "MbLqqFaQUJnrXfdrmsoAOOEbCMswHg"))
-  (let [session (get-token-session :refresh_token refresh_token)
-        {{:strs [allowed-grants]} :settings :as client} (core/get-session-client session)
-        {:keys [active]} (core/get-session-resource-owner session)
-        scope (or
-               scope
-               (core/get-session-audience-scope session audience))
-        audience (or
-                  audience
-                  (get-token-audience :refresh_token refresh_token))
-        current-refresh-token (get-in
-                               (core/get-session session)
-                               [:tokens audience :refresh_token])
-        grants (set allowed-grants)]
-    (when session (revoke-session-tokens session audience))
-    (cond
-      ;;
-      (not (contains? grants "refresh_token"))
-      (do
-        (core/kill-session session)
-        refresh-not-supported)
-      ;;
-      (not active)
-      (do
-        (core/kill-session session)
-        owner-not-authorized)
-      ;;
-      ;;
-      (and cookie-session (not= cookie-session session))
-      cookie-session-missmatch
-      ;;
-      (not= refresh_token current-refresh-token)
-      (token-error
-       400
-       "invalid_request"
-       "Provided token doesn't match session refresh token"
-       "Your request will be logged and processed")
-      ;;
-      :else
-      {:status 200
-       :headers {"Content-Type" "application/json;charset=UTF-8"
-                 "Pragma" "no-cache"
-                 "Cache-Control" "no-store"}
-       :body (json/write-str
-              (binding []
-                (generate client session (assoc request :scope scope))))})))
+  (if-let [session (get-token-session :refresh_token refresh_token)]
+    (let [{{:strs [allowed-grants]} :settings :as client} (core/get-session-client session)
+          {:keys [active]} (core/get-session-resource-owner session)
+          scope (or
+                 scope
+                 (core/get-session-audience-scope session audience))
+          audience (or
+                    audience
+                    (get-token-audience :refresh_token refresh_token))
+          current-refresh-token (get-in
+                                 (core/get-session session)
+                                 [:tokens audience :refresh_token])
+          grants (set allowed-grants)]
+      (when session (revoke-session-tokens session audience))
+      (cond
+        ;;
+        ;;
+        (not (contains? grants "refresh_token"))
+        (do
+          (core/kill-session session)
+          refresh-not-supported)
+        ;;
+        (not active)
+        (do
+          (core/kill-session session)
+          owner-not-authorized)
+        ;;
+        ;;
+        (and cookie-session (not= cookie-session session))
+        cookie-session-missmatch
+        ;;
+        (not= refresh_token current-refresh-token)
+        (token-error
+         400
+         "invalid_request"
+         "Provided token doesn't match session refresh token"
+         "Your request will be logged and processed")
+        ;;
+        :else
+        {:status 200
+         :headers {"Content-Type" "application/json;charset=UTF-8"
+                   "Pragma" "no-cache"
+                   "Cache-Control" "no-store"}
+         :body (json/write-str
+                (binding []
+                  (generate client session (assoc request :scope scope))))}))
+    (token-error
+     400
+     "invalid_grant"
+     "There is no valid session for refresh token that"
+     "was provided")))
 
 (comment
   (def request

@@ -24,7 +24,7 @@
    [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
 
-(def version "0.3.3-SNAPSHOT")
+(def version "0.3.5")
 
 (defn setup
   ([] (setup (neyho.eywa.db.postgres/from-env)))
@@ -207,14 +207,18 @@
   (neyho.eywa.server/stop)
   nil)
 
+(comment
+  (def db (neyho.eywa.db.postgres/from-env)))
+
 (defn start
   ([] (start (neyho.eywa.db.postgres/from-env)))
-  ([db] (start
-         db
-         {:port (when-some [port (env :eywa-server-port "8080")] (if (number? port) port (Integer/parseInt port)))
-          :host (env :eywa-server-host "0.0.0.0")
-          :info {:version version
-                 :release-type "core"}}))
+  ([db]
+   (start db
+          {:port (when-some [port (env :eywa-server-port "8080")]
+                   (if (number? port) port (Integer/parseInt port)))
+           :host (env :eywa-server-host "0.0.0.0")
+           :info {:version version
+                  :release-type "core"}}))
   ([db options]
    (stop)
    (neyho.eywa.transit/init)
@@ -224,7 +228,7 @@
    (neyho.eywa.dataset/start)
    (neyho.eywa.iam/start)
    (neyho.eywa.dataset.encryption/start)
-   (when (#{"true" "TRUE" "YES" "yes" "y"} (env :eywa-iam-enforce-access))
+   (when (#{"true" "TRUE" "YES" "yes" "y" "1"} (env :eywa-iam-enforce-access))
      (neyho.eywa.iam.access/start))
    (neyho.eywa.server/start options)))
 
@@ -242,6 +246,9 @@
       (System/exit 0))
     (try
       (case command
+        "version" (do
+                    (println version)
+                    (System/exit 0))
         "init" (do
                  (initialize)
                  (System/exit 0))

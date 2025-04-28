@@ -1,25 +1,23 @@
 (ns neyho.eywa.transit
   (:require
-    neyho.eywa.dataset.core
-    neyho.eywa.modeling.core
-    [cognitect.transit :as transit])
+   neyho.eywa.dataset.core
+   neyho.eywa.modeling.core
+   [cognitect.transit :as transit])
   #?(:clj
      (:import
-       [com.cognitect.transit WriteHandler ReadHandler]
-       [java.io ByteArrayInputStream ByteArrayOutputStream])))
-
+      [com.cognitect.transit WriteHandler ReadHandler]
+      [java.io ByteArrayInputStream ByteArrayOutputStream])))
 
 (def ^:dynamic *format* :json-verbose)
 (def ^:dynamic *read-transit* (constantly nil))
 (def ^:dynamic *write-transit* (constantly nil))
 
-
 (letfn [(record-write-handler
           [type ks]
           (reify #?(:clj WriteHandler :cljs Object)
-            (tag [_ _] 
+            (tag [_ _]
               type)
-            (rep [_ rec] 
+            (rep [_ rec]
               (transit/tagged-value "map" (select-keys rec ks)))
             (stringRep [_ _] nil)
             (getVerboseHandler [_] nil)))
@@ -51,65 +49,60 @@
              neyho.eywa.modeling.core/map->Coordinate
              neyho.eywa.modeling.core/map->PathSegment
              neyho.eywa.modeling.core/map->Path]]
-    (def eywa-write-handlers 
+    (def eywa-write-handlers
       (zipmap wr (map record-write-handler rdr (map #(keys (% nil)) bds))))
-    (def eywa-read-handlers 
+    (def eywa-read-handlers
       (zipmap rdr (map record-read-handler bds)))))
-
-
 
 (defn ->transit [data] (*write-transit* data))
 (defn <-transit [data] (*read-transit* data))
 
-
-
 (defn init-transit-handlers
   ([]
    (init-transit-handlers
-     {:write eywa-write-handlers
-      :read eywa-read-handlers}))
+    {:write eywa-write-handlers
+     :read eywa-read-handlers}))
   ([{:keys [write read]}]
-   #?(:clj 
+   #?(:clj
       (alter-var-root
-        #'*write-transit*
-        (fn [_]
-          (fn writter [data]
-            (when data
-              (with-open [baos (ByteArrayOutputStream.)]
-                (let [w (transit/writer 
-                          baos
-                          :json-verbose
-                          {:handlers write})
-                      _ (cognitect.transit/write w data)
-                      ret (.toString baos)]
-                  (.reset baos)
-                  ret))))))
+       #'*write-transit*
+       (fn [_]
+         (fn writter [data]
+           (when data
+             (with-open [baos (ByteArrayOutputStream.)]
+               (let [w (transit/writer
+                        baos
+                        :json-verbose
+                        {:handlers write})
+                     _ (cognitect.transit/write w data)
+                     ret (.toString baos)]
+                 (.reset baos)
+                 ret))))))
       :cljs
       (set! *write-transit*
             (fn writter [data]
               (when data
-                (let [wr (transit/writer 
-                           :json-verbose
-                           {:handlers write})] 
+                (let [wr (transit/writer
+                          :json-verbose
+                          {:handlers write})]
                   (transit/write wr data))))))
    #?(:clj
       (alter-var-root
-        #'*read-transit*
-        (fn [_]
-          (fn reader [data]
-            (when data
-              (with-open [in (ByteArrayInputStream. (.getBytes data))]
-                (transit/read (transit/reader in :json-verbose {:handlers read})))))))
+       #'*read-transit*
+       (fn [_]
+         (fn reader [data]
+           (when data
+             (with-open [in (ByteArrayInputStream. (.getBytes data))]
+               (transit/read (transit/reader in :json-verbose {:handlers read})))))))
       :cljs
       (set! *read-transit*
             (fn reader [data]
               (when data
-                (let [reader (transit/reader :json-verbose {:handlers read})] 
+                (let [reader (transit/reader :json-verbose {:handlers read})]
                   (transit/read reader data))))))))
-
 
 (defn init
   []
   (init-transit-handlers
-    {:read eywa-read-handlers
-     :write eywa-write-handlers}))
+   {:read eywa-read-handlers
+    :write eywa-write-handlers}))

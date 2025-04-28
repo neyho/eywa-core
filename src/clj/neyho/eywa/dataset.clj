@@ -364,18 +364,22 @@
               :_limit 1
               :_order_by {:modified_on :desc}}}]})))
 
-(defn latest-deployed-model
+(defn latest-deployed-version
   [dataset-euuid]
-  (let [{[{model :model}] :versions}
+  (let [{[version] :versions}
         (get-entity
          du/dataset
          {:euuid dataset-euuid}
          {:versions
-          [{:selections {:model nil}
+          [{:selections {:euuid nil :name nil :model nil}
             :args {:_where {:deployed {:_boolean :TRUE}}
                    :_limit 1
                    :_order_by {:modified_on :desc}}}]})]
-    model))
+    version))
+
+(defn latest-deployed-model
+  [dataset-euuid]
+  (:model (latest-deployed-version dataset-euuid)))
 
 (defn start
   "Function initializes EYWA datasets by loading last deployed model."

@@ -42,7 +42,12 @@
           (x-relation [result role direction rule relations]
             (reduce
              (fn [r relation]
-               (update-in r [:relation relation direction rule] (fnil conj #{}) role))
+               (let [{{from-euuid :euuid} :from
+                      {to-euuid :euuid} :to} (dataset/deployed-relation relation)
+                     k (if (= direction :to)
+                         [to-euuid from-euuid]
+                         [from-euuid to-euuid])]
+                 (update-in r [:relation relation k rule] (fnil conj #{}) role)))
              result
              relations))]
     (reduce
@@ -68,6 +73,10 @@
            (x-relation euuid :from :delete (map :euuid to_delete_relations))))
      nil
      data)))
+
+(comment
+  (dataset/deployed-relation #uuid "7efa7244-ae20-4248-9792-7623d12cea9e")
+  (get-roles-access-data))
 
 (defn load-rules
   []
@@ -105,6 +114,7 @@
                     (not-empty
                      (set/intersection roles (get-in *rules* [:relation relation direction rule])))))]
            (comment
+             (def direction *1)
              (def relation #uuid "466b811e-0ec5-4871-a24d-5b2990e6db3d")
              (def direction :to)
              (def rule :read))
@@ -228,6 +238,8 @@
       (recur (async/<! delta-chan)))
     (load-rules)
     (load-scopes)))
+
+(defn enforced? [] (some? *rules*))
 
 (defn stop
   []

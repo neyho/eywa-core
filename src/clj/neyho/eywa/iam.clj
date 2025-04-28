@@ -4,6 +4,8 @@
    clojure.set
    clojure.pprint
    clojure.data.json
+   [version-clj.core :as vrs]
+   [clojure.java.io :as io]
    [clojure.tools.logging :as log]
    [buddy.sign.jwt :as jwt]
    [buddy.core.codecs]
@@ -12,8 +14,13 @@
    [buddy.core.keys :as keys]
    [neyho.eywa.data
     :refer [*EYWA*
-            *ROOT*]]
+            *ROOT*
+            *PUBLIC_ROLE*
+            *PUBLIC_USER*]]
+   [neyho.eywa.db :as db]
+   [neyho.eywa.transit :refer [<-transit]]
    [neyho.eywa.iam.uuids :as iu]
+   [neyho.eywa.dataset.uuids :as du]
    [neyho.eywa.dataset
     :as dataset
     :refer [get-entity
@@ -25,6 +32,10 @@
    [neyho.eywa.iam.gen :as gen]
    [neyho.eywa.iam.access :as access]
    [neyho.eywa.iam.access.context :refer [*user*]]
+   [neyho.eywa.iam.util
+    :refer [import-role
+            import-api
+            import-app]]
    [neyho.eywa.dataset.core :as core]
    [com.walmartlabs.lacinia.resolve :as resolve]
    [com.walmartlabs.lacinia.selection :as selection])
@@ -296,6 +307,42 @@
             :code :unauthorized}))))
     resolver))
 
+(defn ensure-public
+  []
+  (dataset/sync-entity
+   iu/user
+   (assoc *PUBLIC_USER* :roles [*PUBLIC_ROLE*])))
+
+(defn current-version
+  []
+  (<-transit (slurp (io/resource "dataset/iam.json"))))
+
+(defn level-iam-model
+  []
+  (let [{current-version :name
+         :as current} (current-version)
+        ;;
+        {deployed-version :name}
+        (dataset/latest-deployed-version #uuid "c5c85417-0aef-4c44-9e86-8090647d6378")]
+    (when (and
+           (vrs/newer? current-version deployed-version)
+           db/*db*)
+      (log/infof
+       "[IAM] Old version of IAM dataset %s is deployed. Deploying newer version %s"
+       deployed-version current-version)
+      (dataset/deploy! current)
+      (dataset/reload))
+    (when (vrs/older? deployed-version "0.80.0")
+      (log/infof "[IAM] Noticed that OAuth was not initialized!")
+      (import-app "exports/app_eywa_frontend.json")
+      (import-api "exports/api_eywa_graphql.json")
+      (doseq [role ["exports/role_dataset_developer.json"
+                    "exports/role_dataset_modeler.json"
+                    "exports/role_dataset_explorer.json"
+                    "exports/role_iam_admin.json"
+                    "exports/role_iam_user.json"]]
+        (import-role role)))))
+
 (defn start
   []
   (log/info "Initializing IAM...")
@@ -303,6 +350,9 @@
     ;; TODO - Roles and permission shema should be initialized from database
     ;; and tracked by relations and entity changes just like in neyho.eywa.iam.access namespace
     ; (lacinia/add-shard ::graphql (slurp (io/resource "iam.graphql")))
+    (ensure-public)
+    (level-iam-model)
+    (dataset/bind-service-user #'*PUBLIC_USER*)
     (lacinia/add-directive :protect wrap-protect)
     (log/info "IAM initialized")
     (catch Throwable e
@@ -320,6 +370,10 @@
             *user* (:_eid *EYWA*)]
     (log/info  "Creating ROOT user role")
     (dataset/sync-entity iu/user-role *ROOT*)
+    ;; Add public role and user
+    (dataset/sync-entity
+     iu/user
+     (assoc *PUBLIC_USER* :roles [*PUBLIC_ROLE*]))
     (log/info "ROOT user role created")
     (doseq [user users]
       (log/infof "Adding user %s" (dissoc user :password))
@@ -345,36 +399,3 @@
          :euuid euuid
          :type :SERVICE
          :avatar nil)))))
-
-;; DEPRECATED - in favor of neyho.eywa.iam.util/import*
-; (defn init-eywa-frontend-client
-;   []
-;   (letfn [(ensure [coll should-contain]
-;             (if (not-any? #(= should-contain %) coll)
-;               (conj coll should-contain)
-;               coll))]
-;     (let [domain env/iam-root-url
-;           client (when domain
-;                    (->
-;                      {:euuid #uuid "34c6eea5-3c95-4de1-a547-5e1b34ea16ea",
-;                       :id "MUMADPADAKQHSDFDGFAEJZJXUSFJGFOOYTWVAUDEFVPURUOP",
-;                       :name "EYWA",
-;                       :type "public",
-;                       :active true,
-;                       :secret nil,
-;                       :settings
-;                       {"logo-url" "https://www.eywaonline.com/eywa/logo/eywa.svg",
-;                        "login-page" "",
-;                        "redirections" [] ,
-;                        "token-expiry" {"id" 600, "access" 3600, "refresh" 129600},
-;                        "allowed-grants" ["authorization_code"
-;                                          "urn:ietf:params:oauth:grant-type:device_code"
-;                                          "refresh_token"],
-;                        "logout-redirections" []}}
-;                      ; (update-in [:settings "redirections"] ensure (str domain "/eywa/callback"))
-;                      ; (update-in [:settings "logout-redirections"] ensure (str domain "/eywa/"))
-;                      ; (update-in [:settings "logout-redirections"] ensure (str domain "/eywa"))
-;                      (update-in [:settings "redirections"] ensure "https://my.eywaonline.com/eywa/callback")
-;                      (update-in [:settings "redirections"] ensure "https://my.eywaonline.com/eywa/silent-callback")
-;                      (update-in [:settings "logout-redirections"] ensure "https://my.eywaonline.com/")))]
-;       (when client (add-client client)))))

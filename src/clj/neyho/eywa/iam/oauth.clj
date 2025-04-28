@@ -128,7 +128,12 @@
                  :else
                  (try
                    (let [code (gen-authorization-code)
-                         {client-euuid :euuid} (validate-client request)]
+                         {client-euuid :euuid} (validate-client request)
+                         location (str "/oauth/login?"
+                                       (codec/form-encode
+                                        {:state (core/encrypt
+                                                 {:authorization-code code
+                                                  :flow "authorization_code"})}))]
                      (save code {:client client-euuid
                                  :created-on (System/currentTimeMillis)
                                  :user/agent user-agent
@@ -136,10 +141,7 @@
                      (assoc ctx
                        :code code
                        :response {:status 302
-                                  :headers {"Location" (str "/oauth/login?" (codec/form-encode
-                                                                             {:state (core/encrypt
-                                                                                      {:authorization-code code
-                                                                                       :flow "authorization_code"})}))
+                                  :headers {"Location" location
                                             "Cache-Control" "no-cache"}}))
                    (catch clojure.lang.ExceptionInfo ex
                      (error (ex-data ex)))))))

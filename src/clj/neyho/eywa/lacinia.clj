@@ -65,7 +65,7 @@
       :parse parse-uuid
       :serialize identity}
      :JSON
-     {:parse walk/stringify-keys
+     {:parse identity #_walk/stringify-keys
       :serialize identity}
      :Hash
      {:parse identity
