@@ -21,6 +21,7 @@
    neyho.eywa.iam
    neyho.eywa.iam.uuids
    neyho.eywa.iam.access
+   neyho.eywa.modeling.erd
    [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
 
@@ -208,7 +209,13 @@
   nil)
 
 (comment
-  (def db (neyho.eywa.db.postgres/from-env)))
+  (def db (neyho.eywa.db.postgres/from-env))
+  (def options
+    {:port (when-some [port (env :eywa-server-port "8080")]
+             (if (number? port) port (Integer/parseInt port)))
+     :host (env :eywa-server-host "0.0.0.0")
+     :info {:version version
+            :release-type "core"}}))
 
 (defn start
   ([] (start (neyho.eywa.db.postgres/from-env)))

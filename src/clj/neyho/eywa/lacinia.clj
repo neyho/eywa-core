@@ -1,6 +1,5 @@
 (ns neyho.eywa.lacinia
   (:require
-   [clojure.walk :as walk]
    [clojure.string :as str]
    [clojure.tools.logging :as log]
    [clojure.instant :refer [read-instant-date]]
@@ -156,11 +155,11 @@
 (defn default-field-resolver
   "The default for the :default-field-resolver option, this uses the field name as the key into
   the resolved value."
-  [{:keys [field-name alias] :as field-def}]
+  [{_alias :alias}]
   ^{:tag r/ResolverResult}
   (fn default-resolver [ctx _ v]
-    (let [alias (selection/alias-name (-> ctx :com.walmartlabs.lacinia/selection))]
-      (r/resolve-as (get v alias)))))
+    (let [_alias (selection/alias-name (-> ctx :com.walmartlabs.lacinia/selection))]
+      (r/resolve-as (get v _alias)))))
 
 ; (defn protect-schema
 ;   [schema]
@@ -199,8 +198,12 @@
                            (fn [s] (if (fn? s) (s) s))
                            (vals shards)))]
         ; (do
-        ;   (def schema schema)
-        ;   (def directives directives))
+        ;     (def schema schema)
+        ;     (def directives directives)
+        ;     (->
+        ;      schema
+        ;      bind-resolvers
+        ;      (deep-merge __schema)))
         (schema/compile
           ; schema
          (->

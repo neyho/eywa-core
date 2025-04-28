@@ -1088,6 +1088,9 @@
 
 (comment
   (def model (dataset/deployed-model))
+  (def entity (core/get-entity model #uuid "ec30827b-c1b1-4d1f-889b-77f5bf4b35bf"))
+  (core/get-entity model #uuid "c3835dcb-b8d7-40b7-be1c-97b7f50225d0")
+  (core/focus-entity-relations model entity)
   (do (generate-lacinia-objects model) nil))
 
 (defn generate-lacinia-schema

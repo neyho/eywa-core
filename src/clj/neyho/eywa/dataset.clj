@@ -37,10 +37,6 @@
     (juxt :euuid :name)
     (dataset/get-entities (deployed-model)))))
 
-(comment
-  (deployed-relation #uuid "7efa7244-ae20-4248-9792-7623d12cea9e")
-  (deployed-entity #uuid "5338693b-9dbc-4434-b598-b15175da04c3"))
-
 (defn get-deployed-model [_ _ _]
   {:model (deployed-model)})
 
@@ -331,7 +327,13 @@
     (def projection (dataset/project model global-model))
     (filter
      dataset/entity-changed?
-     (dataset/get-entities projection))))
+     (dataset/get-entities projection)))
+  (:version
+   (:model
+    (get-entity
+     du/dataset-version
+     {:euuid #uuid "55f666c1-f631-4a69-a84a-5746ed04ba4e"}
+     {:model nil}))))
 
 (defn latest-deployed-version
   [dataset-euuid]
