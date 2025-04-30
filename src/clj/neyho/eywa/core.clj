@@ -25,7 +25,7 @@
    [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
 
-(def version "0.3.5")
+(def version "0.3.6")
 
 (defn setup
   ([] (setup (neyho.eywa.db.postgres/from-env)))

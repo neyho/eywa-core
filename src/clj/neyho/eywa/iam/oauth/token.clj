@@ -12,6 +12,7 @@
    [buddy.core.codecs]
    [io.pedestal.interceptor.chain :as chain]
    [neyho.eywa.iam
+    :as iam
     :refer [sign-data]]
    [neyho.eywa.iam.access :as access]
    [neyho.eywa.dataset :as dataset]
@@ -99,8 +100,8 @@
      (swap! core/*sessions* update-in [session :tokens audience] dissoc token-key)
      (when token
        (swap! *tokens* update token-key dissoc token)
-       (core/publish
-        :revoke/token
+       (iam/publish
+        :oauth.revoke/token
         {:token/key token-key
          :token/data token
          :audience audience
@@ -232,13 +233,10 @@
                            tokens)]
         (when refresh-token (revoke-token :refresh_token refresh-token))
         (when session (set-session-tokens session audience signed-tokens))
-        (comment
-          (def client (get @core/*clients* #uuid "34c6eea5-3c95-4de1-a547-5e1b34ea16ea")))
         (assoc signed-tokens
           :type "Bearer"
           :scope (str/join " " scope)
           :expires_in (access-token-expiry client)))
-
       (let [tokens (reduce
                     (fn [tokens scope]
                       (process-scope session tokens scope))
@@ -249,8 +247,8 @@
                              (assoc tokens token (sign-token session token data)))
                            tokens
                            tokens)]
-        (core/publish
-         :grant/tokens
+        (iam/publish
+         :oauth.grant/tokens
          {:tokens signed-tokens
           :session session})
         (assoc signed-tokens

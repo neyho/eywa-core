@@ -34,6 +34,85 @@
    []
    bindings))
 
+(defmacro mlwa
+  "Multiline format macro. This macro will take string and
+  if it is followed by something other than string will assume
+  that taken string is formated line and following are arguments.
+  
+  Repeats until next string end of line-or-arg input
+  
+  ```clojure
+  (let [variable \"391092109\"]
+    (mlf
+     \"Hi from macro\"
+     \"with formated  ?  \" variable
+     \"text on number ?\" 10292))
+  ```"
+  [& line-or-arg]
+  (loop [[current & others] line-or-arg
+         lines []
+         args []]
+    (let [[next] others]
+      (cond
+        ;; When there is no next and there are no others
+        ;; return result
+        (and (nil? current) (empty? others))
+        `[(clojure.string/join "\n" ~lines) ~@args]
+        ;; If current is string and there are no others, than join that line
+        (and (string? current) (empty? others))
+        `[(clojure.string/join "\n" ~(conj lines current)) ~@args]
+        ;; If this is string and string follows than join
+        ;; line in result and recur with others
+        (and (string? current) (string? next))
+        (recur others (conj lines current) args)
+        ;; If current is string and next isn't string, than
+        ;; this should be formated
+        (and (string? current) (not (string? next)))
+        (let [_args (take-while #(not (string? %)) others)]
+          (recur
+           (drop (count _args) others)
+           (conj lines current)
+           (into args _args)))))))
+
+(defmacro mlf
+  "Multiline format macro. This macro will take string and
+  if it is followed by something other than string will assume
+  that taken string is formated line and following are arguments.
+  
+  Repeats until next string end of line-or-arg input
+  
+  ```clojure
+  (let [variable \"391092109\"]
+    (mlf
+     \"Hi from macro\"
+     \"with formated  %s  \" variable
+     \"text on number %d\" 10292))
+  ```"
+  [& line-or-arg]
+  (loop [[current & others] line-or-arg
+         result []]
+    (let [[next] others]
+      (cond
+        ;; When there is no next and there are no others
+        ;; return result
+        (and (nil? current) (empty? others))
+        `(clojure.string/join "\n" ~result)
+        ;; If current is string and there are no others, than join that line
+        (and (string? current) (empty? others))
+        `(clojure.string/join "\n" ~(conj result current))
+        ;; If this is string and string follows than join
+        ;; line in result and recur with others
+        (and (string? current) (string? next))
+        (recur others (conj result current))
+        ;; If current is string and next isn't string, than
+        ;; this should be formated
+        (and (string? current) (not (string? next)))
+        (let [args (take-while #(not (string? %)) others)
+              line `(~'format ~current ~@args)]
+          (recur
+           (drop (count args) others)
+           (conj result line)))))))
+
 (defn lwa
   "Short for 'Line with arguments'
   Expects bindings of form [query-part arg1 arg2 arg3] and returns
@@ -84,7 +163,10 @@
       (relation-to-field entity label)
       (or to-alias to-table)))))
 
-(defmulti prepare (fn [id _] [id (class *db*)]))
+(defmulti prepare
+  (fn dispatch
+    ([id] [id (class *db*)])
+    ([id _] [id (class *db*)])))
 
 (defmulti execute! (fn [_] (class *db*)))
 

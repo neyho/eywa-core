@@ -266,7 +266,10 @@
                     :body (json/write-str
                            {:keys
                             (map
-                             (fn [{:keys [public]}] (iam/encode-rsa-key public))
+                             (fn [{:keys [public]}]
+                               (select-keys
+                                (iam/encode-public-key public)
+                                [:kty :n :e :use :alg :kid]))
                              @iam/encryption-keys)})}))})
 
 (defn get-cookies [{{:keys [headers]} :request}]

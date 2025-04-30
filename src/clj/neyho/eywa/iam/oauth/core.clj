@@ -26,17 +26,6 @@
 
 (defn pprint [data] (with-out-str (clojure.pprint/pprint data)))
 
-(defonce subscription (async/chan (async/sliding-buffer 10000)))
-(defonce publisher
-  (async/pub
-   subscription
-   (fn [{:keys [topic]
-         :or {topic ::broadcast}}]
-     topic)))
-
-(defn publish [topic data]
-  (async/put! subscription (assoc data :topic topic)))
-
 (defonce ^:dynamic *resource-owners* (atom nil))
 (defonce ^:dynamic *clients* (atom nil))
 (defonce ^:dynamic *sessions* (atom nil))
@@ -69,15 +58,15 @@
      :key-fn keyword)
     (catch Throwable _ nil)))
 
-(comment
-  (time
-   (decrypt
-    (encrypt
-     {:device-code 100
-      :user-code 200
-      :ip "a"
-      :user-agent "jfioq"}))))
-
+; (comment
+;   (time
+;    (decrypt
+;     (encrypt
+;      {:device-code 100
+;       :user-code 200
+;       :ip "a"
+;       :user-agent "jfioq"}))))
+;
 (let [alphabet "ACDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]
   (def gen-session-id (nano-id/custom alphabet 30)))
 
@@ -155,9 +144,10 @@
   (let [{db-password :password
          active :active
          :as resource-owner} (iam/get-user-details username)]
-    (if-not active nil
-            (when (iam/validate-password password db-password)
-              (dissoc resource-owner :password)))))
+    (if-not active
+      nil
+      (when (iam/validate-password password db-password)
+        (dissoc resource-owner :password)))))
 
 (defn set-session-resource-owner
   [session {:keys [euuid] username :name :as resource-owner}]
@@ -342,9 +332,10 @@
     (remove-session-resource-owner session)
     (remove-session-client session)
     (swap! *sessions* dissoc session)
-    (publish :session/kill
-             {:session session
-              :data session-data})))
+    (iam/publish
+     :oauth.session/kill
+     {:session session
+      :data session-data})))
 
 (defn kill-sessions
   []
