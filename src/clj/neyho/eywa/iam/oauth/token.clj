@@ -19,6 +19,9 @@
    [neyho.eywa.iam.uuids :as iu]
    [neyho.eywa.iam.oauth.core :as core
     :refer [pprint
+            session-kill-hook
+            access-token-expiry
+            refresh-token-expiry
             process-scope
             sign-token]]))
 
@@ -26,16 +29,6 @@
 
 (let [alphabet "ACDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]
   (def gen-token (nano-id/custom alphabet 50)))
-
-(let [default (vura/hours 2)]
-  (defn access-token-expiry
-    [{{{expiry "access"} "token-expiry"} :settings}]
-    (or expiry default)))
-
-(let [default (vura/days 1.5)]
-  (defn refresh-token-expiry
-    [{{{expiry "refresh"} "token-expiry"} :settings}]
-    (or expiry default)))
 
 (defn token-error [status code & description]
   ; (log/debugf "Returning error: %s\n%s" code (str/join "\n" description))
@@ -110,7 +103,7 @@
 
 (defn revoke-session-tokens
   ([session]
-   (doseq [[audience] (core/get-session session)]
+   (doseq [audience (keys (:tokens (core/get-session session)))]
      (revoke-session-tokens session audience)))
   ([session audience]
    (let [{{tokens audience} :tokens} (core/get-session session)]
@@ -118,18 +111,51 @@
        (revoke-token token-key token)))
    nil))
 
+(defmethod session-kill-hook 0
+  [_ session]
+  (revoke-session-tokens session))
+
+(comment
+  (def data (gen-token))
+  (revoke-session-tokens session)
+  (def session "YXldcURYFGCaMkMKwqFQvUblGOlSGh")
+  (vura/value->time (* 1000 (:exp (iam/unsign-data (sign-token session :refresh_token data)))))
+  (def token (first (keys (get @*tokens* :refresh_token))))
+  (def token (first (keys (get @*tokens* :access_token))))
+  (time (vura/value->time (* 1000 (:exp (iam/unsign-data token)))))
+  (core/expires-at token)
+
+  (java.util.Date.)
+  (vura/date)
+  (def token
+    (sign-data
+     (hash-map :value data
+               :session session
+               :exp
+               (->
+                (System/currentTimeMillis)
+                (quot 1000)
+                (+ (refresh-token-expiry client))))
+     {:alg :rs256}))
+  (->
+   (System/currentTimeMillis)
+   (+ (refresh-token-expiry client))
+   (quot 1000)
+   (* 1000)
+   (vura/value->time))
+  (iam/unsign-data token))
+
 (defmethod sign-token :refresh_token
-  [_ _ data]
-  data
-  #_(let [client (get-session-client session)]
-      (sign-data
-       (assoc data
-         :exp (-> (vura/date)
-                  vura/date->value
-                  (+ (refresh-token-expiry client))
-                  vura/value->date
-                  to-timestamp))
-       {:alg :rs256})))
+  [session _ data]
+  (let [client (get-in @core/*sessions* [session :client])]
+    (sign-data
+     (hash-map :value data
+               :session session
+               :exp (->
+                     (System/currentTimeMillis)
+                     (quot 1000)
+                     (+ (refresh-token-expiry client))))
+     {:alg :rs256})))
 
 (defmethod sign-token :access_token
   [_ _ data]
@@ -144,7 +170,13 @@
              (quot 1000)
              (+ (access-token-expiry client))))
      {:alg :rs256}))
-  (def client (val (nth (seq @core/*clients*) 1)))
+  (vura/value->time
+   (* 1000
+      (->
+       (System/currentTimeMillis)
+       (quot 1000)
+       (+ (refresh-token-expiry client)))))
+  (def client (val (nth (seq @core/*clients*) 0)))
   (unsign-data d))
 
 (def unsupported (core/json-error 500 "unsupported" "This feature isn't supported at the moment"))
@@ -231,8 +263,11 @@
                              (assoc tokens token (sign-token session token data)))
                            tokens
                            tokens)]
-        (when refresh-token (revoke-token :refresh_token refresh-token))
         (when session (set-session-tokens session audience signed-tokens))
+        (iam/publish
+         :oauth.grant/tokens
+         {:tokens signed-tokens
+          :session session})
         (assoc signed-tokens
           :type "Bearer"
           :scope (str/join " " scope)
@@ -260,63 +295,62 @@
   [{:keys [refresh_token scope audience]
     cookie-session :idsrv/session
     :as request}]
-  ; (def refresh_token refresh_token)
-  ; (def audience audience)
-  ; (def scope scope)
-  ; (comment
-  ;   (def refresh_token "rPDPDWYaoCLRdDrFIsdhiaGUMbVqvlXQslKIgoMMISSgQSSKbn")
-  ;   (def session "MbLqqFaQUJnrXfdrmsoAOOEbCMswHg"))
-  (if-let [session (get-token-session :refresh_token refresh_token)]
-    (let [{{:strs [allowed-grants]} :settings :as client} (core/get-session-client session)
-          {:keys [active]} (core/get-session-resource-owner session)
-          scope (or
-                 scope
-                 (core/get-session-audience-scope session audience))
-          audience (or
-                    audience
-                    (get-token-audience :refresh_token refresh_token))
-          current-refresh-token (get-in
-                                 (core/get-session session)
-                                 [:tokens audience :refresh_token])
-          grants (set allowed-grants)]
-      (when session (revoke-session-tokens session audience))
-      (cond
+  (if (core/expired? refresh_token)
+    (do
+      (core/kill-session (get-token-session :refresh_token refresh_token))
+      (token-error
+       400
+       "invalid_request"
+       "Provided token is expired!"))
+    (if-let [session (get-token-session :refresh_token refresh_token)]
+      (let [{{:strs [allowed-grants]} :settings :as client} (core/get-session-client session)
+            {:keys [active]} (core/get-session-resource-owner session)
+            scope (or
+                   scope
+                   (core/get-session-audience-scope session audience))
+            audience (or
+                      audience
+                      (get-token-audience :refresh_token refresh_token))
+            current-refresh-token (get-in
+                                   (core/get-session session)
+                                   [:tokens audience :refresh_token])
+            grants (set allowed-grants)]
+        (when current-refresh-token (revoke-token :refresh_token current-refresh-token))
+        (when session (revoke-session-tokens session audience))
+        (cond
+        ;;
+          (not (contains? grants "refresh_token"))
+          (do
+            (core/kill-session session)
+            refresh-not-supported)
+        ;;
+          (not active)
+          (do
+            (core/kill-session session)
+            owner-not-authorized)
         ;;
         ;;
-        (not (contains? grants "refresh_token"))
-        (do
-          (core/kill-session session)
-          refresh-not-supported)
+          (and cookie-session (not= cookie-session session))
+          cookie-session-missmatch
         ;;
-        (not active)
-        (do
-          (core/kill-session session)
-          owner-not-authorized)
+          (not= refresh_token current-refresh-token)
+          (token-error
+           400
+           "invalid_request"
+           "Provided token doesn't match session refresh token"
+           "Your request will be logged and processed")
         ;;
-        ;;
-        (and cookie-session (not= cookie-session session))
-        cookie-session-missmatch
-        ;;
-        (not= refresh_token current-refresh-token)
-        (token-error
-         400
-         "invalid_request"
-         "Provided token doesn't match session refresh token"
-         "Your request will be logged and processed")
-        ;;
-        :else
-        {:status 200
-         :headers {"Content-Type" "application/json;charset=UTF-8"
-                   "Pragma" "no-cache"
-                   "Cache-Control" "no-store"}
-         :body (json/write-str
-                (binding []
-                  (generate client session (assoc request :scope scope))))}))
-    (token-error
-     400
-     "invalid_grant"
-     "There is no valid session for refresh token that"
-     "was provided")))
+          :else
+          {:status 200
+           :headers {"Content-Type" "application/json;charset=UTF-8"
+                     "Pragma" "no-cache"
+                     "Cache-Control" "no-store"}
+           :body (json/write-str (generate client session (assoc request :scope scope)))}))
+      (token-error
+       400
+       "invalid_grant"
+       "There is no valid session for refresh token that"
+       "was provided"))))
 
 (comment
   (def request
@@ -414,43 +448,3 @@
   (def tokens nil)
   (access/roles-scopes #{#uuid "8ebc60f1-8df0-48c8-a9b6-747a140df021"})
   (def session "RkJDHRzznXwlkatsVQnLWMmJHRWdyg"))
-
-; (defn generate-code-challenge
-;   ([code-verifier] (generate-code-challenge code-verifier "S256"))
-;   ([code-verifier code-challenge-method]
-;    (case code-challenge-method
-;      "plain" code-verifier
-;      "S256"
-;      (let [bs (.getBytes code-verifier)
-;            hashed (hash/sha256 bs)]
-;        (-> hashed
-;            codec/base64-encode
-;            (.replace "+" "-")
-;            (.replace "/" "_")
-;            (.replace "=" ""))))))
-;
-;
-; (def pkce-interceptor
-;   {:enter
-;    (fn [ctx]
-;      (let [{{{:keys [code code_verifier grant_type]} :params} :request} ctx
-;            {{:keys [code_challenge code_challenge_method]}
-;             :request} (-> code
-;                           ac/get-code-session 
-;                           core/get-session)
-;            is-pkce? (and code_challenge code_challenge_method)]
-;        (if (or (not is-pkce?) (not= "authorization_code" grant_type)) ctx
-;          (let [current-challenge (generate-code-challenge code_verifier code_challenge_method)]
-;            (if (= current-challenge code_challenge) ctx
-;              (chain/terminate
-;                (core/json-error
-;                  "invalid_request"
-;                  "Proof Key for Code Exchange failed")))))))})
-;
-;
-; (let [token (conj core/oauth-common-interceptor core/scope->set pkce-interceptor token-interceptor)
-;       revoke (conj core/oauth-common-interceptor core/idsrv-session-read revoke-token-interceptor)]
-;   (def routes
-;     #{["/oauth/token" :post token :route-name ::handle-token]
-;       ["/oauth/revoke" :post revoke :route-name ::post-revoke]
-;       ["/oauth/revoke" :get revoke :route-name ::get-revoke]}))

@@ -9,7 +9,7 @@
    [vura.core :as vura]
    [ring.util.codec :as codec]
    [clojure.data.json :as json]
-    ;[neyho.eywa.iam :as iam]
+   [neyho.eywa.iam :as iam]
    [neyho.eywa.iam.oauth.core :as core]
    [neyho.eywa.iam.oauth.authorization-code :as ac]
    [neyho.eywa.iam.oauth.device-code :as dc]
@@ -100,7 +100,9 @@
                  ;; to return response
                  (nil? resource-owner)
                  (assoc ctx ::state flow-state ::error :credentials)
+                 ;;
                  ;; When everything is OK
+                 ;;
                  (and resource-owner (set/intersection #{"code" "authorization_code"} response_type))
                  (do
                    (log/debugf "[%s] Binding code %s to session" session authorization-code)
@@ -113,6 +115,14 @@
                    (core/set-session-authorized-at session now)
                    (ac/mark-code-issued session authorization-code)
                    (log/debugf "[%s] Validating resource owner: %s" session username)
+                   (iam/publish
+                    :oauth.session/created
+                    {:session session
+                     :code authorization-code
+                     :client client
+                     :audience audience
+                     :scope scope
+                     :user resource-owner})
                    (chain/terminate
                     (->
                      (assoc ctx

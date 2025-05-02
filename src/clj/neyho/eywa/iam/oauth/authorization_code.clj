@@ -207,7 +207,8 @@
           owner-not-authorized)
         ;; Issue that token
         :else
-        (let [response (json/write-str (token/generate client session original-request))]
+        (let [tokens (token/generate client session original-request)
+              response (json/write-str tokens)]
           (log/debugf "[%s]Returning token response:\n%s" code response)
           (revoke-authorization-code code)
           {:status 200

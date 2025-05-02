@@ -21,6 +21,7 @@
    neyho.eywa.iam
    neyho.eywa.iam.uuids
    neyho.eywa.iam.access
+   neyho.eywa.iam.oauth.store
    neyho.eywa.modeling.erd
    [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
@@ -229,12 +230,12 @@
   ([db options]
    (stop)
    (neyho.eywa.transit/init)
-   (neyho.eywa.iam/init-default-encryption)
    (oauth/start)
    (neyho.eywa.db.postgres/start db)
    (neyho.eywa.dataset/start)
-   (neyho.eywa.iam/start)
    (neyho.eywa.dataset.encryption/start)
+   (neyho.eywa.iam.oauth.store/start)
+   (neyho.eywa.iam/start)
    (when (#{"true" "TRUE" "YES" "yes" "y" "1"} (env :eywa-iam-enforce-access))
      (neyho.eywa.iam.access/start))
    (neyho.eywa.server/start options)))

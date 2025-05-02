@@ -42,10 +42,7 @@
    [com.walmartlabs.lacinia.resolve :as resolve]
    [com.walmartlabs.lacinia.selection :as selection])
   (:import
-   [java.math BigInteger]
-   [java.util Base64]
-   [java.security KeyPairGenerator KeyFactory]
-   [java.security.spec RSAPublicKeySpec]))
+   [java.security KeyPairGenerator]))
 
 (def alphabet (.toCharArray "0123456789abcdefghijklmnopqrstuvwxyz"))
 (def MASK 35)
@@ -82,78 +79,21 @@
 
 (defonce encryption-keys (atom '()))
 
-; (defn base64-url-encode [input]
-;   (let [encoded (buddy.core.codecs/bytes->b64-str input)]
-;     (.replaceAll (str encoded) "=" "")))
-;
-; (defn encode-rsa-key [rsa-key]
-;   (let [modulus (.getModulus rsa-key)
-;         exponent (.getPublicExponent rsa-key)
-;         n (base64-url-encode (.toByteArray modulus))
-;         e (base64-url-encode (.toByteArray exponent))]
-;     {:kty "RSA"
-;      :n n
-;      :e e
-;      :use "sig"
-;      :alg "RS256"
-;      :kid (base64-url-encode (buddy.core.hash/sha256 (str n e)))}))
-;
-(letfn [(->b64 [input]
-          (let [encoded (buddy.core.codecs/bytes->b64-str (.toByteArray input))]
-            (.replaceAll (str encoded) "=" "")))
-        (->kid [n e]
-          (let [input (buddy.core.hash/sha256 (str n e))
-                encoded (buddy.core.codecs/bytes->b64-str input)]
-            (.replaceAll (str encoded) "=" "")))]
-  (defn encode-public-key [rsa-key]
-    (let [modulus (.getModulus rsa-key)
-          exponent (.getPublicExponent rsa-key)
-          n (->b64 modulus)
-          e (->b64 exponent)]
-      {:kty "RSA"
-       :n n
-       :e e
-       :use "sig"
-       :alg "RS256"
-       :kid (->kid n e)}))
+(defn base64-url-encode [input]
+  (let [encoded (buddy.core.codecs/bytes->b64-str input)]
+    (.replaceAll (str encoded) "=" "")))
 
-  (defn encode-private-key [rsa-key]
-    (let [modulus (.getModulus rsa-key)
-          exponent (.getPublicExponent rsa-key)
-          n (->b64 modulus)
-          e (->b64 exponent)]
-      {:kty "RSA"
-       :n n
-       :e e
-       :d (->b64 (.getPrivateExponent rsa-key))
-       :p (->b64 (.getPrimeP rsa-key))
-       :dp (->b64 (.getPrimeExponentP rsa-key))
-       :q (->b64 (.getPrimeQ rsa-key))
-       :dq (->b64 (.getPrimeExponentQ rsa-key))
-         ; :qi (->b64 (.getCrtCoefficent rsa-key))
-       :kid (->kid n e)})))
-
-(defn base64-url-decode [^String encoded]
-  (.decode (Base64/getUrlDecoder) encoded))
-
-(defn decode-rsa-key
-  [{:keys [n e]}]
-  (let [modulus (BigInteger. 1 (buddy.core.codecs/b64->bytes n))
-        exponent (BigInteger. 1 (buddy.core.codecs/b64->bytes e))
-        spec (RSAPublicKeySpec. modulus exponent)
-        kf (KeyFactory/getInstance "RSA")]
-    {:public (.generatePublic kf spec)
-     :private (.generatePrivate kf spec)}))
-
-(comment
-  (def kp (generate-key-pair))
-  (.toString (:public kp))
-  ; (-> kp :public encode-rsa-key)
-  (-> kp :public encode-public-key)
-  (-> kp :private encode-private-key)
-  (= (:kid (encode-private-key (:private kp)))
-     (:kid (encode-public-key (:public kp))))
-  (:private kp))
+(defn encode-rsa-key [rsa-key]
+  (let [modulus (.getModulus rsa-key)
+        exponent (.getPublicExponent rsa-key)
+        n (base64-url-encode (.toByteArray modulus))
+        e (base64-url-encode (.toByteArray exponent))]
+    {:kty "RSA"
+     :n n
+     :e e
+     :use "sig"
+     :alg "RS256"
+     :kid (base64-url-encode (buddy.core.hash/sha256 (str n e)))}))
 
 (defn add-key-pair
   [{:keys [public private kid] :as key-pair}]
@@ -162,14 +102,14 @@
   (when-not (keys/private-key? private)
     (throw (ex-info "Unacceptable private key" {:key private})))
   (swap! encryption-keys (fn [current]
-                           (let [[active deactivate] (split-at 3 (conj current (assoc key-pair :kid kid)))]
+                           (let [[active deactivate] (split-at 3 (conj current key-pair))]
                              (when (not-empty deactivate)
                                (iam/publish
-                                :oauth.keypair/removed
+                                :keypair/removed
                                 {:key-pairs deactivate}))
                              active)))
   (iam/publish
-   :oauth.keypair/added
+   :keypair/added
    {:key-pair key-pair})
   nil)
 
@@ -187,9 +127,18 @@
         key-pair (.generateKeyPair generator)
         public (.getPublic key-pair)
         private (.getPrivate key-pair)]
-    {:kid (:kid (encode-private-key private))
+    {:kid (:kid (encode-rsa-key private))
      :private private
      :public public}))
+
+(comment
+  (def kp (generate-key-pair))
+  (.toString (:public kp))
+  (-> kp :public (keys/public-key->jwk))
+  (-> kp :private (keys))
+  (= (:kid (encode-rsa-key (:private kp)))
+     (:kid (encode-rsa-key (:public kp))))
+  (:private kp))
 
 (defn rotate-keypair
   []
@@ -403,14 +352,11 @@
 
 (defn level-iam-model
   []
-  (let [{current-version :name
-         :as current} (current-version)
+  (let [{current-version :name :as current} (current-version)
         ;;
         {deployed-version :name}
         (dataset/latest-deployed-version #uuid "c5c85417-0aef-4c44-9e86-8090647d6378")]
-    (when (and
-           (vrs/newer? current-version deployed-version)
-           db/*db*)
+    (when (and (vrs/newer? current-version deployed-version) db/*db*)
       (log/infof
        "[IAM] Old version of IAM dataset %s is deployed. Deploying newer version %s"
        deployed-version current-version)

@@ -267,9 +267,7 @@
                            {:keys
                             (map
                              (fn [{:keys [public]}]
-                               (select-keys
-                                (iam/encode-public-key public)
-                                [:kty :n :e :use :alg :kid]))
+                               (iam/encode-rsa-key public))
                              @iam/encryption-keys)})}))})
 
 (defn get-cookies [{{:keys [headers]} :request}]

@@ -78,7 +78,29 @@
 (let [default (vura/days 1.5)]
   (defn refresh-token-expiry
     [{{{expiry "refresh"} "token-expiry"} :settings}]
-    (or expiry default)))
+    (long (or expiry default))))
+
+(defn expired?
+  [token]
+  (try
+    (let [{:keys [exp]} (iam/unsign-data token)]
+      (< (* 1000 exp) (System/currentTimeMillis)))
+    (catch clojure.lang.ExceptionInfo ex
+      (let [{:keys [cause]} (ex-data ex)]
+        (if (= cause :exp)
+          true
+          (throw ex))))))
+
+(defn expires-at
+  [token]
+  (try
+    (let [{:keys [exp]} (iam/unsign-data token)]
+      (java.util.Date. (* 1000 exp)))
+    (catch clojure.lang.ExceptionInfo ex
+      (let [{:keys [cause]} (ex-data ex)]
+        (if (= cause :exp)
+          (vura/value->date 0)
+          (throw ex))))))
 
 (defmulti sign-token (fn [_ token-key _] token-key))
 
@@ -326,16 +348,24 @@
   [session]
   (get-in @*sessions* [session :authorized-at]))
 
+(defmulti session-kill-hook (fn [priority session] priority))
+
 (defn kill-session
   [session]
   (let [session-data (get-session session)]
+    (doseq [p (sort (keys (methods session-kill-hook)))]
+      (session-kill-hook p session))
     (remove-session-resource-owner session)
     (remove-session-client session)
     (swap! *sessions* dissoc session)
     (iam/publish
-     :oauth.session/kill
+     :oauth.session/killed
      {:session session
       :data session-data})))
+
+(comment
+  (deref neyho.eywa.iam.oauth.token/*tokens*)
+  (def session "YXldcURYFGCaMkMKwqFQvUblGOlSGh"))
 
 (defn kill-sessions
   []
@@ -371,9 +401,9 @@
 
 (defn reset
   []
-  (reset! *sessions* nil)
-  (reset! *resource-owners* nil)
-  (reset! *clients* nil))
+  #_(reset! *sessions* nil)
+  #_(reset! *resource-owners* nil)
+  #_(reset! *clients* nil))
 
 ;; Interceptors
 (defn- decode-base64-credentials

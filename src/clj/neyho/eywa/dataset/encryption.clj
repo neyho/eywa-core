@@ -15,6 +15,8 @@
    [neyho.eywa.iam.shamir
     :refer [create-shares
             reconstruct-secret]]
+   [neyho.eywa.dataset.sql.compose
+    :as compose]
    [com.walmartlabs.lacinia.resolve :as r])
   (:import
    [org.postgresql.util PGobject]
@@ -44,6 +46,15 @@
     (number? data) (get @deks data)
     (instance? javax.crypto.spec.SecretKeySpec data) (.getEncoded data)
     :else data))
+
+(defmethod compose/prepare [::dek-exists? neyho.eywa.Postgres]
+  [_]
+  ["SELECT to_regclass('public.__deks')"])
+
+(defn dek-table-exists?
+  []
+  (let [[{result :to_regclass}] (compose/execute! (compose/prepare ::dek-exists?))]
+    (boolean result)))
 
 (defn create-dek-table
   []
@@ -267,6 +278,8 @@
 ;; @resolve
 (defn init-with-share
   [ctx {{:keys [id value]} :share} _]
+  ; (when-not (dek-table-exists?)
+  ;   (create-dek-table))
   (cond
     (not (access/superuser?)) (process-not-authorized ctx)
     ;;
@@ -298,6 +311,8 @@
 ;; @resolve
 (defn init-with-master
   [ctx {:keys [master]} _]
+  ; (when-not (dek-table-exists?)
+  ;   (create-dek-table))
   (cond
     (not (access/superuser?)) (process-not-authorized ctx)
     ;;
