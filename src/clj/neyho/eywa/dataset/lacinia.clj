@@ -707,7 +707,6 @@
    "Processing query for user %s[%d]:\n%s"
    (:username context)
    (:user context)
-    ; (with-out-str (clojure.pprint/pprint context))
    (parser/summarize-query (:com.walmartlabs.lacinia.constants/parsed-query context))))
 
 (defn generate-lacinia-queries [model]

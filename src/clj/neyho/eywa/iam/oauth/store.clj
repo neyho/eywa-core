@@ -180,7 +180,7 @@
     session :id
     user :user
     {client :euuid} :client}]
-  (let [{audience :aud scope :scope} (iam/unsign-data access-token)
+  (let [{{audience "aud" scope "scope"} :payload} (iam/jwt-decode access-token)
         scope (set (str/split scope #" "))]
     (core/set-session session {:client client
                                :last-active (vura/date)})
@@ -279,58 +279,3 @@
 
   (def kp (-> iam/encryption-keys deref first))
   (on-key-pair-add {:key-pair kp}))
-
-(defmethod compose/prepare [::create-consent-table neyho.eywa.Postgres]
-  [_]
-  #_(let [ddl (compose/mlf
-               "create table __oidc_user_consent ("
-               "   \"user\" bigint not null references \"%s\"(_eid) on delete cascade," (compose/table -oidc-user-)
-               "   \"client\" bigint not null references \"%s\"(_eid) on delete cascade," (compose/table -oidc-client-)
-               "   \"scope\" bigint not null references \"%s\"(_eid) on delete cascade," (compose/table -oidc-scope-)
-               "   \"consent_at\" TIMESTAMP default now(),"
-               "   unique (\"user\", \"client\", \"scope\")"
-               ")")]
-      [ddl]))
-
-(defmethod compose/prepare [::delete-consent-table neyho.eywa.Postgres]
-  [_]
-  ["drop table __oidc_user_consent"])
-
-(defmethod compose/prepare [::exists? neyho.eywa.Postgres]
-  [_]
-  ["SELECT to_regclass('public.__oidc_user_consent')"])
-
-(defn create-consent-table
-  []
-  (compose/execute! (compose/prepare ::create-consent-table)))
-
-(defn delete-consent-table
-  []
-  (compose/execute! (compose/prepare ::delete-consent-table)))
-
-(defn consent-table-exists?
-  []
-  (let [[{result :to_regclass}] (compose/execute! (compose/prepare ::exists?))]
-    (some? result)))
-
-#_(defmethod compose/prepare [::provide-consent neyho.eywa.Postgres]
-    [_ {:keys [username client-id scopes]}]
-    #_(into
-       [(compose/ml
-         (format "WITH data (username, clientid, scopename) AS (VALUES %s" (str/join ", " (repeat (count scopes) "(?,?,?)")))
-         "), ids AS ("
-         "SELECT "
-         (format "(SELECT _eid FROM \"%s\" WHERE name = d.username) AS user, " (compose/table -oidc-user-))
-         (format "(SELECT _eid FROM \"%s\" WHERE client_id = d.clientid) AS client, " (compose/table -oidc-client-))
-         (format "(SELECT _eid FROM \"%s\" WHERE name = d.scopename) AS scope" (compose/table -oidc-scope-))
-         "FROM data d"
-         ") "
-         "INSERT INTO __oidc_user_consent (user, client, scope)"
-         "SELECT user, client, scope FROM ids")]
-       (map (fn [scope] (vector username client-id scope)) scopes)))
-
-(defn user-provided-consent [user client scopes]
-  (compose/execute!
-   (compose/prepare
-    ::provide-consent
-    {:user user :client client :scopes scopes})))

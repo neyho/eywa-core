@@ -22,11 +22,10 @@
    neyho.eywa.iam.uuids
    neyho.eywa.iam.access
    neyho.eywa.iam.oauth.store
-   neyho.eywa.modeling.erd
    [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
 
-(def version "0.3.6")
+(def version "0.3.7")
 
 (defn setup
   ([] (setup (neyho.eywa.db.postgres/from-env)))

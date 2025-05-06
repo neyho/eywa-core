@@ -108,7 +108,7 @@
     (throw
      (ex-info
       (format
-       "You don't have sufficent privilages to read relation [%s]%s -> %s[%s]"
+       "You don't have sufficent privilages to access relation [%s]%s -> %s[%s]"
        from from-label to-label to)
       {:type ::enforce-search-access
        :roles *roles*}))))
@@ -118,7 +118,7 @@
     (throw
      (ex-info
       (format
-       "You don't have sufficent privilages to read entity '%s'"
+       "You don't have sufficent privilages to access entity '%s'"
        entity-name)
       {:type ::enforce-search-access
        :roles *roles*}))))
@@ -293,16 +293,21 @@
                        {:references-data nil
                         :resolved-references nil}
                        (select-keys data (map :key references)))
-                        ;; Remove relation data that isn't allowed
+                      ;; Remove relation data that isn't allowed
                       valid-relation-keys (let [recursions (set recursions)]
                                             (reduce
                                              (fn [result field]
-                                               (if (contains? recursions field) result
-                                                   (let [{:keys [relation to from]} (get relations field)]
-                                                     (if-not relation
-                                                       result
-                                                       (when (relation-accessible? relation [from to] #{:write :owns})
-                                                         (conj result field))))))
+                                               (if (contains? recursions field)
+                                                 result
+                                                 (let [{:keys [relation to from]} (get relations field)]
+                                                   (cond
+                                                     ;;
+                                                     (not relation) result
+                                                     ;;
+                                                     (not (contains? data field)) result
+                                                     ;;
+                                                     (relation-accessible? relation [from to] #{:write :owns})
+                                                     (conj result field)))))
                                              []
                                              (keys relations)))
                         ;;
@@ -813,9 +818,12 @@
      (jdbc/with-transaction [tx connection]
        (set-entity tx entity-id data stack?))))
   ([tx entity-id data stack?]
-   ; (def entity-id entity-id)
-   ; (def data data)
-   ; (def stack? stack?)
+   #_(do
+     (def entity-id entity-id)
+     (def data data)
+     (def stack? stack?)
+     (def roles *roles*)
+     (def user *user*))
    (letfn [(pull-roots [{:keys [root entity root/table]}]
              (log/tracef
               "[%s]Pulling root(%s) entity after mutation"
@@ -842,6 +850,13 @@
              :name "mama"}
     :father {:euuid #uuid "34d00251-cd25-40be-b68f-6755f6ca1bd1"
              :name "tata"}})
+  ; (defn test-m []
+  ;   (binding [*roles* roles
+  ;             *user* user]
+  ;     (set-entity entity-id data)))
+  ; (binding [*roles* roles
+  ;           *user* user]
+  ;   (get-entity entity-id {:euuid #uuid "42472014-2995-11f0-a15c-4d664d75367f"} {:euuid nil :name nil}))
   (binding [*roles* #{; (:euuid neyho.eywa.data/*ROOT*)
                       #uuid "97b95ab8-4ca3-498d-b578-b12e6d1a2df8"
                       #uuid "7fc035e2-812e-4861-a25c-eb172b39577f"}
@@ -2420,6 +2435,9 @@
    (log/debugf
     "[%s] Getting entity\nArgs:\n%s\nSelection:\n%s"
     entity-id (pprint args) (pprint selection))
+   ; (def entity-id entity-id)
+   ; (def args args)
+   ; (def selection selection)
    (let [args (reduce-kv
                (fn [args k v]
                  (assoc args k {:_eq v}))
