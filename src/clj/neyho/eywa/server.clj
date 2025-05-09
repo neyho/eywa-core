@@ -72,7 +72,8 @@
 (defn stop []
   (when (some? @server)
     (log/info "Restarting server")
-    (http/stop @server)))
+    (http/stop @server)
+    (reset! server nil)))
 
 (def index-html
   (try
@@ -100,18 +101,9 @@
      :or {host "localhost"
           port 8080
           service-initializer identity}}]
-   (comment
-     (do
-       (def host "localhost")
-       (def port 8080)
-       (def routes (route/expand-routes
-                    (clojure.set/union
-                      (default-routes)
-                      graphql-routes
-                      oidc/routes)))
-       (def router (route/router routes :map-tree))))
    (log/infof "Starting EYWA server %s:%s" host port)
    (stop)
+   (comment (def info nil))
    (let [routes (or routes
                     (route/expand-routes
                      (clojure.set/union

@@ -267,7 +267,10 @@
   (def shard *1)
   (add-shard :neyho.eywa.tasks/tasks _shard))
 
-(defn add-shard [key shard]
+(defn add-shard
+  "Add shard to global GraphQL schema. Specify id (key) of shard
+  and shard schema in form of a string."
+  [key shard]
   (log/infof "Adding Lacinia shard %s" key)
   (let [shard (cond
                 (string? shard) (parse-schema shard)

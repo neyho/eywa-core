@@ -3,6 +3,7 @@
   protocol implementations in other namespace by using extend-type, record
   definitions are unchanged and therefore don't break 'system'")
 
+(defonce ^:dynamic *version* nil)
 
 (defrecord Server [host port])
 

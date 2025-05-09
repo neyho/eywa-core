@@ -335,19 +335,6 @@
      {:euuid #uuid "55f666c1-f631-4a69-a84a-5746ed04ba4e"}
      {:model nil}))))
 
-(defn latest-deployed-version
-  [dataset-euuid]
-  (let [{[{version :name}] :versions}
-        (get-entity
-         du/dataset
-         {:euuid dataset-euuid}
-         {:versions
-          [{:selections {:name nil}
-            :args {:_where {:deployed {:_boolean :TRUE}}
-                   :_limit 1
-                   :_order_by {:modified_on :desc}}}]})]
-    version))
-
 (defn latest-deployed-versions
   []
   (map
@@ -389,7 +376,7 @@
   ([db]
    (log/info "Initializing Datasets...")
    (try
-     (dataset/reload db {:model (dataset/get-last-deployed db)})
+     (dataset/reload db {:model (dataset/get-last-deployed db 0)})
      (lacinia/add-directive :hook wrap-hooks)
      (lacinia/add-shard ::dataset-directives (slurp (io/resource "dataset_directives.graphql")))
      (lacinia/add-shard ::datasets (slurp (io/resource "datasets.graphql")))

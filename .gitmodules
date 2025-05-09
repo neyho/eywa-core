@@ -7,3 +7,6 @@
 [submodule "eywa-frontend"]
 	path = frontend
 	url = git@github.com:neyho/eywa-frontend.git
+[submodule "patcho"]
+	path = patcho
+	url = ./patcho

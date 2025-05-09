@@ -367,6 +367,13 @@
    (update :configuration deep-merge (:configuration model2))
    (update :clones deep-merge (:clones model2))))
 
+(defn disjoin-model [model1 model2]
+  (reduce
+   (fn [final entity]
+     (remove-entity final entity))
+   model1
+   (get-entities model2)))
+
 (defprotocol ERDModelProjectionProtocol
   (added? [this] "Returns true if this is added or false otherwise")
   (removed? [this] "Returns true if this is removed or false otherwise")

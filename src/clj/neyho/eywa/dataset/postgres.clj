@@ -339,37 +339,55 @@
                (format "update \"%s\" set %s = NULL" old-table column)))
             ;; Type has changed so you better cast to target type
             dt
-            (conj
-             (do
-               (log/debugf "Changing table %s column %s type %s -> %s" old-table column dt type)
+            (as-> statements
+                  (log/debugf "Changing table %s column %s type %s -> %s" old-table column dt type)
+              (if (#{"user" "group" "role"} type)
                 ;; TODO - this can be implemented by renaming current column
                 ;; and adding new column with target reference to replace current column
                 ;; and afterwards deleting renamed column. BE AWARE THAT ALL VALUES FOR THAT COLUMN
                 ;; WILL BE LOST
-               (when (#{"user" "group" "role"} type)
-                 (throw
-                  (ex-info
-                   "Can't alter special fields"
-                   {:type type
-                    :attribute name
-                    :entity (:name entity)})))
-               (cond->
-                (format
-                 "alter table \"%s\" alter column %s type %s"
-                 old-table column
-                 (case type
-                   "enum" new-enum-name
-                   (type->ddl type)))
-                 (= "int" type) (str " using(trim(" column ")::integer)")
-                 (= "float" type) (str " using(trim(" column ")::float)")
-                 (= "string" type) (str " using(" column "::text)")
-                 (= "json" type) (str " using(" column "::jsonb)")
-                 (= "transit" type) (str " using(" column "::text)")
-                 (= "avatar" type) (str " using(" column "::text)")
-                 (= "encrypted" type) (str " using(" column "::text)")
-                 (= "hashed" type) (str " using(" column "::text)")
-                 (= "boolean" type) (str " using(trim(" column ")::boolean)")
-                 (= "enum" type) (str " using(" column ")::" old-enum-name))))
+                #_(throw
+                   (ex-info
+                    "Can't alter special fields"
+                    {:type type
+                     :attribute name
+                     :entity (:name entity)}))
+                (let [attribute-name (normalize-name (or dn name))
+                      constraint-name (str old-table \_ attribute-name "_fkey")
+                      refered-table (case type
+                                      "user" (user-table)
+                                      "group" (group-table)
+                                      "role" (role-table))]
+                  (def attribute-name attribute-name)
+                  (def old-table old-table)
+                  (def refered-table refered-table)
+                  (def constraint-name constraint-name)
+                  (conj
+                   (vec statements)
+                   (format "alter table \"%s\" drop constraint %s" old-table constraint-name)
+                   (format
+                    "alter table \"%s\" add constraint \"%s\" foreign key (%s) references \"%s\"(_eid) on delete set null"
+                    old-table constraint-name attribute-name refered-table)))
+                ;; Proceed with acceptable type alter
+                (conj
+                 statements
+                 (cond->
+                  (format
+                   "alter table \"%s\" alter column %s type %s"
+                   old-table column
+                   (case type
+                     "enum" new-enum-name
+                     (type->ddl type)))
+                   (= "int" type) (str " using(trim(" column ")::integer)")
+                   (= "float" type) (str " using(trim(" column ")::float)")
+                   (= "string" type) (str " using(" column "::text)")
+                   (= "json" type) (str " using(" column "::jsonb)")
+                   (= "transit" type) (str " using(" column "::text)")
+                   (= "avatar" type) (str " using(" column "::text)")
+                   (= "encrypted" type) (str " using(" column "::text)")
+                   (= "hashed" type) (str " using(" column "::text)")
+                   (= "boolean" type) (str " using(trim(" column ")::boolean)")
+                   (= "enum" type) (str " using(" column ")::" old-enum-name)))))
             ;; If attribute was previously enum and now it is not enum
             ;; than delete enum type
             (= dt "enum")
@@ -812,6 +830,28 @@
 
 (def dataset-versions #uuid "d922edda-f8de-486a-8407-e62ad67bf44c")
 
+(defn last-deployed-model
+  [this]
+  (let [datasets (dataset/search-entity
+                  du/dataset
+                  nil
+                  {:versions
+                   [{:selections {:name nil :model nil :modified_on nil}
+                     :args {:_where {:deployed {:_boolean :TRUE}}
+                            :_limit 1
+                            :_order_by {:modified_on :desc}}}]})
+        models (map
+                (fn [{[version] :versions}]
+                  (:model version))
+                (sort-by
+                 (fn [{[{:keys [modified_on]}] :versions}]
+                   modified_on)
+                 datasets))]
+    (reduce
+     (fn [global model]
+       (core/join-models global model))
+     models)))
+
 ;; I understand that this was used in some old logic, but i can't see advantage of
 ;; this approach when we have get-last-deployed
 #_(defn db->model
@@ -883,11 +923,11 @@
   core/DatasetProtocol
   (core/deploy! [this {:keys [model]  :as version}]
     (try
-      (def this this)
-      (def current-model (core/get-model this))
-      (def version version)
-      (def model model)
       (comment
+        (def this this)
+        (def current-model (core/get-model this))
+        (def version version)
+        (def model model)
         (def dataset' (assoc version :model (core/join-models current-model model))))
       (let [dataset' (core/mount this version)
             version'' (assoc
@@ -920,7 +960,7 @@
   ;;
   (core/recall! [this version]
     (core/unmount this version)
-    (let [db-model (core/get-last-deployed this) #_(db->model this)
+    (let [db-model (core/get-last-deployed this)
           model (core/get-model this)]
       (delete-entity this du/dataset-version {:euuid (:euuid version)})
       (dataset/save-model db-model)
@@ -1112,7 +1152,8 @@
       (postgres/drop-db admin (:db this))))
   (core/get-last-deployed
     ([this]
-     (core/get-last-deployed this nil))
+     #_(core/get-last-deployed this nil)
+     (last-deployed-model this))
     ([_ offset]
      (with-open [connection (jdbc/get-connection (:datasource *db*))]
        (when-let [m (n/execute-one!

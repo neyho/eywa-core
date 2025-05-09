@@ -1015,7 +1015,9 @@
                                 (fn [result k _]
                                   (reduce clojure.set/union
                                           (if (valid-fields k) (conj result k) result)
-                                          (map join-args (vals (select-keys args [:_where :_and :_or :_maybe])))))
+                                          (concat
+                                            (map join-args (vals (select-keys args [:_where :_maybe])))
+                                            (mapcat #(map join-args %) (vals (select-keys args [:_or :_and]))))))
                                 result
                                 args)))]
                       (join-args args))

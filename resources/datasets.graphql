@@ -41,6 +41,9 @@ type Mutation {
   @resolve(fn: "neyho.eywa.dataset/deploy-dataset")
   @protect(scopes: ["dataset:deploy"])
 
+  """Mutation can be used to import dataset through cli clients,
+  after completing device flow authorization. Given the authenticated
+  user has sufficient privileges"""
   importDataset(dataset: Transit):DatasetVersion
   @resolve(fn: "neyho.eywa.dataset/import-dataset")
   @protect(scopes: ["dataset:deploy"])

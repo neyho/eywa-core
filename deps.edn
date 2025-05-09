@@ -39,6 +39,7 @@
   ; com.github.gersak/vura                       {:local/root "../../vura"}
   ; com.github.gersak/shadow-css                 {:local/root "../../shadow-css"}
   com.github.gersak/shadow-css                 {:mvn/version "0.5.0"}
+  dev.gersak/patcho                            {:mvn/version "0.1.0"}
   babashka/fs                                  {:mvn/version "0.5.22"}}
 
  :paths ["src/clj" "src/cljc" "src/cljs" "src/css" "resources"]
@@ -46,7 +47,7 @@
 
  :aliases
  {:dev
-  {:extra-paths ["src/dev" "src/css" "frontend/dist" "test"]
+  {:extra-paths ["src/dev" "src/css" "frontend/dist" "test" "patcho/src"]
    :extra-deps {thheller/shadow-cljs {:mvn/version "2.20.20"}
                 nrepl/nrepl          {:mvn/version "1.3.0"}}}
   ;;

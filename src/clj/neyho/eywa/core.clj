@@ -22,10 +22,13 @@
    neyho.eywa.iam.uuids
    neyho.eywa.iam.access
    neyho.eywa.iam.oauth.store
+   [neyho.eywa.health :as health]
    [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
 
-(def version "0.3.7")
+(def version "0.3.8")
+
+(alter-var-root #'neyho.eywa/*version* (fn [_] version))
 
 (defn setup
   ([] (setup (neyho.eywa.db.postgres/from-env)))
@@ -136,10 +139,10 @@
       false)
     false))
 
-(defn java-doctor
-  [lines]
+(defmethod health/doctor "JAVA"
+  [_]
   (let [{java-version :version :as jinfo} (java-info)]
-    (as-> (or lines []) lines
+    (as-> [] lines
       (if (valid-java? jinfo)
         (conj lines (str "  JAVA     " (str "OK: version '" java-version "' is supported")))
         (conj lines
@@ -156,8 +159,8 @@
       (neyho.eywa.dataset.core/get-last-deployed neyho.eywa.db/*db*)
       (println "EYWA is initialized"))))
 
-(defn dataset-doctor
-  [lines]
+(defmethod health/doctor "DATASETS"
+  [_]
   (neyho.eywa.transit/init)
   (neyho.eywa.iam/init-default-encryption)
   (let [postgres-error (try
@@ -171,7 +174,7 @@
                           (catch Throwable ex
                             (log/error ex "Doctor failed to check datasets")
                             "EYWA not initialized")))]
-    (as-> lines lines
+    (as-> [] lines
       ;; Check postgres
       (if postgres-error
         (conj lines (str "  POSTGRES " (str "ERROR: " postgres-error)))
@@ -184,12 +187,14 @@
           (conj lines (str "  DATASETS " (str "ERROR: Postgres not available"))))))))
 
 (defn doctor []
-  (->
-   []
-   java-doctor
-   dataset-doctor
-   doctor-table
-   println))
+  (let [lines (reduce
+               (fn [lines organ]
+                 (if-some [new-lines (health/doctor organ)]
+                   (into lines new-lines)
+                   lines))
+               []
+               (keys (methods health/doctor)))]
+    (println (doctor-table lines))))
 
 (defn spit-pid
   []

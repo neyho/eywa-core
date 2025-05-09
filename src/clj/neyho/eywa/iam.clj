@@ -4,6 +4,7 @@
    clojure.set
    clojure.pprint
    clojure.data.json
+   [patcho.patch :as patch]
    [clojure.core.async :as async]
    [version-clj.core :as vrs]
    [clojure.java.io :as io]
@@ -130,15 +131,6 @@
     {:kid (:kid (encode-rsa-key private))
      :private private
      :public public}))
-
-(comment
-  (def kp (generate-key-pair))
-  (.toString (:public kp))
-  (-> kp :public (keys/public-key->jwk))
-  (-> kp :private (keys))
-  (= (:kid (encode-rsa-key (:private kp)))
-     (:kid (encode-rsa-key (:public kp))))
-  (:private kp))
 
 (defn rotate-keypair
   []
@@ -350,33 +342,28 @@
   []
   (<-transit (slurp (io/resource "dataset/iam.json"))))
 
-(defn level-iam-model
+(defn level-iam
   []
   (let [{current-version :name :as current} (current-version)
         ;;
         {deployed-version :name}
         (dataset/latest-deployed-version #uuid "c5c85417-0aef-4c44-9e86-8090647d6378")]
-    (when (and (vrs/newer? current-version deployed-version) db/*db*)
-      (log/infof
-       "[IAM] Old version of IAM dataset %s is deployed. Deploying newer version %s"
-       deployed-version current-version)
-      (dataset/deploy! current)
-      (dataset/reload))
-    (when (vrs/older? deployed-version "0.80.0")
-      (log/infof "[IAM] Noticed that OAuth was not initialized!")
-      (import-app "exports/app_eywa_frontend.json")
-      (import-api "exports/api_eywa_graphql.json")
-      (doseq [role ["exports/role_dataset_developer.json"
-                    "exports/role_dataset_modeler.json"
-                    "exports/role_dataset_explorer.json"
-                    "exports/role_iam_admin.json"
-                    "exports/role_iam_user.json"]]
-        (import-role role)))))
+    (patch/apply ::dataset deployed-version current-version)))
 
-(comment
-  (vrs/newer?
-   "0.1.3-beta1"
-   "0.1.3-alpha93"))
+(patch/upgrade
+ ::dataset "0.80.0"
+ (log/info "[IAM] Old version of IAM dataset deployed. Deploying newer version!")
+ (dataset/deploy! (current-version))
+ (dataset/reload)
+ (log/infof "[IAM] Noticed that OAuth was not initialized!")
+ (import-app "exports/app_eywa_frontend.json")
+ (import-api "exports/api_eywa_graphql.json")
+ (doseq [role ["exports/role_dataset_developer.json"
+               "exports/role_dataset_modeler.json"
+               "exports/role_dataset_explorer.json"
+               "exports/role_iam_admin.json"
+               "exports/role_iam_user.json"]]
+   (import-role role)))
 
 (defn start
   []
@@ -386,7 +373,7 @@
     ;; and tracked by relations and entity changes just like in neyho.eywa.iam.access namespace
     ; (lacinia/add-shard ::graphql (slurp (io/resource "iam.graphql")))
     (ensure-public)
-    (level-iam-model)
+    (level-iam)
     (dataset/bind-service-user #'*PUBLIC_USER*)
     (lacinia/add-directive :protect wrap-protect)
     (log/info "IAM initialized")

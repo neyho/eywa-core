@@ -230,7 +230,6 @@
 
 (defn generate
   [{{allowed-grants "allowed-grants"} :settings :as client} session {:keys [audience scope client_id]}]
-  ; (throw (throw (Exception. "FUCCCKKCKCK")))
   (let [access-exp (->
                     (System/currentTimeMillis)
                     (quot 1000)

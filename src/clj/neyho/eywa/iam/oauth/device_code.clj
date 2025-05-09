@@ -182,7 +182,7 @@
               :user-code
               :expires-at
               :interval
-            
+
             You can get this information by calling (get-device-code-data)"}
   start-device-flow
   {:enter
