@@ -254,8 +254,8 @@
          (binding [*master-key* master-key]
            (init-deks))
          (alter-var-root #'*master-key* (fn [_] master-key))
-         (catch Throwable _
-           (log/errorf "[ENCRYPTION] Couldn't initialize dataset encryption")
+         (catch Throwable ex
+           (log/errorf ex "[ENCRYPTION] Couldn't initialize dataset encryption")
            nil))))))
 
 (defonce ^:private available-shares (atom nil))
@@ -329,6 +329,8 @@
 ;; @resolve
 (defn generate-master
   [ctx _ _]
+  (when-not (dek-table-exists?)
+    (create-dek-table))
   (cond
     ;;
     (not (access/superuser?)) (process-not-authorized ctx)
@@ -347,6 +349,8 @@
 ;; @resolve
 (defn generate-shares
   [ctx {:keys [shares threshold]} _]
+  (when-not (dek-table-exists?)
+    (create-dek-table))
   (cond
     ;;
     (not (access/superuser?)) (process-not-authorized ctx)

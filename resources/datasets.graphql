@@ -54,17 +54,21 @@ type Mutation {
   @hook(fn: "neyho.eywa.dataset/destroy-linked-versions")
   @protect(scopes: ["dataset:delete"])
 
-  initializeEncryptionWithShare(share: SSShareInput): EncryptionResponse
+  """Calling this mutation, encryption will be initialized! You can
+  call this mutation only once, keep response in some safe location."""
+  unsealEncryptionWithShare(share: SSShareInput): EncryptionResponse
   @resolve(fn: "neyho.eywa.dataset.encryption/init-with-share")
 
-  initializeEncryptionRaw(master: String): EncryptionResponse
+  """Calling this mutation, encryption will be initialized! You can
+  call this mutation only once, keep response in some safe location."""
+  unsealEncryptionWithMaster(master: String): EncryptionResponse
   @resolve(fn: "neyho.eywa.dataset.encryption/init-with-master")
 
 
-  generateShares(shares: Int=5, threshold: Int=3):[SSShare]
+  initEncryptionShares(shares: Int=5, threshold: Int=3):[SSShare]
   @resolve(fn: "neyho.eywa.dataset.encryption/generate-shares")
 
-  generateMaster:String
+  initEncryptionMaster:String
   @resolve(fn: "neyho.eywa.dataset.encryption/generate-master")
 
 }

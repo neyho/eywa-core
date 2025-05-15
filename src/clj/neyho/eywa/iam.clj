@@ -356,14 +356,15 @@
  (dataset/deploy! (current-version))
  (dataset/reload)
  (log/infof "[IAM] Noticed that OAuth was not initialized!")
- (import-app "exports/app_eywa_frontend.json")
- (import-api "exports/api_eywa_graphql.json")
- (doseq [role ["exports/role_dataset_developer.json"
-               "exports/role_dataset_modeler.json"
-               "exports/role_dataset_explorer.json"
-               "exports/role_iam_admin.json"
-               "exports/role_iam_user.json"]]
-   (import-role role)))
+ (binding [*user* *EYWA*]
+   (import-app "exports/app_eywa_frontend.json")
+   (import-api "exports/api_eywa_graphql.json")
+   (doseq [role ["exports/role_dataset_developer.json"
+                 "exports/role_dataset_modeler.json"
+                 "exports/role_dataset_explorer.json"
+                 "exports/role_iam_admin.json"
+                 "exports/role_iam_user.json"]]
+     (import-role role))))
 
 (defn start
   []

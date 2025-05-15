@@ -26,7 +26,7 @@
    [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
 
-(def version "0.3.8")
+(def version "0.4.0")
 
 (alter-var-root #'neyho.eywa/*version* (fn [_] version))
 
@@ -104,17 +104,19 @@
   (defn doctor-table
     [lines]
     (letfn [(row [text]
-              (str "|" text (apply str (repeat (- table-length 2 (count text)) " ")) "|"))]
+              text
+              #_(str "|" text)
+              #_(str "|" text (apply str (repeat (- table-length 2 (count text)) " ")) "|"))]
       (str/join
        "\n"
        (map
         #(str padding-left %)
         (concat
-         [hline
-          (row "")]
+         [(row "")]
+         #_[hline
+            (row "")]
          (map row lines)
-         [(row "")
-          hline]))))))
+         [(row "")]))))))
 
 (defn java-info
   []
@@ -144,9 +146,9 @@
   (let [{java-version :version :as jinfo} (java-info)]
     (as-> [] lines
       (if (valid-java? jinfo)
-        (conj lines (str "  JAVA     " (str "OK: version '" java-version "' is supported")))
+        (conj lines (str "  JAVA     " (str "✅: version '" java-version "' is supported")))
         (conj lines
-              (str "  JAVA     " (str "ERROR: current version '" java-version "' is not supported"))
+              (str "  JAVA     " (str "❌: current version '" java-version "' is not supported"))
               (str "         Use JAVA versions 11,17"))))))
 
 (defn is-initialized
@@ -177,14 +179,14 @@
     (as-> [] lines
       ;; Check postgres
       (if postgres-error
-        (conj lines (str "  POSTGRES " (str "ERROR: " postgres-error)))
-        (conj lines (str "  POSTGRES " (str "OK"))))
+        (conj lines (str "  POSTGRES " (str "❌: " postgres-error)))
+        (conj lines (str "  POSTGRES " (str "✅"))))
       ;; Check datasets
       (if dataset-error
-        (conj lines (str "  DATASETS " (str "ERROR: " dataset-error)))
+        (conj lines (str "  DATASETS " (str "❌: " dataset-error)))
         (if-not postgres-error
-          (conj lines (str "  DATASETS OK"))
-          (conj lines (str "  DATASETS " (str "ERROR: Postgres not available"))))))))
+          (conj lines (str "  DATASETS ✅"))
+          (conj lines (str "  DATASETS " (str "❌: Postgres not available"))))))))
 
 (defn doctor []
   (let [lines (reduce

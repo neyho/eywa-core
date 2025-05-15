@@ -342,26 +342,12 @@
             (as-> statements
                   (log/debugf "Changing table %s column %s type %s -> %s" old-table column dt type)
               (if (#{"user" "group" "role"} type)
-                ;; TODO - this can be implemented by renaming current column
-                ;; and adding new column with target reference to replace current column
-                ;; and afterwards deleting renamed column. BE AWARE THAT ALL VALUES FOR THAT COLUMN
-                ;; WILL BE LOST
-                #_(throw
-                   (ex-info
-                    "Can't alter special fields"
-                    {:type type
-                     :attribute name
-                     :entity (:name entity)}))
                 (let [attribute-name (normalize-name (or dn name))
                       constraint-name (str old-table \_ attribute-name "_fkey")
                       refered-table (case type
                                       "user" (user-table)
                                       "group" (group-table)
                                       "role" (role-table))]
-                  (def attribute-name attribute-name)
-                  (def old-table old-table)
-                  (def refered-table refered-table)
-                  (def constraint-name constraint-name)
                   (conj
                    (vec statements)
                    (format "alter table \"%s\" drop constraint %s" old-table constraint-name)
@@ -381,7 +367,11 @@
                    (= "int" type) (str " using(trim(" column ")::integer)")
                    (= "float" type) (str " using(trim(" column ")::float)")
                    (= "string" type) (str " using(" column "::text)")
-                   (= "json" type) (str " using(" column "::jsonb)")
+                   ; (= "json" type) (str " using(" column "::jsonb)")
+                   (= "json" type) (str " using\n case when "
+                                        column " ~ '^\\s*\\{.*\\}\\s*$' OR "
+                                        column " ~ '^\\s*\\[.*\\]\\s*$'\nthen " column
+                                        "::jsonb\nelse NULL end;")
                    (= "transit" type) (str " using(" column "::text)")
                    (= "avatar" type) (str " using(" column "::text)")
                    (= "encrypted" type) (str " using(" column "::text)")

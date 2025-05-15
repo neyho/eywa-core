@@ -1396,7 +1396,7 @@
 (def ^:dynamic *ignore-maybe* true)
 (def ^:dynamic *deep* true)
 
-;; TODO - IMPORTANT check wyh query-selection->sql is not passing on data
+;; TODO - IMPORTANT check why query-selection->sql is not passing on data
 (defn query-selection->sql
   ([schema] (query-selection->sql schema []))
   ([{operators :args encoders :encoders prefix :entity/as relations :relations :as schema} data]
@@ -1502,8 +1502,12 @@
                            (not (vector? cv))
                            (some? cv)))
                        (let [statement (case cn
-                                         :_in (format "%s in (%s)" field' (clojure.string/join "," (repeat (count cv) \?)))
-                                         :_not_in (format "%s not in (%s)" field' (clojure.string/join "," (repeat (count cv) \?)))
+                                         :_in (if-not (empty? cv)
+                                                (format "%s in (%s)" field' (clojure.string/join "," (repeat (count cv) \?)))
+                                                "")
+                                         :_not_in (if-not (empty? cv)
+                                                    (format "%s not in (%s)" field' (clojure.string/join "," (repeat (count cv) \?)))
+                                                    "")
                                          :_le (str field' " <= ?")
                                          :_ge (str field' " >= ?")
                                          :_eq (str field' " = ?")
