@@ -276,7 +276,7 @@
     {:message "Not authorized!"}))
 
 ;; @resolve
-(defn init-with-share
+(defn unseal-with-share
   [ctx {{:keys [id value]} :share} _]
   ; (when-not (dek-table-exists?)
   ;   (create-dek-table))
@@ -309,7 +309,7 @@
            :message "Available shares couldn't decrypt master key"})))))
 
 ;; @resolve
-(defn init-with-master
+(defn unseal-with-master
   [ctx {:keys [master]} _]
   ; (when-not (dek-table-exists?)
   ;   (create-dek-table))
@@ -393,5 +393,4 @@
    decrypt-dek)
   (create-dek-table)
   (create-dek)
-  (drop-dke-table)
   (drop-dek-table))

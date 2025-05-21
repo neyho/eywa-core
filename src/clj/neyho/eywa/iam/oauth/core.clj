@@ -129,7 +129,8 @@
                  (->
                   resource-owners
                   (assoc euuid resource-owner)
-                  (update ::name-mapping assoc name euuid))))))))
+                  (update ::name-mapping assoc name euuid))))
+        resource-owner))))
 
 (defn get-session-resource-owner [session]
   (let [euuid (get-in @*sessions* [session :resource-owner])]
@@ -348,7 +349,7 @@
   [session]
   (get-in @*sessions* [session :authorized-at]))
 
-(defmulti session-kill-hook (fn [priority session] priority))
+(defmulti session-kill-hook (fn [priority _] priority))
 
 (defn kill-session
   [session]
@@ -362,10 +363,6 @@
      :oauth.session/killed
      {:session session
       :data session-data})))
-
-(comment
-  (deref neyho.eywa.iam.oauth.token/*tokens*)
-  (def session "YXldcURYFGCaMkMKwqFQvUblGOlSGh"))
 
 (defn kill-sessions
   []
@@ -431,8 +428,6 @@
      host "host"} :headers
     :keys [scheme]}]
   ; (def request request)
-  (comment
-    (original-uri request))
   (format
    "%s://%s"
    (or forwarded-proto (name scheme))
@@ -552,12 +547,3 @@
       ;; when reloading is complete, wait for new delta value
       ;; and repeat process
       (recur (async/<! delta-chan)))))
-
-(comment
-  (clean-codes)
-  (java.util.Date. 1720693899)
-  (def token (-> *tokens* deref :access_token ffirst))
-  (reset)
-  (require '[buddy.sign.jwt :as jwt])
-  (jwt/decode-header token)
-  (reset))

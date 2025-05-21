@@ -7,17 +7,14 @@
    [clojure.string :as str]
    [clojure.core.async :as async]
    [clojure.java.io :as io]
-   [version-clj.core :as vrs]
    [buddy.sign.jwt :as jwt]
    [environ.core :refer [env]]
-   [neyho.eywa.db :as db]
    [neyho.eywa.iam :as iam]
    [neyho.eywa.transit :refer [<-transit]]
    [neyho.eywa.iam.oauth.core :as core]
    [neyho.eywa.iam.oauth.token :as token]
    [neyho.eywa.dataset.encryption :as encryption]
-   [neyho.eywa.dataset :as dataset]
-   [neyho.eywa.dataset.sql.compose :as compose])
+   [neyho.eywa.dataset :as dataset])
   (:import
    [java.util Base64]
    [java.security KeyFactory]
@@ -148,14 +145,13 @@
 
 (defn level-store
   []
-  (let [{current-version :name :as current} (current-version)
+  (let [{current-version :name} (current-version)
         ;;
         {deployed-version :name} (dataset/latest-deployed-version #uuid "0f9bb720-4b94-445c-9780-a4af09e8536c")]
     (patch/apply ::dataset deployed-version current-version)))
 
 (defn open-store
   []
-  (level-store)
   (let [store-messages (async/chan (async/sliding-buffer 200))
         topics [:keypair/added :keypair/removed
                 :oauth.revoke/token :oauth.grant/tokens
@@ -190,14 +186,15 @@
     user :user
     {client :euuid} :client}]
   (let [{{audience "aud" scope "scope"} :payload} (iam/jwt-decode access-token)
-        scope (set (str/split scope #" "))]
+        scope (set (str/split scope #" "))
+        user-details (core/get-resource-owner (:name user))]
     (core/set-session session {:client client
                                :last-active (vura/date)})
     (token/set-session-tokens session audience
                               {:access_token access-token
                                :refresh_token refresh-token})
     (core/set-session-audience-scope session audience scope)
-    (core/set-session-resource-owner session user)
+    (core/set-session-resource-owner session user-details)
     (core/set-session-authorized-at session (vura/date))))
 
 (comment
@@ -213,12 +210,11 @@
          {:euuid nil
           :id nil
           :client  [{:selections {:euuid nil}}]
-          :user [{:selections {:euuid nil
-                               :name nil}}]
+          :user [{:selections {:name nil}}]
           :access_tokens [{:selections {:value nil}
                            :args {:_where {:revoked {:_boolean :NOT_TRUE}}}}]
           :refresh_tokens [{:selections {:value nil}
-                            :args {:_where {:revoked {:_boolean :NOT_TRUE}}}}]})]
+                            :args {:_maybe {:revoked {:_boolean :NOT_TRUE}}}}]})]
     (doseq [session sessions] (load-session session))))
 
 (defn start
@@ -230,6 +226,7 @@
                (catch Throwable ex
                  (log/errorf "[OAuth Store] Couldn't read from key pair table!")
                  ex))]
+     (level-store)
      (cond
        ;;
        (and persistent? (not (encryption/initialized?)))
@@ -284,7 +281,4 @@
    (deref iam/encryption-keys)
    first
    :public
-   iam/encode-rsa-key)
-
-  (def kp (-> iam/encryption-keys deref first))
-  (on-key-pair-add {:key-pair kp}))
+   iam/encode-rsa-key))

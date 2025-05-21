@@ -127,22 +127,6 @@
 
   (java.util.Date.)
   (vura/date)
-  (def token
-    (sign-data
-     (hash-map :value data
-               :session session
-               :exp
-               (->
-                (System/currentTimeMillis)
-                (quot 1000)
-                (+ (refresh-token-expiry client))))
-     {:alg :rs256}))
-  (->
-   (System/currentTimeMillis)
-   (+ (refresh-token-expiry client))
-   (quot 1000)
-   (* 1000)
-   (vura/value->time))
   (iam/unsign-data token))
 
 (defmethod sign-token :refresh_token
@@ -160,24 +144,6 @@
 (defmethod sign-token :access_token
   [_ _ data]
   (sign-data data {:alg :rs256}))
-
-(comment
-  (def d
-    (sign-data
-     (assoc {:a 100}
-       :exp (->
-             (System/currentTimeMillis)
-             (quot 1000)
-             (+ (access-token-expiry client))))
-     {:alg :rs256}))
-  (vura/value->time
-   (* 1000
-      (->
-       (System/currentTimeMillis)
-       (quot 1000)
-       (+ (refresh-token-expiry client)))))
-  (def client (val (nth (seq @core/*clients*) 0)))
-  (unsign-data d))
 
 (def unsupported (core/json-error 500 "unsupported" "This feature isn't supported at the moment"))
 

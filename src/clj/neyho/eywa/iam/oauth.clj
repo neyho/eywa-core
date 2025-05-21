@@ -62,10 +62,10 @@
    (fn [{{request :params
           :keys [remote-addr]
           {:keys [user-agent]} :headers} :request :as ctx}]
-     (def ctx ctx)
-     (def request request)
-     (def remote-addr remote-addr)
-     (def user-agent user-agent)
+     ; (def ctx ctx)
+     ; (def request request)
+     ; (def remote-addr remote-addr)
+     ; (def user-agent user-agent)
      (log/debugf "Authorizing request:\n%s" request)
      (letfn [(split-spaces [request k]
                (if-some [val (get request k)]
@@ -93,6 +93,7 @@
                   :keys [prompt redirect_uri state]} request
                  ;;
                  silent? (and (some? cookie-session) (= prompt "none"))]
+             ; (-> request :idsrv/session)
              (letfn [(save
                        ([code data]
                         (swap! *authorization-codes*
