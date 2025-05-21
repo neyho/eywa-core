@@ -115,8 +115,8 @@
 
 (defn upload [& _]
   (let [s3 (aws/client {:api :s3})
-        s3-path (str "eywa_core/jar/" version ".jar")
-        bucket "eywa.public"]
+        s3-path (str version ".jar")
+        bucket "eywa.core"]
     (println (format "Uploading file: %s to S3: %s:%s" uber-file bucket s3-path))
     (with-open [file (io/input-stream (io/file uber-file))]
       (pprint

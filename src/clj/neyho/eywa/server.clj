@@ -75,18 +75,6 @@
     (http/stop @server)
     (reset! server nil)))
 
-(def index-html
-  (try
-    (slurp
-     (or
-        ;; This is production
-      (io/resource "eywa/index.html")
-        ;; This is development
-      (io/resource "index.html")))
-    (catch Throwable _ "EYWA N/A")))
-
-(defonce _response (atom nil))
-
 (defn development-environment
   [service-map]
   (if-not (env :eywa-development) service-map
@@ -101,7 +89,7 @@
      :or {host "localhost"
           port 8080
           service-initializer identity}}]
-   (log/infof "Starting EYWA server %s:%s" host port)
+   (log/infof "Starting %s server %s:%s" (env :eywa-bucket "EYWA") host port)
    (stop)
    (comment (def info nil))
    (let [routes (or routes
@@ -132,7 +120,7 @@
                    ; development-environment
                   http/create-server)]
      (reset! server (http/start _server))
-     (log/infof "EYWA server started @ %s:%s" host port))))
+     (log/infof "%s server started @ %s:%s" (env :eywa-bucket "EYWA") host port))))
 
 (comment
   (stop)

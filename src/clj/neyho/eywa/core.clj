@@ -22,6 +22,7 @@
    neyho.eywa.iam.uuids
    neyho.eywa.iam.access
    neyho.eywa.iam.oauth.store
+   neyho.eywa.update
    [neyho.eywa.health :as health]
    [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
@@ -171,6 +172,7 @@
                          (catch Throwable ex (ex-message ex)))
         dataset-error (when-not postgres-error
                         (try
+                          (neyho.eywa.dataset/start)
                           (neyho.eywa.dataset.core/get-last-deployed neyho.eywa.db/*db*)
                           nil
                           (catch Throwable ex
@@ -297,7 +299,9 @@
         "doctor" (do
                    (doctor)
                    (System/exit 0))
-        "start" (start)
+        "start" (do
+                  (start)
+                  (neyho.eywa.update/sync neyho.eywa/*version*))
         (do
           (.print System/err (str "Unknown args: " args))
           (System/exit 1)))

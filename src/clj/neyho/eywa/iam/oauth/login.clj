@@ -196,15 +196,14 @@
                      :headers {"Location" "/oauth/status?value=error&error=broken_flow"}}))))))
    ;; TODO - decide about this idsrv.session in cookie
    ;; If user has multiple sessions in same browser this doesn't make any sense
-   ; :leave (fn [{:keys [::session] :as ctx}]
-   ;          (if-not session ctx
-   ;            (assoc-in ctx [:response :cookies "idsrv.session"]
-   ;                      {:value session
-   ;                       :path "/"
-   ;                       :http-only true
-   ;                       :secure true
-   ;                       :expires "Session"})))
-   })
+   :leave (fn [{:keys [::session] :as ctx}]
+            (if-not session ctx
+                    (assoc-in ctx [:response :cookies "idsrv.session"]
+                              {:value session
+                               :path "/"
+                               :http-only true
+                               :secure true
+                               :expires "Session"})))})
 (def login-page
   {:enter (fn [ctx]
             (assoc ctx :response {:status (if (::error ctx) 400 200)

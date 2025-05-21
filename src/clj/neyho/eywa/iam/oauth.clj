@@ -62,6 +62,10 @@
    (fn [{{request :params
           :keys [remote-addr]
           {:keys [user-agent]} :headers} :request :as ctx}]
+     (def ctx ctx)
+     (def request request)
+     (def remote-addr remote-addr)
+     (def user-agent user-agent)
      (log/debugf "Authorizing request:\n%s" request)
      (letfn [(split-spaces [request k]
                (if-some [val (get request k)]
@@ -105,7 +109,6 @@
                  ;; requested redirect_uri, with prepared authorization code
                  silent?
                  (try
-
                    (let [{client-euuid :euuid} (validate-client request)
                          code (gen-authorization-code)]
                      (save code {:issued? true
@@ -116,12 +119,12 @@
                      (mark-code-issued cookie-session code)
                      (assoc ctx
                        ::code code
-                       :respone {:status 302
-                                 :headers {"Location" (str redirect_uri "?"
-                                                           (codec/form-encode
-                                                            (cond->
-                                                             {:code code}
-                                                              (not-empty state) (assoc :state state))))}}))
+                       :response {:status 302
+                                  :headers {"Location" (str redirect_uri "?"
+                                                            (codec/form-encode
+                                                             (cond->
+                                                              {:code code}
+                                                               (not-empty state) (assoc :state state))))}}))
                    (catch clojure.lang.ExceptionInfo ex
                      (core/handle-request-error (ex-data ex))))
                  ;;
