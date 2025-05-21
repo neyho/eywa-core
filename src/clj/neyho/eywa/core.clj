@@ -5,6 +5,7 @@
    [clojure.tools.logging :as log]
    [clojure.java.shell :refer [sh]]
    [environ.core :refer [env]]
+   [patcho.patch :as patch]
    neyho.eywa.transit
    neyho.eywa
    [neyho.eywa.env :as env]
@@ -22,14 +23,12 @@
    neyho.eywa.iam.uuids
    neyho.eywa.iam.access
    neyho.eywa.iam.oauth.store
-   neyho.eywa.update
+   [neyho.eywa.update :as update]
    [neyho.eywa.health :as health]
    [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
 
 (def version "0.4.0")
-
-(alter-var-root #'neyho.eywa/*version* (fn [_] version))
 
 (defn setup
   ([] (setup (neyho.eywa.db.postgres/from-env)))
@@ -246,7 +245,14 @@
    (neyho.eywa.iam/start)
    (when (#{"true" "TRUE" "YES" "yes" "y" "1"} (env :eywa-iam-enforce-access))
      (neyho.eywa.iam.access/start))
-   (neyho.eywa.server/start options)))
+   (neyho.eywa.server/start options)
+   (patch/apply
+    ::update/db
+    (try
+      (update/last-version "core")
+      (catch Throwable _ nil))
+    version)
+   (neyho.eywa.update/sync "core" version)))
 
 (defn tear-down
   ([] (tear-down (neyho.eywa.db.postgres/from-env)))
@@ -299,9 +305,7 @@
         "doctor" (do
                    (doctor)
                    (System/exit 0))
-        "start" (do
-                  (start)
-                  (neyho.eywa.update/sync neyho.eywa/*version*))
+        "start" (start)
         (do
           (.print System/err (str "Unknown args: " args))
           (System/exit 1)))
