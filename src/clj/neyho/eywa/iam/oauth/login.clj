@@ -211,6 +211,7 @@
                                :path "/"
                                :http-only true
                                :secure true
+                               :same-site :none
                                :expires "Session"})))})
 (def login-page
   {:enter (fn [ctx]

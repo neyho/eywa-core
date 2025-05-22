@@ -19,8 +19,7 @@
    [neyho.eywa.iam.oauth.token :as token
     :refer [grant-token
             token-error
-            client-id-missmatch
-            owner-not-authorized]]
+            client-id-missmatch]]
    [neyho.eywa.iam.oauth.page.device :as device]))
 
 (defonce ^:dynamic *device-codes* (atom nil))
@@ -163,8 +162,7 @@
                  :error_description "The authorization request is still pending as the end user hasn't yet completed the user-interaction steps"})}
         ;; Issue that token
         :else
-        (let [response (json/write-str (token/generate client session original-request))
-              now (vura/date)]
+        (let [response (json/write-str (token/generate client session original-request))]
           (swap! *device-codes* dissoc device_code)
           ; (core/set-session-audience-scope session audience scope)
           {:status 200

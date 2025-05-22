@@ -238,7 +238,6 @@
         (when session
           (revoke-session-tokens session audience)
           (set-session-tokens session audience signed-tokens))
-        #_(when session (set-session-tokens session audience signed-tokens))
         (iam/publish
          :oauth.grant/tokens
          {:tokens signed-tokens
@@ -326,15 +325,6 @@
        "invalid_grant"
        "There is no valid session for refresh token that"
        "was provided"))))
-
-(comment
-  (def request
-    {:grant_type "authorization_code"
-     :redirect_uri "http://localhost:3000/auth/callback",
-     :client_id "GMTXXCLYXPIJHCLYHPVZDWWARYPMVLGIKFXKFAZNIGKLIDNJ"
-     :client_secret "3yaUy6VkEYPxaAzHjJcLmWUVlRUGU89qpU6m07f-CWZZC1c8"
-     :code "PEMECARHWZOMRAPYZMASEFGLFFRVZV"
-     :scope nil}))
 
 (defn token-endpoint
   [{{:keys [grant_type] :as oauth-request} :params :as request}]

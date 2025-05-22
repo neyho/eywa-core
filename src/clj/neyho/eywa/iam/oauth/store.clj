@@ -219,7 +219,30 @@
     (if (empty? kps)
       ;; Than initialize default encryption
       ;; and it should store values in DB
-      (iam/init-default-encryption)
+      (do
+        (iam/init-default-encryption)
+        ;; Save current sessions
+        (doseq [[session {user-euuid :resource-owner
+                          client-euuid :client
+                          :keys [scopes tokens]}] (deref core/*sessions*)
+                :let [audiences (keys tokens)]]
+          (doseq [audience audiences
+                  :let [signed-tokens (get tokens audience)]]
+            (iam/publish
+             :oauth.session/created
+             {:session session
+              :client client-euuid
+              :audience audience
+              :scope (get scopes audience)
+              :user {:euuid user-euuid}})
+            (iam/publish
+             :oauth.grant/tokens
+             {:tokens signed-tokens
+              :session session})))
+        (doseq [k @iam/encryption-keys]
+          (iam/publish
+           :keypair/added
+           {:key-pair k})))
       ;; If there were already keys in DB
       ;; and they weren't loaded... Like
       ;; if encryption wasn't unsealed... than
@@ -248,20 +271,6 @@
        ;;
        persistent?
        (open-store)
-       ;;
-       ; (and persistent? (instance? Exception kps))
-       ; (iam/init-default-encryption)
-       ;;
-       ; (and persistent? (empty? kps))
-       ; (do
-       ;   (open-store)
-         ; (iam/init-default-encryption))
-       ;;
-       #_(and persistent? (not-empty kps))
-       #_(do
-           (open-store)
-           (reset! iam/encryption-keys kps)
-           (load-sessions))
        ;;
        :else
        (iam/init-default-encryption)))))
