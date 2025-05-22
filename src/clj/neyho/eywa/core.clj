@@ -66,7 +66,7 @@
 (defn delete-superuser
   ([] (delete-superuser (neyho.eywa.db.postgres/from-env)))
   ([db] (delete-superuser db (env :eywa-user)))
-  ([db {:keys [username]}]
+  ([db username]
    (warmup db)
    (let [{:keys [euuid]} (neyho.eywa.dataset/get-entity
                           neyho.eywa.iam.uuids/user
@@ -240,11 +240,10 @@
    (oauth/start)
    (neyho.eywa.db.postgres/start db)
    (neyho.eywa.dataset/start)
+   (neyho.eywa.iam/start)
    (neyho.eywa.dataset.encryption/start)
    (neyho.eywa.iam.oauth.store/start)
-   (neyho.eywa.iam/start)
-   (when (#{"true" "TRUE" "YES" "yes" "y" "1"} (env :eywa-iam-enforce-access))
-     (neyho.eywa.iam.access/start))
+   (neyho.eywa.iam.access/start)
    (neyho.eywa.server/start options)
    (patch/apply
     ::update/db

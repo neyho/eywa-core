@@ -1,5 +1,6 @@
 (ns neyho.eywa.dataset.encryption
   (:require
+   [clojure.core.async :as async]
    [clojure.tools.logging :as log]
    [clojure.string :as str]
    [clojure.math.combinatorics :as combo]
@@ -15,6 +16,7 @@
    [neyho.eywa.iam.shamir
     :refer [create-shares
             reconstruct-secret]]
+   [neyho.eywa.dataset :as dataset]
    [neyho.eywa.dataset.sql.compose
     :as compose]
    [com.walmartlabs.lacinia.resolve :as r])
@@ -254,9 +256,14 @@
          (binding [*master-key* master-key]
            (init-deks))
          (alter-var-root #'*master-key* (fn [_] master-key))
+         (async/put! dataset/subscription
+                     {:topic :encryption/unsealed
+                      :master master})
          (catch Throwable ex
            (log/errorf ex "[ENCRYPTION] Couldn't initialize dataset encryption")
            nil))))))
+
+;;316714828082109243757432512254285214989459387048765934065582062858114433024
 
 (defonce ^:private available-shares (atom nil))
 
@@ -320,6 +327,7 @@
     ;;
     :else (try
             (start master)
+
             {:status :INITIALIZED
              :message "You have successfully initialized encryption!"}
             (catch Throwable _

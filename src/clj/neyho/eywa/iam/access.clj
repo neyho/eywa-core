@@ -3,6 +3,7 @@
    [clojure.set :as set]
    [clojure.core.async :as async]
    [clojure.tools.logging :as log]
+   [environ.core :refer [env]]
    [neyho.eywa.data :refer [*ROOT* *EYWA*]]
    [neyho.eywa.dataset :as dataset]
    [neyho.eywa.dataset.core :as core]
@@ -191,53 +192,55 @@
 
 (defn start
   []
-  (let [model (dataset/deployed-model)
-        role-entity (core/get-entity model iu/user-role)
-        relations (core/focus-entity-relations model role-entity)
-        relation-euuids (set (map :euuid relations))
-        all-euuids (->
-                    relation-euuids
+  (when (#{"true" "TRUE" "YES" "yes" "y" "1"} (env :eywa-iam-enforce-access))
+
+    (let [model (dataset/deployed-model)
+          role-entity (core/get-entity model iu/user-role)
+          relations (core/focus-entity-relations model role-entity)
+          relation-euuids (set (map :euuid relations))
+          all-euuids (->
+                      relation-euuids
                      ;; Disj permissions and users
-                    (disj #uuid "16ca53f4-0fe3-4122-93dd-1e86fd1b58db"
-                          #uuid "1a2cc45d-1301-4fdd-bb02-650362165b37")
-                    (conj iu/user-role))
-        delta-chan (async/chan (async/sliding-buffer 1))]
-    (doseq [element all-euuids]
-      (log/infof "[IAM] Subscribing to dataset delta channel for: %s" element)
-      (async/sub core/delta-publisher element delta-chan))
+                      (disj #uuid "16ca53f4-0fe3-4122-93dd-1e86fd1b58db"
+                            #uuid "1a2cc45d-1301-4fdd-bb02-650362165b37")
+                      (conj iu/user-role))
+          delta-chan (async/chan (async/sliding-buffer 1))]
+      (doseq [element all-euuids]
+        (log/infof "[IAM] Subscribing to dataset delta channel for: %s" element)
+        (async/sub core/delta-publisher element delta-chan))
     ;; Start idle service that will listen on delta changes
-    (async/go-loop
-     [_ (async/<! delta-chan)]
-      (log/debugf "[IAM] Received something at delta channel")
+      (async/go-loop
+       [_ (async/<! delta-chan)]
+        (log/debugf "[IAM] Received something at delta channel")
       ;; When first delta change is received start inner loop
-      (loop [[idle-value] (async/alts!
-                           [;; That will check for new delta values
-                            delta-chan
+        (loop [[idle-value] (async/alts!
+                             [;; That will check for new delta values
+                              delta-chan
                              ;; Or timeout
-                            (async/go
-                              (async/<! (async/timeout 5000))
-                              ::TIMEOUT)])]
-        (log/debugf "[IAM] Next idle value is: %s" idle-value)
+                              (async/go
+                                (async/<! (async/timeout 5000))
+                                ::TIMEOUT)])]
+          (log/debugf "[IAM] Next idle value is: %s" idle-value)
         ;; IF timeout is received than reload rules
-        (if (= ::TIMEOUT idle-value)
-          (do
-            (log/info "[IAM] Reloading role access!")
-            (load-rules)
-            (load-scopes))
+          (if (= ::TIMEOUT idle-value)
+            (do
+              (log/info "[IAM] Reloading role access!")
+              (load-rules)
+              (load-scopes))
           ;; Otherwise some other delta has been received and
           ;; inner loop will be repeated
-          (recur (async/alts!
-                  [;; That will check for new delta values
-                   delta-chan
+            (recur (async/alts!
+                    [;; That will check for new delta values
+                     delta-chan
                     ;; Or timeout
-                   (async/go
-                     (async/<! (async/timeout 5000))
-                     ::TIMEOUT)]))))
+                     (async/go
+                       (async/<! (async/timeout 5000))
+                       ::TIMEOUT)]))))
       ;; when reloading is complete, wait for new delta value
       ;; and repeat process
-      (recur (async/<! delta-chan)))
-    (load-rules)
-    (load-scopes)))
+        (recur (async/<! delta-chan)))
+      (load-rules)
+      (load-scopes))))
 
 (defn enforced? [] (some? *rules*))
 

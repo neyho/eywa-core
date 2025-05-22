@@ -57,12 +57,12 @@ type Mutation {
   """Calling this mutation, encryption will be initialized! You can
   call this mutation only once, keep response in some safe location."""
   unsealEncryptionWithShare(share: SSShareInput): EncryptionResponse
-  @resolve(fn: "neyho.eywa.dataset.encryption/init-with-share")
+  @resolve(fn: "neyho.eywa.dataset.encryption/unseal-with-share")
 
   """Calling this mutation, encryption will be initialized! You can
   call this mutation only once, keep response in some safe location."""
   unsealEncryptionWithMaster(master: String): EncryptionResponse
-  @resolve(fn: "neyho.eywa.dataset.encryption/init-with-master")
+  @resolve(fn: "neyho.eywa.dataset.encryption/unseal-with-master")
 
 
   initEncryptionShares(shares: Int=5, threshold: Int=3):[SSShare]

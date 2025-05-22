@@ -40,9 +40,9 @@
 (defn get-deployed-model [_ _ _]
   {:model (deployed-model)})
 
-(defonce wc (async/chan))
+(defonce subscription (async/chan 100))
 
-(defonce publisher (async/pub wc :topic))
+(defonce publisher (async/pub subscription :topic))
 
 (def datasets #uuid "a800516e-9cfa-4414-9874-60f2285ec330")
 
@@ -212,9 +212,10 @@
        ;; of plain deploy! recall!
        (let [{:keys [euuid]} (dataset/deploy! *db* version)]
          (async/put!
-          wc {:topic :refreshedGlobalDataset
-              :data {:name "Global"
-                     :model (dataset/get-model *db*)}})
+          subscription
+          {:topic :refreshedGlobalDataset
+           :data {:name "Global"
+                  :model (dataset/get-model *db*)}})
          (log/infof
           "User %s deployed version %s@%s"
           username (-> version :dataset :name) (:name version))
@@ -291,9 +292,10 @@
   (when destroy
     (log/infof "User %s destroying dataset %s" username (:name destroy))
     (dataset/destroy! *db* destroy)
-    (async/put! wc {:topic :refreshedGlobalDataset
-                    :data {:name "Global"
-                           :model (dataset/get-model *db*)}}))
+    (async/put! subscription
+                {:topic :refreshedGlobalDataset
+                 :data {:name "Global"
+                        :model (dataset/get-model *db*)}}))
   [ctx args v])
 
 (defn is-supported?

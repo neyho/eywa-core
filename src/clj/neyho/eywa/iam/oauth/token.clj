@@ -192,10 +192,16 @@
 
 (defmethod grant-token :default [_] unsupported)
 
-(defn- issued-at? [token] (:at (meta token)))
+; (defn- issued-at? [token] (:at (meta token)))
 
 (defn generate
   [{{allowed-grants "allowed-grants"} :settings :as client} session {:keys [audience scope client_id]}]
+  ; (def allowed-grants allowed-grants)
+  ; (def client client)
+  ; (def session session)
+  ; (def audience audience)
+  ; (def scope scope)
+  ; (def client_id client_id)
   (let [access-exp (->
                     (System/currentTimeMillis)
                     (quot 1000)
@@ -229,7 +235,10 @@
                              (assoc tokens token (sign-token session token data)))
                            tokens
                            tokens)]
-        (when session (set-session-tokens session audience signed-tokens))
+        (when session
+          (revoke-session-tokens session audience)
+          (set-session-tokens session audience signed-tokens))
+        #_(when session (set-session-tokens session audience signed-tokens))
         (iam/publish
          :oauth.grant/tokens
          {:tokens signed-tokens
@@ -284,28 +293,28 @@
         (when current-refresh-token (revoke-token :refresh_token current-refresh-token))
         (when session (revoke-session-tokens session audience))
         (cond
-        ;;
+          ;;
           (not (contains? grants "refresh_token"))
           (do
             (core/kill-session session)
             refresh-not-supported)
-        ;;
+          ;;
           (not active)
           (do
             (core/kill-session session)
             owner-not-authorized)
-        ;;
-        ;;
+          ;;
+          ;;
           (and cookie-session (not= cookie-session session))
           cookie-session-missmatch
-        ;;
+          ;;
           (not= refresh_token current-refresh-token)
           (token-error
            400
            "invalid_request"
            "Provided token doesn't match session refresh token"
            "Your request will be logged and processed")
-        ;;
+          ;;
           :else
           {:status 200
            :headers {"Content-Type" "application/json;charset=UTF-8"

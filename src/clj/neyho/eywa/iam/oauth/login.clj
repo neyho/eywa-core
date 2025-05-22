@@ -185,6 +185,14 @@
                      (core/set-session-audience-scope session audience scope)
                      (core/set-session-resource-owner session resource-owner)
                      (core/set-session-authorized-at session now)
+                     (iam/publish
+                      :oauth.session/created
+                      {:session session
+                       :code device-code
+                       :client client
+                       :audience audience
+                       :scope scope
+                       :user resource-owner})
                      (chain/terminate
                       (assoc ctx :response
                              {:status 302

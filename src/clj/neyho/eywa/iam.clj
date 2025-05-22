@@ -6,7 +6,6 @@
    clojure.data.json
    [patcho.patch :as patch]
    [clojure.core.async :as async]
-   [version-clj.core :as vrs]
    [clojure.java.io :as io]
    [clojure.tools.logging :as log]
    [buddy.sign.jwt :as jwt]
@@ -19,10 +18,8 @@
             *ROOT*
             *PUBLIC_ROLE*
             *PUBLIC_USER*]]
-   [neyho.eywa.db :as db]
    [neyho.eywa.transit :refer [<-transit]]
    [neyho.eywa.iam.uuids :as iu]
-   [neyho.eywa.dataset.uuids :as du]
    [neyho.eywa.dataset
     :as dataset
     :refer [get-entity
@@ -30,7 +27,6 @@
             sync-entity
             delete-entity]]
    [neyho.eywa.lacinia :as lacinia]
-   [neyho.eywa.env :as env]
    [neyho.eywa.iam :as iam]
    [neyho.eywa.iam.gen :as gen]
    [neyho.eywa.iam.access :as access]
@@ -97,7 +93,7 @@
      :kid (base64-url-encode (buddy.core.hash/sha256 (str n e)))}))
 
 (defn add-key-pair
-  [{:keys [public private kid] :as key-pair}]
+  [{:keys [public private] :as key-pair}]
   (when-not (keys/public-key? public)
     (throw (ex-info "Unacceptable public key" {:key public})))
   (when-not (keys/private-key? private)
@@ -173,7 +169,7 @@
 (defn unsign-data
   "Function takes encrypted string and returns decrypted data."
   [data]
-  (if-let [{:keys [kid]} (jwt/decode-header data)]
+  (when-let [{:keys [kid]} (jwt/decode-header data)]
     (let [public (get-encryption-key kid :public)]
       (jwt/unsign data public {:alg :rs256}))))
 
@@ -182,6 +178,9 @@
   (let [[header payload] (str/split token #"\.")]
     {:header (clojure.data.json/read-str (buddy.core.codecs/b64->str header))
      :payload (clojure.data.json/read-str (buddy.core.codecs/b64->str payload))}))
+
+(comment
+  (jwt-decode "eyJhbGciOiJSUzI1NiIsImtpZCI6IlBqWXJJQmlVYzloVkN4dzFDVnZMSUkzMG5MV0x4WFoxd0s5TEEvc3NBejQiLCJ0eXBlIjoiSldUIn0.eyJhdWQiOiJodHRwczovL3d3dy5leXdhb25saW5lLmNvbS9leXdhIiwicGVybWlzc2lvbnMiOltdLCJzdWIiOiJhZG1pbiIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODA4MCIsInJvbGVzIjpbIjYwMWVlOThkLTc5NmItNDNmMy1hYzFmLTg4MTg1MTQwN2YzNCJdLCJleHAiOjE3NDc5MTUyMjIsInNjb3BlIjoicGVybWlzc2lvbnMgcHJvZmlsZSByb2xlczp1dWlkIG9wZW5pZCIsImNsaWVudF9pZCI6Ik1VTUFEUEFEQUtRSFNERkRHRkFFSlpKWFVTRkpHRk9PWVRXVkFVREVGVlBVUlVPUCIsImlhdCI6MTc0NzkxMTYyMiwic2lkIjoid29BU1ZHRk51TnFpb01UbkF3SkhQS0NERXJ6UnZFIiwic2Vzc2lvbiI6IndvQVNWR0ZOdU5xaW9NVG5Bd0pIUEtDREVyelJ2RSJ9.DafgS9lWsmfokxLG9Z4tlyXNvnrPcpcMVeZdV4vD8hlOB65o_727R8GlaguV24fPztw5mRv82fBGMejhZqg1S9NGroJIIuT8i63U3dFFYHABa2BRy3FLIrkQopBnBjlo-pNtDiOQ_DUAe4cmqvudZoUhopX5T11N39h2wmhU1x9eZvHPXsbxKZzjLEfRJC3Uen-wqPMHyM88yqModm-qO5UuOQaMfN2CZ8JuJSaDTf0RVNIEzLeAxkIBEGVRAlryDU36GjpVugelaU5wvL6RBzAZJ96SDRWZFmGJqHT_UG0TlR-ukpSbv4RKLlBZHSfPz32_6AkZXMFgSaNzE8m5Ig"))
 
 (defn get-password [username]
   (:password
@@ -344,7 +343,7 @@
 
 (defn level-iam
   []
-  (let [{current-version :name :as current} (current-version)
+  (let [{current-version :name} (current-version)
         ;;
         {deployed-version :name}
         (dataset/latest-deployed-version #uuid "c5c85417-0aef-4c44-9e86-8090647d6378")]

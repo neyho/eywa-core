@@ -150,9 +150,46 @@
         {deployed-version :name} (dataset/latest-deployed-version #uuid "0f9bb720-4b94-445c-9780-a4af09e8536c")]
     (patch/apply ::dataset deployed-version current-version)))
 
+(defn load-session
+  [{[{access-token :value}] :access_tokens
+    [{refresh-token :value}] :refresh_tokens
+    session :id
+    user :user
+    {client :euuid} :client}]
+  (let [{{audience "aud" scope "scope"} :payload} (iam/jwt-decode access-token)
+        scope (set (str/split scope #" "))
+        user-details (core/get-resource-owner (:name user))]
+    (core/set-session session {:client client
+                               :last-active (vura/date)})
+    (token/set-session-tokens session audience
+                              {:access_token access-token
+                               :refresh_token refresh-token})
+    (core/set-session-audience-scope session audience scope)
+    (core/set-session-resource-owner session user-details)
+    (core/set-session-authorized-at session (vura/date))))
+
+(defn load-sessions
+  []
+  (let [sessions
+        (dataset/search-entity
+         -session-
+         {:active {:_boolean :TRUE}}
+         {:euuid nil
+          :id nil
+          :client  [{:selections {:euuid nil}}]
+          :user [{:selections {:name nil}}]
+          :access_tokens [{:selections {:value nil}
+                           :args {:_where {:revoked {:_boolean :NOT_TRUE}}
+                                  :_order_by {:expires_at :desc}}}]
+          :refresh_tokens [{:selections {:value nil}
+                            :args {:_maybe {:revoked {:_boolean :NOT_TRUE}}}}]})]
+    (doseq [session sessions] (load-session session))))
+
 (defn open-store
   []
-  (let [store-messages (async/chan (async/sliding-buffer 200))
+  (level-store)
+  (let [kps (not-empty (get-key-pairs))
+        store-messages (async/chan (async/sliding-buffer 200))
         topics [:keypair/added :keypair/removed
                 :oauth.revoke/token :oauth.grant/tokens
                 :oauth.session/created :oauth.session/killed]]
@@ -177,56 +214,31 @@
             nil)
           (catch Throwable ex
             (log/errorf ex "[OAuth Store] Couldn't process received message: %s" (with-out-str (pprint data)))))
-        (recur (async/<! store-messages))))))
+        (recur (async/<! store-messages))))
+    ;; If there are no keypairs in DB
+    (if (empty? kps)
+      ;; Than initialize default encryption
+      ;; and it should store values in DB
+      (iam/init-default-encryption)
+      ;; If there were already keys in DB
+      ;; and they weren't loaded... Like
+      ;; if encryption wasn't unsealed... than
+      ;; load those keys and concatenate to current
+      ;; keys.
+      (let [current @iam/encryption-keys]
+        (swap! iam/encryption-keys concat kps)
+        ;; Notify loop above that it should store
+        ;; keys that were initialized
+        (doseq [k current]
+          (iam/publish
+           :keypair/added
+           {:key-pair k}))
+        (load-sessions)))))
 
-(defn load-session
-  [{[{access-token :value}] :access_tokens
-    [{refresh-token :value}] :refresh_tokens
-    session :id
-    user :user
-    {client :euuid} :client}]
-  (let [{{audience "aud" scope "scope"} :payload} (iam/jwt-decode access-token)
-        scope (set (str/split scope #" "))
-        user-details (core/get-resource-owner (:name user))]
-    (core/set-session session {:client client
-                               :last-active (vura/date)})
-    (token/set-session-tokens session audience
-                              {:access_token access-token
-                               :refresh_token refresh-token})
-    (core/set-session-audience-scope session audience scope)
-    (core/set-session-resource-owner session user-details)
-    (core/set-session-authorized-at session (vura/date))))
-
-(comment
-  (def sessions *1)
-  (load-session (first sessions)))
-
-(defn load-sessions
-  []
-  (let [sessions
-        (dataset/search-entity
-         -session-
-         {:active {:_boolean :TRUE}}
-         {:euuid nil
-          :id nil
-          :client  [{:selections {:euuid nil}}]
-          :user [{:selections {:name nil}}]
-          :access_tokens [{:selections {:value nil}
-                           :args {:_where {:revoked {:_boolean :NOT_TRUE}}}}]
-          :refresh_tokens [{:selections {:value nil}
-                            :args {:_maybe {:revoked {:_boolean :NOT_TRUE}}}}]})]
-    (doseq [session sessions] (load-session session))))
-
-(defn start
+(defn on-encryption-enabled
   ([]
    ;; TODO - add here OAuth model deployment
-   (let [persistent? (#{"true" "TRUE" "YES" "yes" "y" "1"} (env :eywa-oauth-persistence))
-         kps (try
-               (not-empty (get-key-pairs))
-               (catch Throwable ex
-                 (log/errorf "[OAuth Store] Couldn't read from key pair table!")
-                 ex))]
-     (level-store)
+   (let [persistent? (#{"true" "TRUE" "YES" "yes" "y" "1"} (env :eywa-oauth-persistence))]
      (cond
        ;;
        (and persistent? (not (encryption/initialized?)))
@@ -234,19 +246,22 @@
          (log/error "[OAuth Store] Initialize encryption. Can't store RSA private keys!")
          (iam/init-default-encryption))
        ;;
-       (and persistent? (instance? Exception kps))
-       (iam/init-default-encryption)
+       persistent?
+       (open-store)
        ;;
-       (and persistent? (empty? kps))
-       (do
-         (open-store)
-         (iam/init-default-encryption))
+       ; (and persistent? (instance? Exception kps))
+       ; (iam/init-default-encryption)
        ;;
-       (and persistent? (not-empty kps))
-       (do
-         (open-store)
-         (reset! iam/encryption-keys kps)
-         (load-sessions))
+       ; (and persistent? (empty? kps))
+       ; (do
+       ;   (open-store)
+         ; (iam/init-default-encryption))
+       ;;
+       #_(and persistent? (not-empty kps))
+       #_(do
+           (open-store)
+           (reset! iam/encryption-keys kps)
+           (load-sessions))
        ;;
        :else
        (iam/init-default-encryption)))))
@@ -274,6 +289,20 @@
   []
   (dataset/purge-entity -access- nil {:euuid nil})
   (dataset/purge-entity -refresh- nil {:euuid nil}))
+
+(defn start
+  []
+  (on-encryption-enabled)
+  (let [sub (async/chan)]
+    (async/sub dataset/publisher :encryption/unsealed sub)
+    (async/go
+      (loop [{:keys [master]} (async/<! sub)]
+        (if master
+          (on-encryption-enabled)
+          (recur (async/<! sub)))))))
+
+(comment
+  (def master "325896047255319904274460860658582830368588672173220140665644935988371259392"))
 
 (comment
   (def older-than 0)
