@@ -196,12 +196,6 @@
 
 (defn generate
   [{{allowed-grants "allowed-grants"} :settings :as client} session {:keys [audience scope client_id]}]
-  ; (def allowed-grants allowed-grants)
-  ; (def client client)
-  ; (def session session)
-  ; (def audience audience)
-  ; (def scope scope)
-  ; (def client_id client_id)
   (let [access-exp (->
                     (System/currentTimeMillis)
                     (quot 1000)
@@ -390,9 +384,17 @@
         dataset-roles (dataset/search-entity
                        iu/user-role
                        {:euuid {:_in roles}}
-                        ; {:_where {:euuid {:_in roles}}}
                        {:name nil})]
     (assoc-in tokens [:access_token :roles] (map (comp csk/->snake_case_keyword :name) dataset-roles))))
+
+(defmethod process-scope "groups"
+  [session tokens _]
+  (let [{:keys [groups]} (core/get-session-resource-owner session)
+        dataset-groups (dataset/search-entity
+                        iu/user-group
+                        {:euuid {:_in groups}}
+                        {:name nil})]
+    (assoc-in tokens [:access_token :groups] (map (comp csk/->snake_case_keyword :name) dataset-groups))))
 
 (defmethod process-scope "sub:uuid"
   [session tokens _]
@@ -403,6 +405,11 @@
   [session tokens _]
   (let [{:keys [roles]} (core/get-session-resource-owner session)]
     (assoc-in tokens [:access_token :roles] roles)))
+
+(defmethod process-scope "groups:uuid"
+  [session tokens _]
+  (let [{:keys [groups]} (core/get-session-resource-owner session)]
+    (assoc-in tokens [:access_token :groups] groups)))
 
 (defmethod process-scope "permissions"
   [session tokens _]

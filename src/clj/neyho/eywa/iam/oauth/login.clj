@@ -259,7 +259,8 @@
                              "authorization_code"
                              ac/delete
                              "device_code"
-                             dc/delete)
+                             dc/delete
+                             identity)
                            code)
                           (token/delete tokens)
                           (core/kill-session session)
@@ -282,13 +283,6 @@
                           {:status 200
                            :headers {"Content-Type" "text/html"}
                            :body "User logged out!"}))]
-         ; (def session session)
-         ; (def id_token_hint id_token_hint)
-         ; (def iss iss)
-         ; (def sid sid)
-         ; (def post-redirect-ok? post-redirect-ok?)
-         ; (def post_logout_redirect_uri)
-         ; (def response response)
          (assoc ctx :response response)))}))
 
 (let [logout (conj core/oauth-common-interceptor core/idsrv-session-remove core/idsrv-session-read logout-interceptor)

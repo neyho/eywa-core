@@ -7,8 +7,8 @@ type Query {
   # @resolve(fn:"com.walmartlabs.lacinia.introspection/resolve-root-schema")
   # @protect(scopes:["dataset:graphiql"])
 
-  getDeployedModel:DatasetVersion
-  @resolve(fn: "neyho.eywa.dataset/get-deployed-model")
+  getDeployedModel:Transit
+  @resolve(fn: "neyho.eywa.dataset.graphql/get-deployed-model")
 }
 
 
@@ -75,6 +75,5 @@ type Mutation {
 
 type Subscription {
   refreshedGlobalDataset:DatasetVersion
-  @resolve(fn: "neyho.eywa.dataset/deploy-update-subscription")
-  @protect(scopes: ["dataset:subscription"])
+  @resolve(fn: "neyho.eywa.dataset.graphql/on-deploy")
 }

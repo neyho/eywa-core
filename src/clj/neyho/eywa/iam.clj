@@ -305,8 +305,8 @@
       ; (def protection protection)
       ; (def resolver resolver)
       ; (def value value)
-      (comment
-        (type value))
+      ; (def ctx ctx)
+      ; (def args args)
       (let [{:keys [scopes roles]}
             (reduce
              (fn [result definition]
@@ -319,9 +319,14 @@
                           (map #(java.util.UUID/fromString %) roles)))))
              nil
              protection)]
+        ; (def user *user*)
+        ; (def roles neyho.eywa.iam.access.context/*roles*)
+        ; (def scopes scopes)
+        ; (def roles roles)
+        ; (def user-scopes neyho.eywa.iam.access.context/*scopes*)
         (if (and
              (or (empty? scopes)
-                 (access/scope-allowed? scopes))
+                 (some access/scope-allowed? scopes))
              (or (empty? roles)
                  (access/roles-allowed? roles)))
           (resolver ctx args value)
@@ -330,6 +335,11 @@
            {:message "Access denied!"
             :code :unauthorized}))))
     resolver))
+
+(comment
+  (binding [*user* user
+            neyho.eywa.iam.access.context/*roles* roles]
+    (access/scope-allowed? scopes)))
 
 (defn ensure-public
   []

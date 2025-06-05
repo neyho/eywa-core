@@ -32,6 +32,10 @@
     :from_write_relations  [{:selections {:euuid nil}}]
     :from_delete_relations [{:selections {:euuid nil}}]}))
 
+(comment
+  (dataset/search-entity iu/user nil {:euuid nil :name nil})
+  (dataset/search-entity iu/user-role nil {:euuid nil :name nil}))
+
 (defn transform-roles-data
   [data]
   (letfn [(x-entity [result role rule entities]
@@ -97,8 +101,6 @@
    (try
      (if (or (nil? *rules*) (superuser? roles)) true
          (letfn [(ok? [rule]
-                 ; (println "Checking roles: " rule entity roles (get-in *rules* [:entity entity rule]))
-                 ; (println "Result: " (set/intersection roles (get-in *rules* [:entity entity rule])))
                    (boolean (not-empty (set/intersection roles (get-in *rules* [:entity entity rule])))))]
            (some ok? rules)))
      (catch Throwable ex
@@ -172,7 +174,7 @@
   [roles]
   (reduce
    (fn [r {role :euuid scopes :scopes}]
-     (assoc r role (set (map :name scopes))))
+     (assoc r role (set (remove nil? (map :name scopes)))))
    {}
    roles))
 
@@ -193,7 +195,6 @@
 (defn start
   []
   (when (#{"true" "TRUE" "YES" "yes" "y" "1"} (env :eywa-iam-enforce-access))
-
     (let [model (dataset/deployed-model)
           role-entity (core/get-entity model iu/user-role)
           relations (core/focus-entity-relations model role-entity)
@@ -208,11 +209,11 @@
       (doseq [element all-euuids]
         (log/infof "[IAM] Subscribing to dataset delta channel for: %s" element)
         (async/sub core/delta-publisher element delta-chan))
-    ;; Start idle service that will listen on delta changes
+      ;; Start idle service that will listen on delta changes
       (async/go-loop
        [_ (async/<! delta-chan)]
         (log/debugf "[IAM] Received something at delta channel")
-      ;; When first delta change is received start inner loop
+        ;; When first delta change is received start inner loop
         (loop [[idle-value] (async/alts!
                              [;; That will check for new delta values
                               delta-chan
@@ -221,23 +222,23 @@
                                 (async/<! (async/timeout 5000))
                                 ::TIMEOUT)])]
           (log/debugf "[IAM] Next idle value is: %s" idle-value)
-        ;; IF timeout is received than reload rules
+          ;; IF timeout is received than reload rules
           (if (= ::TIMEOUT idle-value)
             (do
               (log/info "[IAM] Reloading role access!")
               (load-rules)
               (load-scopes))
-          ;; Otherwise some other delta has been received and
-          ;; inner loop will be repeated
+            ;; Otherwise some other delta has been received and
+            ;; inner loop will be repeated
             (recur (async/alts!
                     [;; That will check for new delta values
                      delta-chan
-                    ;; Or timeout
+                     ;; Or timeout
                      (async/go
                        (async/<! (async/timeout 5000))
                        ::TIMEOUT)]))))
-      ;; when reloading is complete, wait for new delta value
-      ;; and repeat process
+        ;; when reloading is complete, wait for new delta value
+        ;; and repeat process
         (recur (async/<! delta-chan)))
       (load-rules)
       (load-scopes))))

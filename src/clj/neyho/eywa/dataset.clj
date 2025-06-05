@@ -38,7 +38,7 @@
     (dataset/get-entities (deployed-model)))))
 
 (defn get-deployed-model [_ _ _]
-  {:model (deployed-model)})
+  (deployed-model))
 
 (defonce subscription (async/chan 100))
 
@@ -140,22 +140,15 @@
     (log/debugf "Initializing %s\n%s" variable data)
     (alter-var-root variable (constantly data))))
 
-(defn deploy-update-subscription
-  [{:keys [username]} _ upstream]
-  (let [sub (async/chan)]
-    (async/sub publisher :refreshedGlobalDataset sub)
-    (async/go-loop [{:keys [data]
-                     :as published} (async/<! sub)]
-      (when published
-        (log/tracef "Sending update of global model to user %s" username)
-        (upstream data)
-        (recur (async/<! sub))))
-    (upstream
-     {:name "Global"
-      :model (dataset/get-model *db*)})
-    (fn []
-      (async/unsub publisher :refreshedGlobalDataset sub)
-      (async/close! sub))))
+(comment
+  (binding [neyho.eywa.iam.access.context/*roles*
+            #{#uuid "28895548-9fe6-4a5d-93d7-14468c2b2b51"}
+            neyho.eywa.iam.access.context/*user* #uuid "0a6e2c0e-fed8-45e4-9ec7-9beca0c29531"]
+    (let [m (protect-dataset (dataset/get-model *db*))]
+      {:entities
+       (map :name (dataset/get-entities m))
+       :relations
+       (map (juxt :from-label :to-label) (dataset/get-relations m))})))
 
 (defn get-version
   [euuid]

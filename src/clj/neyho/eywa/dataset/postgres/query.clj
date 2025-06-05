@@ -274,11 +274,11 @@
                        [fields-data nil]
                        (keys fields-data))
                       constraints (get-constraints entity-euuid)
-                        ;;
-                        ;; Check if there are some changes to this record
-                        ;; other than constraints
+                      ;;
+                      ;; Check if there are some changes to this record
+                      ;; other than constraints
                       indexes (remove empty? (map #(select-keys fields-data %) constraints))
-                        ;;
+                      ;;
                       id (or
                           (some #(get-in result [:index table %]) indexes)
                           id)
@@ -1060,12 +1060,14 @@
                                  (reduce
                                   (fn [final {:keys [selections alias]
                                               new-args :args}]
-                                    (let [{:keys [relation from to]} rdata]
+                                    (let [{:keys [relation from to ref? recursion?]} rdata]
                                       ; (def relation relation)
                                       ; (def from from)
                                       ; (def to to)
                                       ; (def direction [from to])
-                                      (relation-accessible? relation [from to] #{:read})
+                                      (or
+                                        ref? recursion?
+                                        (relation-accessible? relation [from to] #{:read}))
                                       (assoc final (or alias rkey)
                                              (merge
                                               (clojure.set/rename-keys rdata {:table :relation/table})
@@ -1121,6 +1123,7 @@
                                                 :to/field "_eid"
                                                 :to/table ttable
                                                 :table table
+                                                :ref? true
                                                 :type :one})))
                                     relations
                                     refs))
@@ -1138,6 +1141,7 @@
                                               :to/field "_eid"
                                               :to/table table
                                               :table table
+                                              :recursion? true
                                               :type :one}))
                                     relations
                                     recursions))))

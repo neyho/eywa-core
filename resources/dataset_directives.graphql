@@ -12,6 +12,7 @@ directive @protect (
   """
   scopes: [String]
   roles: [String]
+  audience: String
 ) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
 
 

@@ -17,6 +17,7 @@
    neyho.eywa.dataset.core
    neyho.eywa.dataset.encryption
    neyho.eywa.dataset.default-model
+   neyho.eywa.dataset.graphql
    neyho.eywa.dataset.postgres
    neyho.eywa.dataset.postgres.query
    neyho.eywa.iam
@@ -28,7 +29,7 @@
    [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
 
-(def version "0.4.0")
+(def version "0.4.1")
 
 (defn setup
   ([] (setup (neyho.eywa.db.postgres/from-env)))
