@@ -83,7 +83,7 @@
     (add-version target version)))
 
 (patch/upgrade
- ::db
+ :eywa/core
  "0.4.0"
  (try
    (last-version "core")
@@ -101,6 +101,7 @@
               " patched_at TIMESTAMP NOT NULL DEFAULT now()"
               ")")]
      [ddl]))
+  (history)
   (create-table)
   (delete-table)
   (table-exists?)

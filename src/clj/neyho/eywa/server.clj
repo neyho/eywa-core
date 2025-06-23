@@ -106,9 +106,9 @@
                    ::http/port port
                    ::http/interceptors
                    [;; Constantly true... If there is need for CORS protection than apply
-                     ;; CORS protection at that routes, otherwise this is necessary because
-                     ;; Access-Control-Allow-Headers have to be returned, otherwise browser
-                     ;; will report error
+                    ;; CORS protection at that routes, otherwise this is necessary because
+                    ;; Access-Control-Allow-Headers have to be returned, otherwise browser
+                    ;; will report error
                     (cors/allow-origin {:allowed-origins (constantly true)})
                     (middlewares/content-type {:mime-types {}})
                     route/query-params

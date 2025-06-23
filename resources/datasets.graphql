@@ -1,14 +1,11 @@
 type Query {
-  # __type(name: String): __Schema
-  # @resolve(fn:"com.walmartlabs.lacinia.introspection/resolve-root-type")
-  # @protect(scopes:["dataset:graphiql"])
-  #
-  # __schema: __Type
-  # @resolve(fn:"com.walmartlabs.lacinia.introspection/resolve-root-schema")
-  # @protect(scopes:["dataset:graphiql"])
 
   getDeployedModel:Transit
   @resolve(fn: "neyho.eywa.dataset.graphql/get-deployed-model")
+
+
+  getDeployedModelDocument:String
+  @resolve(fn: "neyho.eywa.dataset.graphql/get-deployed-model-document")
 }
 
 

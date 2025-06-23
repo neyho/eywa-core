@@ -137,6 +137,8 @@
 ;         (dataset/latest-deployed-version #uuid "0f9bb720-4b94-445c-9780-a4af09e8536c")]
 ;     (when (and (vrs/newer? current-version deployed-version) db/*db*))))
 
+(patch/current-version ::dataset (:name (current-version)))
+
 (patch/upgrade
  ::dataset "0.1.3"
  (log/info "[IAM] Old version of OAuth Store is deployed. Deploying newer version!")

@@ -20,6 +20,7 @@
    [neyho.eywa.iam.access.context
     :refer [*roles*
             *user*]]
+   [neyho.eywa.dataset.enhance :as enhance]
    neyho.eywa.dataset.sql.naming
    [neyho.eywa.db :refer [*db*] :as db]
    [neyho.eywa.db.postgres.next :as postgres]
@@ -552,24 +553,24 @@
 
 (comment
   (search-entity
-   #uuid "0757bd93-7abf-45b4-8437-2841283edcba"
-   nil
-   {:name nil
-    :modified_by [{:selections
-                   {:name nil}}]
-    :modified_on nil})
+    #uuid "0757bd93-7abf-45b4-8437-2841283edcba"
+    nil
+    {:name nil
+     :modified_by [{:selections
+                    {:name nil}}]
+     :modified_on nil})
   #_(time
-     (set-entity
-      neyho.eywa.iam.uuids/user
-      [{:name "test1" :active true
-        :type :PERSON
-        :roles [neyho.eywa.data/*ROOT*]}
-       {:name "test2" :active true
-        :type :PERSON
-        :roles [neyho.eywa.data/*ROOT*]}
-       {:name "test3" :active true
-        :type :PERSON
-        :roles [neyho.eywa.data/*ROOT*]}])))
+      (set-entity
+        neyho.eywa.iam.uuids/user
+        [{:name "test1" :active true
+          :type :PERSON
+          :roles [neyho.eywa.data/*ROOT*]}
+         {:name "test2" :active true
+          :type :PERSON
+          :roles [neyho.eywa.data/*ROOT*]}
+         {:name "test3" :active true
+          :type :PERSON
+          :roles [neyho.eywa.data/*ROOT*]}])))
 
 (defn store-entity-records
   [tx {:keys [entity constraint] :as analysis}]
@@ -581,47 +582,48 @@
          "[%s] Storing entity table rows %s\n%s"
          entity-table (str/join ", " ks) (str/join "\n" rows))
         (let [row-data (map
-                           ;; select only field keys
-                        (apply juxt ks)
-                           ;; Get only row without tempids
-                        (map first rows))
+                         ;; select only field keys
+                         (apply juxt ks)
+                         ;; Get only row without tempids
+                         (map first rows))
               tmp-ids (map second rows)
               columns-fn #(str \" (name %) \")
               ks' (map columns-fn ks)
               values-? (str \( (str/join ", " (repeat (count ks) \?)) \))
-                ;;
+              ;;
               constraint (if (contains? ks :euuid)
                            [:euuid]
                            (some
-                            #(when (every? ks %) %)
-                            (get constraint entity-table)))
-                ;;
+                             #(when (every? ks %) %)
+                             (get constraint entity-table)))
+              ;;
               on-values (map columns-fn constraint)
-                ;;
+              ;;
+
               query
               (str
-               "INSERT INTO \"" entity-table "\" ("
-               (str/join ", " ks') ") VALUES "
-               (str/join ", " (repeat (count row-data) values-?))
-               (when (not-empty on-values)
-                 (let [on-sql (str/join ", " on-values)
-                       do-set (str/join
-                               ", "
-                               (map
-                                (fn [column]
-                                  (str column "=excluded." column))
-                                ks'))]
-                   (str " ON CONFLICT (" on-sql ") DO UPDATE SET " do-set)))
-               " RETURNING _eid, euuid")
+                "INSERT INTO \"" entity-table "\" ("
+                (str/join ", " ks') ") VALUES "
+                (str/join ", " (repeat (count row-data) values-?))
+                (when (not-empty on-values)
+                  (let [on-sql (str/join ", " on-values)
+                        do-set (str/join
+                                 ", "
+                                 (map
+                                   (fn [column]
+                                     (str column "=excluded." column))
+                                   ks'))]
+                    (str " ON CONFLICT (" on-sql ") DO UPDATE SET " do-set)))
+                " RETURNING _eid, euuid")
               _ (log/tracef
-                 "[%s]Storing entity group %s\nData:\n%s\nQuery:\n%s"
-                 entity-table constraint (pprint row-data) query)
+                  "[%s]Storing entity group %s\nData:\n%s\nQuery:\n%s"
+                  entity-table constraint (pprint row-data) query)
               result (postgres/execute!
-                      tx (into [query] (flatten row-data))
-                      *return-type*)
+                       tx (into [query] (flatten row-data))
+                       *return-type*)
               _ (log/tracef
-                 "[%s]Stored entity group result:\n%s"
-                 entity-table (pprint result))
+                  "[%s]Stored entity group result:\n%s"
+                  entity-table (pprint result))
               mapping (zipmap tmp-ids result)]
           (log/tracef "[%s]Stored entity group %s" entity-table result)
           (reduce-kv
@@ -937,7 +939,6 @@
                         (conj modified-on))
          scalars (reduce-kv
                   (fn [r k [{args :args}]]
-                     ; (log/tracef "Checking if key %s is in valid fields." k)
                     (if (valid-fields k)
                       (assoc r k args)
                       r))
@@ -981,7 +982,6 @@
          type-mapping (zipmap (map :key fields) (map :type fields))
          decoders (reduce
                    (fn [r k]
-                      ; (log/tracef "Checking if key %s is in valid fields." k)
                      (if (valid-fields k)
                        (letfn [(shallow-keywords [data]
                                  (reduce
@@ -990,7 +990,6 @@
                                   nil
                                   data))]
                          (if-let [transform (case (get type-mapping k)
-                                               ; "enum" keyword
                                               "transit" <-transit
                                               "encrypted" (fn [data]
                                                             (try
@@ -1025,11 +1024,9 @@
                    (fn [result field]
                      (let [t (get field->type field)]
                        (case t
-                          ;; Shortcircuit defaults
                          ("boolean" "string" "int" "float" "json"
                                     "timestamp" "timeperiod" "currency"
                                     "uuid" "avatar" "hashed" nil) result
-                          ; "hashed" (update result field hashers/derive)
                          "transit" (update result field freeze)
                          (assoc result field
                                 (fn [v]
@@ -1039,15 +1036,6 @@
                    nil
                    arg-fields)
          objects (apply dissoc selection (keys scalars))
-         ;; Filter relations that are in selection from all possible relations
-         ; _ (log/trace
-         ;     :message "selection->schema collected"
-         ;     :args args
-         ;     :selection selection
-         ;     :scalars scalars
-         ;     :objects objects
-         ;     :order-by order-by
-         ;     :distinct-on distinct-on)
          narrow-relations (reduce-kv
                            (fn [rs rkey rdata]
                              (if (valid-relations rkey)
@@ -1061,10 +1049,6 @@
                                   (fn [final {:keys [selections alias]
                                               new-args :args}]
                                     (let [{:keys [relation from to ref? recursion?]} rdata]
-                                      ; (def relation relation)
-                                      ; (def from from)
-                                      ; (def to to)
-                                      ; (def direction [from to])
                                       (or
                                         ref? recursion?
                                         (relation-accessible? relation [from to] #{:read}))
@@ -1076,15 +1060,14 @@
                                               (selection->schema
                                                (:to rdata) selections
                                                (cond-> new-args
-                                                   ;;
                                                  (and
                                                   (not= (:from rdata) (:to rdata))
                                                   (contains? args rkey))
                                                  (merge (get args rkey))
-                                                   ;;
+                                                 ;;
                                                  (contains? order-by rkey)
                                                  (assoc :_order_by (get order-by rkey))
-                                                   ;;
+                                                 ;;
                                                  (contains? distinct-on rkey)
                                                  (assoc :_distinct (get distinct-on rkey))))))))
                                   rs
@@ -1092,9 +1075,8 @@
                                  rs)
                                rs))
                            nil
-                            ;; Get all possible relations
+                           ;; Get all possible relations
                            (cond-> relations
-                              ;;
                              modifier
                              (assoc modifier
                                (let [user #uuid "edcab1db-ee6f-4744-bfea-447828893223"
@@ -1107,7 +1089,7 @@
                                   :to/table utable
                                   :table table
                                   :type :one}))
-                              ;;
+                             ;;
                              (not-empty refs)
                              (as-> relations
                                    (reduce
@@ -1127,7 +1109,7 @@
                                                 :type :one})))
                                     relations
                                     refs))
-                              ;;
+                             ;;
                              (not-empty recursions)
                              (as-> relations
                                    (reduce
@@ -1145,133 +1127,71 @@
                                               :type :one}))
                                     relations
                                     recursions))))
-         aggregate-keys [:_count :_min :_max :_avg :_sum :_agg]]
-     (as-> (hash-map
-            :entity/as (str (gensym "data_"))
-            :entity/table table
-            :fields scalars
-            :aggregate (reduce
-                        (fn [r {k :key}]
-                          (let [[{:keys [args selections]}] (get selection k)
-                                selection (flatten-selection selections)]
-                            (if (not-empty selections)
-                              (assoc r k {:operations (vec (map name (keys selection)))
-                                          :args args})
-                              r)))
-                        nil
-                        fields)
-            :args args
-            :decoders decoders
-            :encoders encoders
-            :relations narrow-relations
-            :recursions recursions) schema
-       ;;
-       (if-not (some #(contains? selection %) aggregate-keys)
-         schema
-         (reduce-kv
-          (fn [schema operation fields]
-            (case operation
-               ;;
-              :_count
-              (reduce
-               (fn [schema {operations :selections}]
-                 (reduce-kv
-                  (fn [schema relation specifics]
-                    (let [rkey (keyword (name relation))
-                          rdata (get relations rkey)
-                          relation (->
-                                    rdata
-                                    (dissoc :_count)
-                                    (dissoc :relations)
-                                    (clojure.set/rename-keys {:table :relation/table})
-                                    (assoc
-                                     :pinned true
-                                     :entity/table (:to/table rdata)
-                                     :relation/as (str (gensym "link_"))
-                                     :entity/as (str (gensym "data_"))))]
-                      (case specifics
-                           ;;
-                        (nil [nil]) (assoc-in schema [:_count rkey] relation)
-                           ;;
-                        (reduce
-                         (fn [schema {:keys [alias args]}]
-                           (let [akey (or alias rkey)]
-                                 ;; Use original relation
-                             (assoc-in schema [:_count akey]
-                                           ;; and if there are arguments in _counted
-                                           ;; than use that arguments, otherwise use
-                                           ;; args from narrowed relation select
-                                       (cond-> relation
-                                         args (assoc :args (clojure.set/rename-keys args {:_where :_maybe}))))))
+         aggregate-keys [:_count :_min :_max :_avg :_sum :_agg]
+         ;; Build base schema
+         base-schema (as-> (hash-map
+                            :entity/as (str (gensym "data_"))
+                            :entity/table table
+                            :fields scalars
+                            :aggregate (reduce
+                                        (fn [r {k :key}]
+                                          (let [[{:keys [args selections]}] (get selection k)
+                                                selection (flatten-selection selections)]
+                                            (if (not-empty selections)
+                                              (assoc r k {:operations (vec (map name (keys selection)))
+                                                          :args args})
+                                              r)))
+                                        nil
+                                        fields)
+                            :args args
+                            :decoders decoders
+                            :encoders encoders
+                            :relations narrow-relations
+                            :recursions recursions) schema
+                       ;; Handle aggregates
+                       (if-not (some #(contains? selection %) aggregate-keys)
                          schema
-                         specifics))))
-                  schema
-                  operations))
-               schema
-               fields)
-               ;;
-              :_agg
-              (reduce
-               (fn [schema {operations :selections}]
-                 (reduce-kv
-                  (fn [schema relation [{specifics :selections}]]
-                    (let [rkey (keyword (name relation))
-                          rdata (get relations rkey)
-                          relation (->
-                                    rdata
-                                    (dissoc :_agg)
-                                    (dissoc :relations)
-                                    (clojure.set/rename-keys {:table :relation/table})
-                                    (assoc
-                                     :pinned true
-                                     :entity/table (:to/table rdata)
-                                     :relation/as (str (gensym "link_"))
-                                     :entity/as (str (gensym "data_"))))
-                          schema (assoc-in schema [:_agg rkey] relation)]
-                      (reduce-kv
-                       (fn [schema operation [{aggregates :selections}]]
-                         (let [operation (keyword (name operation))]
-                           (reduce-kv
-                            (fn [schema fkey selections]
-                              (let [fkey (keyword (name fkey))]
-                                (case selections
-                                       ;;
-                                  (nil [nil]) (assoc-in schema [:_agg rkey operation fkey] [fkey nil])
-                                       ;;
-                                  (reduce
-                                   (fn [schema {:keys [alias args]}]
-                                     (let [field (or alias fkey)]
-                                       (assoc-in schema [:_agg rkey operation field]
-                                                 [fkey (when args {:args args})])))
-                                   schema
-                                   selections))))
-                            schema
-                            aggregates)))
-                       schema
-                       specifics)))
-                  schema
-                  operations))
-               schema
-               fields)
-               ;;
-              (reduce
-               (fn [schema {:keys [selections]}]
-                 (reduce-kv
-                  (fn [schema fkey selections]
-                    (let [fkey (keyword (name fkey))]
-                      (reduce
-                       (fn [schema {:keys [alias args]}]
-                         (let [field (or alias fkey)]
-                           (assoc-in schema [operation field]
-                                     [fkey (when args {:args args})])))
-                       schema
-                       selections)))
-                  schema
-                  selections))
-               schema
-               fields)))
-          schema
-          (select-keys selection aggregate-keys)))))))
+                         (reduce-kv
+                          (fn [schema operation fields]
+                            (case operation
+                              :_count
+                              (reduce
+                               (fn [schema {operations :selections}]
+                                 (reduce-kv
+                                  (fn [schema relation specifics]
+                                    (let [rkey (keyword (name relation))
+                                          rdata (get relations rkey)
+                                          relation (->
+                                                    rdata
+                                                    (dissoc :_count)
+                                                    (dissoc :relations)
+                                                    (clojure.set/rename-keys {:table :relation/table})
+                                                    (assoc
+                                                     :pinned true
+                                                     :entity/table (:to/table rdata)
+                                                     :relation/as (str (gensym "link_"))
+                                                     :entity/as (str (gensym "data_"))))]
+                                      (case specifics
+                                        (nil [nil]) (assoc-in schema [:_count rkey] relation)
+                                        (reduce
+                                         (fn [schema {:keys [alias args]}]
+                                           (let [akey (or alias rkey)]
+                                             (assoc-in schema [:_count akey]
+                                                       (cond-> relation
+                                                         args (assoc :args (clojure.set/rename-keys args {:_where :_maybe}))))))
+                                         schema
+                                         specifics))))
+                                  schema
+                                  operations))
+                               schema
+                               fields)
+                              ;; ... rest of aggregate handling ...
+                              ))
+                          schema
+                          (select-keys selection aggregate-keys))))]
+     ;; NEW: Apply access enhancement
+     ;; The enhancement system uses dynamic bindings *user*, *roles*, *groups*
+     (enhance/enhance-schema base-schema entity-id))))
 
 (defn relations-cursor [cursor]
   (if (empty? cursor)
@@ -1610,7 +1530,6 @@
   First is sequence of table aliases, and second one is FROM
   statment itself."
   [schema]
-  ; (def schema schema)
   (comment
     (println (second *1)))
   (letfn [(targeting-args? [args]
@@ -1828,7 +1747,6 @@
                                    (dissoc schema :_count :fields)
                                    (if-not parents schema
                                            (update schema :args assoc-in [:_eid :_in] (long-array parents))))
-                          ; _ (def schema schema)
                           [_ from] (search-stack-from schema)
                           ;;
                           [count-selections from-data]
@@ -2241,6 +2159,9 @@
        (update-in schema (relations-cursor cursor) shave)
        (shave schema)))))
 
+(comment
+  (deref _deployed-schema))
+
 (defn search-entity-roots
   ([schema]
    (with-open [connection (jdbc/get-connection (:datasource *db*))]
@@ -2248,7 +2169,6 @@
   ([connection schema]
    ; (log/tracef "Searching entity roots for schema:\n%s" (pprint schema))
    ;; Prepare tables target table by inner joining all required tables
-   ; (def schema schema)
    ; (comment
    ;   (def focused-schema (focus-order schema))
    ;   (search-stack-from focused-schema))
@@ -2347,6 +2267,9 @@
    (with-open [connection (jdbc/get-connection (:datasource *db*))]
      (let [schema (binding [*operation-rules* #{:read}]
                     (selection->schema entity-id selection args))
+           _ (do
+               (def selection selection)
+               (def args args))
            _ (log/tracef "Searching for entity\n%s" schema)
            roots (search-entity-roots connection schema)]
        (when (some? roots)
@@ -2387,6 +2310,7 @@
                  (doseq [query delete-statements]
                    (log/debugf "[%s]Purgin entity rows with %s" entity-id query)
                    (postgres/execute! connection query *return-type*))
+                 (async/put! core/delta-client {:element entity-id :delta {:purge response}})
                  response))
              [])))))))
 

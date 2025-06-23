@@ -39,7 +39,7 @@
   ; com.github.gersak/vura                       {:local/root "../../vura"}
   ; com.github.gersak/shadow-css                 {:local/root "../../shadow-css"}
   com.github.gersak/shadow-css                 {:mvn/version "0.5.0"}
-  dev.gersak/patcho                            {:mvn/version "0.1.0"}
+  dev.gersak/patcho                            {:mvn/version "0.3.0"}
   babashka/fs                                  {:mvn/version "0.5.22"}
 
   ;; Storage
@@ -74,9 +74,10 @@
   {:deps
    {io.github.clojure/tools.build   {:mvn/version "0.9.4"}
     com.github.clj-easy/graal-build-time {:mvn/version "0.1.4"}
-    org.clojure/data.json      {:mvn/version "2.5.1"}
+    org.clojure/data.json           {:mvn/version "2.5.1"}
     com.cognitect.aws/api           {:mvn/version "0.8.539"
                                      :exclusions [org.clojure/data.json]}
+    org.slf4j/slf4j-nop             {:mvn/version "2.0.12"}
     com.cognitect.aws/endpoints     {:mvn/version "1.1.12.110"}
     com.cognitect.aws/s3            {:mvn/version "814.2.991.0"}}
    :ns-default build}

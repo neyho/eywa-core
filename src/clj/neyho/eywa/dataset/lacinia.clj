@@ -994,14 +994,14 @@
                    ;;
             (csk/->camelCaseKeyword (str "sync " ename))
             {:type (entity->gql-object ename)
-             :args {(keyword (normalize-name ename)) {:type (list 'non-null t)}}
+             :args {:data {:type (list 'non-null t)}}
              :resolve
              (fn sync [context data value]
                (sync-mutation (assoc context :eywa/entity entity) data value))}
                    ;; SYNC LIST
             (csk/->camelCaseKeyword (str "sync " ename " List"))
             {:type (list 'list (entity->gql-object ename))
-             :args {(keyword (normalize-name ename)) {:type (list 'list t)}}
+             :args {:data {:type (list 'list t)}}
              :resolve
              (fn syncList [context data value]
                (try
@@ -1012,7 +1012,7 @@
                    ;;
             (csk/->camelCaseKeyword (str "stack " ename " List"))
             {:type (list 'list (entity->gql-object ename))
-             :args {(keyword (normalize-name ename)) {:type (list 'list t)}}
+             :args {:data {:type (list 'list t)}}
              :resolve
              (fn stackList [context data value]
                (try
@@ -1023,7 +1023,7 @@
                    ;;
             (csk/->camelCaseKeyword (str "stack" ename))
             {:type (entity->gql-object ename)
-             :args {(keyword (normalize-name ename)) {:type (list 'non-null t)}}
+             :args {:data {:type (list 'non-null t)}}
              :resolve
              (fn stack [context data value]
                (try

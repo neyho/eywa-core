@@ -29,7 +29,7 @@
    [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
 
-(def version "0.4.1")
+(patch/current-version :eywa/core "0.5.0")
 
 (defn setup
   ([] (setup (neyho.eywa.db.postgres/from-env)))
@@ -147,10 +147,10 @@
   (let [{java-version :version :as jinfo} (java-info)]
     (as-> [] lines
       (if (valid-java? jinfo)
-        (conj lines (str "  JAVA     " (str "✅: version '" java-version "' is supported")))
+        (conj lines (str "✅ JAVA" (str ": version '" java-version "' is supported")))
         (conj lines
-              (str "  JAVA     " (str "❌: current version '" java-version "' is not supported"))
-              (str "         Use JAVA versions 11,17"))))))
+              (str "❌ JAVA" (str ": current version '" java-version "' is not supported"))
+              (str "         Use JAVA versions 11+"))))))
 
 (defn is-initialized
   []
@@ -181,14 +181,14 @@
     (as-> [] lines
       ;; Check postgres
       (if postgres-error
-        (conj lines (str "  POSTGRES " (str "❌: " postgres-error)))
-        (conj lines (str "  POSTGRES " (str "✅"))))
+        (conj lines (str "❌ POSTGRES" (str ": " postgres-error)))
+        (conj lines (str "✅ POSTGRES ")))
       ;; Check datasets
       (if dataset-error
-        (conj lines (str "  DATASETS " (str "❌: " dataset-error)))
+        (conj lines (str "❌ DATASETS " (str ": " dataset-error)))
         (if-not postgres-error
-          (conj lines (str "  DATASETS ✅"))
-          (conj lines (str "  DATASETS " (str "❌: Postgres not available"))))))))
+          (conj lines (str "✅ DATASETS"))
+          (conj lines (str "❌ DATASETS " (str ": Postgres not available"))))))))
 
 (defn doctor []
   (let [lines (reduce
@@ -217,15 +217,6 @@
   (neyho.eywa.server/stop)
   nil)
 
-(comment
-  (def db (neyho.eywa.db.postgres/from-env))
-  (def options
-    {:port (when-some [port (env :eywa-server-port "8080")]
-             (if (number? port) port (Integer/parseInt port)))
-     :host (env :eywa-server-host "0.0.0.0")
-     :info {:version version
-            :release-type "core"}}))
-
 (defn start
   ([] (start (neyho.eywa.db.postgres/from-env)))
   ([db]
@@ -233,8 +224,7 @@
           {:port (when-some [port (env :eywa-server-port "8080")]
                    (if (number? port) port (Integer/parseInt port)))
            :host (env :eywa-server-host "0.0.0.0")
-           :info {:version version
-                  :release-type "core"}}))
+           :info (patch/available-versions [:eywa/core :eywa/robotics])}))
   ([db options]
    (stop)
    (neyho.eywa.transit/init)
@@ -247,12 +237,11 @@
    (neyho.eywa.iam.access/start)
    (neyho.eywa.server/start options)
    (patch/apply
-    ::update/db
+    :eywa/core
     (try
       (update/last-version "core")
-      (catch Throwable _ nil))
-    version)
-   (neyho.eywa.update/sync "core" version)))
+      (catch Throwable _ nil)))
+   (neyho.eywa.update/sync "core" (patch/version :eywa/core))))
 
 (defn tear-down
   ([] (tear-down (neyho.eywa.db.postgres/from-env)))
@@ -264,13 +253,18 @@
   [& args]
   (let [[command subcommand] args]
     (when (= command "version")
-      (println version)
+      (let [eywa-versions (filter
+                           (fn [[k]]
+                             (when (keyword? k)
+                               (namespace k)
+                               (= "eywa" (namespace k))))
+                           (patch/available-versions))
+            sorted (sort-by key eywa-versions)
+            to-print (map (fn [[k v]] (str (namespace k) \. (name k) "=" v)) sorted)]
+        (println (str/join "\n" to-print)))
       (System/exit 0))
     (try
       (case command
-        "version" (do
-                    (println version)
-                    (System/exit 0))
         "init" (do
                  (initialize)
                  (System/exit 0))

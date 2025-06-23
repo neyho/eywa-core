@@ -15,7 +15,7 @@
     :aliases [:prod]}))
 
 (def version
-  (let [{:keys [out err]} (sh "clj" "-M" "-m" "neyho.eywa.core" "version")
+  (let [{:keys [out err]} (sh "clj" "-M" "-e" "(require '[neyho.eywa.core])(require '[patcho.patch :as patch]) (println (patch/version :eywa/core))")
         version (some not-empty [out err])]
     (when (empty? version)
       (throw
