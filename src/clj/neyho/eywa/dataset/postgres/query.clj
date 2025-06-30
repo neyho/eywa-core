@@ -96,7 +96,6 @@
        :field))
    (vals fields)))
 
-;; EXPERIMENTAL = NEW DB INSERTION
 (defn tmp-key [] (nano-id 10))
 
 (defn throw-relation [id [from-euuid _]]
@@ -138,8 +137,21 @@
     true))
 
 (defn analyze-data
-  ([entity data] (analyze-data entity data true))
-  ([entity data stack?]
+  ([tx entity data stack?]
+   (let [data' (if (sequential? data)
+                 (map #(assoc % :tmp/id (tmp-key)) data)
+                 (assoc data :tmp/id (tmp-key)))]
+     (analyze-data
+      tx
+      {:root (if (sequential? data')
+               (mapv :tmp/id data')
+               (:tmp/id data'))
+       :root/table (:table (get (deployed-schema) entity))
+       :entity/euuid entity}
+      entity
+      data'
+      stack?)))
+  ([_ current entity data stack?]
    (let [schema (deployed-schema)
          find-entity (memoize (fn [entity] (get schema entity)))
          type-mapping (memoize
@@ -335,12 +347,12 @@
                         ;;
                       fields-data (if (or
                                        (not-empty references-data)
-                                          ;; This part is for removing constraint keys, as in
-                                          ;; if somebody is linking entities, than entities aren't
-                                          ;; actually changed... Version bellow can cause veird behaviour
-                                          ;; when someone actually changes unique attribute. It doesn't
-                                          ;; recognise that as change that modifies row. This is quickfix
-                                          ;; for now
+                                       ;; This part is for removing constraint keys, as in
+                                       ;; if somebody is linking entities, than entities aren't
+                                       ;; actually changed... Version bellow can cause veird behaviour
+                                       ;; when someone actually changes unique attribute. It doesn't
+                                       ;; recognise that as change that modifies row. This is quickfix
+                                       ;; for now
                                        (not-empty (apply dissoc fields-data [:_eid :euuid]))
                                        #_(not-empty (apply dissoc fields-data constraint-keys)))
                                     (assoc fields-data
@@ -449,19 +461,37 @@
                      relations-data)))))]
        ;;
        (if (sequential? data)
-         (let [data (map #(assoc % :tmp/id (tmp-key)) data)]
-           (reduce
-            #(transform-object %1 entity %2)
-            {:root (mapv :tmp/id data)
-             :root/table (:table (find-entity entity))
-             :entity/euuid entity}
-            data))
-         (let [data (assoc data :tmp/id (tmp-key))]
-           (transform-object
-            {:root (:tmp/id data)
-             :root/table (:table (find-entity entity))
-             :entity/euuid entity}
-            entity data)))))))
+         (reduce
+          #(transform-object %1 entity %2)
+          current
+          data)
+         (transform-object current entity data))))))
+
+(defn enhance-write
+  [tx result]
+  (let [final (reduce-kv
+               (fn [final _ entity-id]
+                 (binding [*operation-rules* #{:write}]
+                   (let [current (enhance/apply-write entity-id final tx)]
+                     current)))
+               result
+               (:entity/mapping result))]
+    final))
+
+; (defn check-mutations
+;   [result]
+;   (def result result)
+;   (letfn [(add-relations [])
+;           (reconstruct [entity-id k]
+;             (reduce-kv
+;               (fn [r tmp-key record]
+;                 ())
+;               []
+;               (get-in result [:entity k])))]
+;     (doseq [[k entity-id] (:entity/mapping result)]
+;       (binding [*operation-rules* #{:write}]
+;         (enhance/mutation-accessible? entity-id (vals (get-in result [:entity k])) nil))))
+;   result)
 
 (defn pull-references [tx reference-table references]
   (let [table-constraint-mapping
@@ -553,27 +583,29 @@
 
 (comment
   (search-entity
-    #uuid "0757bd93-7abf-45b4-8437-2841283edcba"
-    nil
-    {:name nil
-     :modified_by [{:selections
-                    {:name nil}}]
-     :modified_on nil})
+   #uuid "0757bd93-7abf-45b4-8437-2841283edcba"
+   nil
+   {:name nil
+    :modified_by [{:selections
+                   {:name nil}}]
+    :modified_on nil})
   #_(time
-      (set-entity
-        neyho.eywa.iam.uuids/user
-        [{:name "test1" :active true
-          :type :PERSON
-          :roles [neyho.eywa.data/*ROOT*]}
-         {:name "test2" :active true
-          :type :PERSON
-          :roles [neyho.eywa.data/*ROOT*]}
-         {:name "test3" :active true
-          :type :PERSON
-          :roles [neyho.eywa.data/*ROOT*]}])))
+     (set-entity
+      neyho.eywa.iam.uuids/user
+      [{:name "test1" :active true
+        :type :PERSON
+        :roles [neyho.eywa.data/*ROOT*]}
+       {:name "test2" :active true
+        :type :PERSON
+        :roles [neyho.eywa.data/*ROOT*]}
+       {:name "test3" :active true
+        :type :PERSON
+        :roles [neyho.eywa.data/*ROOT*]}])))
 
 (defn store-entity-records
   [tx {:keys [entity constraint] :as analysis}]
+  ; (def analysis analysis)
+  ; (throw (Exception. "HOH"))
   (reduce-kv
    (fn [analysis entity-table rows]
      (reduce-kv
@@ -583,9 +615,9 @@
          entity-table (str/join ", " ks) (str/join "\n" rows))
         (let [row-data (map
                          ;; select only field keys
-                         (apply juxt ks)
+                        (apply juxt ks)
                          ;; Get only row without tempids
-                         (map first rows))
+                        (map first rows))
               tmp-ids (map second rows)
               columns-fn #(str \" (name %) \")
               ks' (map columns-fn ks)
@@ -594,36 +626,36 @@
               constraint (if (contains? ks :euuid)
                            [:euuid]
                            (some
-                             #(when (every? ks %) %)
-                             (get constraint entity-table)))
+                            #(when (every? ks %) %)
+                            (get constraint entity-table)))
               ;;
               on-values (map columns-fn constraint)
               ;;
 
               query
               (str
-                "INSERT INTO \"" entity-table "\" ("
-                (str/join ", " ks') ") VALUES "
-                (str/join ", " (repeat (count row-data) values-?))
-                (when (not-empty on-values)
-                  (let [on-sql (str/join ", " on-values)
-                        do-set (str/join
-                                 ", "
-                                 (map
-                                   (fn [column]
-                                     (str column "=excluded." column))
-                                   ks'))]
-                    (str " ON CONFLICT (" on-sql ") DO UPDATE SET " do-set)))
-                " RETURNING _eid, euuid")
+               "INSERT INTO \"" entity-table "\" ("
+               (str/join ", " ks') ") VALUES "
+               (str/join ", " (repeat (count row-data) values-?))
+               (when (not-empty on-values)
+                 (let [on-sql (str/join ", " on-values)
+                       do-set (str/join
+                               ", "
+                               (map
+                                (fn [column]
+                                  (str column "=excluded." column))
+                                ks'))]
+                   (str " ON CONFLICT (" on-sql ") DO UPDATE SET " do-set)))
+               " RETURNING _eid, euuid")
               _ (log/tracef
-                  "[%s]Storing entity group %s\nData:\n%s\nQuery:\n%s"
-                  entity-table constraint (pprint row-data) query)
+                 "[%s]Storing entity group %s\nData:\n%s\nQuery:\n%s"
+                 entity-table constraint (pprint row-data) query)
               result (postgres/execute!
-                       tx (into [query] (flatten row-data))
-                       *return-type*)
+                      tx (into [query] (flatten row-data))
+                      *return-type*)
               _ (log/tracef
-                  "[%s]Stored entity group result:\n%s"
-                  entity-table (pprint result))
+                 "[%s]Stored entity group result:\n%s"
+                 entity-table (pprint result))
               mapping (zipmap tmp-ids result)]
           (log/tracef "[%s]Stored entity group %s" entity-table result)
           (reduce-kv
@@ -775,8 +807,8 @@
                  "[%s]Deleting relations\n%s\nDeleted:\n%s"
                  table query deleted)))
             (log/tracef
-             "[%s]Adding new relations\n%s"
-             table sql-add)
+             "[%s]Adding new relations\n%s\n%s"
+             table sql-add new)
             (jdbc/execute-batch! sql-add new (get postgres/defaults *return-type*))
             result))
         result
@@ -821,22 +853,23 @@
        (set-entity tx entity-id data stack?))))
   ([tx entity-id data stack?]
    #_(do
-     (def entity-id entity-id)
-     (def data data)
-     (def stack? stack?)
-     (def roles *roles*)
-     (def user *user*))
-   (letfn [(pull-roots [{:keys [root entity root/table]}]
+       (def entity-id entity-id)
+       (def data data)
+       (def stack? stack?)
+       (def roles *roles*)
+       (def user *user*))
+   (letfn [(pull-roots [{:keys [root entity root/table] :as current}]
              (log/tracef
               "[%s]Pulling root(%s) entity after mutation"
               entity-id root)
              (if (sequential? root)
                (mapv #(get-in entity [table %]) root)
                (get-in entity [table root])))]
-     (let [analysis (analyze-data entity-id data stack?)]
+     (let [analysis (analyze-data tx entity-id data stack?)]
        (log/tracef "Storing based on analysis\n%s" (pprint analysis))
        (as-> analysis result
          (prepare-references tx result)
+         (enhance-write tx result)
          (store-entity-records tx result)
          (project-saved-entities result)
          (link-relations tx result stack?)
@@ -1015,8 +1048,8 @@
                                   (reduce clojure.set/union
                                           (if (valid-fields k) (conj result k) result)
                                           (concat
-                                            (map join-args (vals (select-keys args [:_where :_maybe])))
-                                            (mapcat #(map join-args %) (vals (select-keys args [:_or :_and]))))))
+                                           (map join-args (vals (select-keys args [:_where :_maybe])))
+                                           (mapcat #(map join-args %) (vals (select-keys args [:_or :_and]))))))
                                 result
                                 args)))]
                       (join-args args))
@@ -1050,8 +1083,8 @@
                                               new-args :args}]
                                     (let [{:keys [relation from to ref? recursion?]} rdata]
                                       (or
-                                        ref? recursion?
-                                        (relation-accessible? relation [from to] #{:read}))
+                                       ref? recursion?
+                                       (relation-accessible? relation [from to] #{:read}))
                                       (assoc final (or alias rkey)
                                              (merge
                                               (clojure.set/rename-keys rdata {:table :relation/table})
@@ -1130,6 +1163,7 @@
          aggregate-keys [:_count :_min :_max :_avg :_sum :_agg]
          ;; Build base schema
          base-schema (as-> (hash-map
+                            :entity entity-id
                             :entity/as (str (gensym "data_"))
                             :entity/table table
                             :fields scalars
@@ -1191,7 +1225,7 @@
                           (select-keys selection aggregate-keys))))]
      ;; NEW: Apply access enhancement
      ;; The enhancement system uses dynamic bindings *user*, *roles*, *groups*
-     (enhance/enhance-schema base-schema entity-id))))
+     (enhance/apply-schema base-schema selection))))
 
 (defn relations-cursor [cursor]
   (if (empty? cursor)
@@ -1347,10 +1381,11 @@
               (case field
                 ;;
                 :_where
-                (if-not *deep* [statements data]
-                        (let [[statements' data'] (query-selection->sql (assoc schema :args constraints))]
-                          [(conj statements [:and statements'])
-                           (into data data')]))
+                (if-not *deep*
+                  [statements data]
+                  (let [[statements' data'] (query-selection->sql (assoc schema :args constraints))]
+                    [(conj statements [:and statements'])
+                     (into data data')]))
                 ;; Ignore for now...
                 :_maybe
                 (if *ignore-maybe* [statements data]
@@ -1492,7 +1527,8 @@
                     (vals relations))]
                [((fnil into []) statements statements')
                 ((fnil into []) data data')]))]
-     (let [[stack data] (args-stack schema)]
+     (let [[stack data] (args-stack schema)
+           [stack data] (enhance/args *db* schema [stack data])]
        (log/tracef
         "Computed args stack:\nStack:\n%s\nData:\n%s"
         stack (pprint data))
@@ -1530,8 +1566,6 @@
   First is sequence of table aliases, and second one is FROM
   statment itself."
   [schema]
-  (comment
-    (println (second *1)))
   (letfn [(targeting-args? [args]
             (when args
               (if (vector? args)
@@ -2258,18 +2292,23 @@
 
 (defn search-entity
   ([entity-id args selection]
+   (search-entity entity-id args selection #{:search :read}))
+  ([entity-id args selection operations]
+   (with-open [connection (jdbc/get-connection (:datasource *db*))]
+     (search-entity connection entity-id args selection operations)))
+  ([connection entity-id args selection operations]
    ; (def entity-id entity-id)
    ; (def args args)
    ; (def selection selection)
    ; (def user *user*)
    ; (def roles *roles*)
-   (entity-accessible? entity-id #{:read})
-   (with-open [connection (jdbc/get-connection (:datasource *db*))]
-     (let [schema (binding [*operation-rules* #{:read}]
-                    (selection->schema entity-id selection args))
-           _ (do
-               (def selection selection)
-               (def args args))
+   (entity-accessible? entity-id operations)
+   (binding [*operation-rules* operations]
+     (let [schema (selection->schema entity-id selection args)
+           ; _ (do
+           ;     (def schema schema)
+           ;     (def selection selection)
+           ;     (def args args))
            _ (log/tracef "Searching for entity\n%s" schema)
            roots (search-entity-roots connection schema)]
        (when (some? roots)
@@ -2280,8 +2319,11 @@
   ([entity-id args selection]
    (with-open [connection (jdbc/get-connection (:datasource *db*))]
      (let [schema (selection->schema entity-id selection args)
-           enforced-schema (binding [*operation-rules* #{:owns}]
-                             (selection->schema entity-id selection args))]
+           enforced-schema (as-> nil schema
+                             (binding [*operation-rules* #{:owns}]
+                               (selection->schema entity-id selection args))
+                             (binding [*operation-rules* #{:delete}]
+                               (selection->schema entity-id selection args)))]
        ; (log/info
        ;   :entity entity-id
        ;   :args args
@@ -2295,24 +2337,25 @@
            "Purge not allowed. User doesn't own all entites included in purge"
            {:type ::enforce-purge
             :roles *roles*}))
-         (let [roots (search-entity-roots connection schema)]
-           (if (some? roots)
-             (letfn [(construct-statement
-                       [table _eids]
-                       (log/debugf "[%s]Constructing purge for eids #%d: %s" table (count _eids) (str/join ", " _eids))
-                       [(str "delete from \"" table "\" where _eid=any(?)") (long-array _eids)])
-                     ; [(str "delete from \"" table "\" where _eid in (select _eid from \"" table "\" where _eid=any(?))") (long-array _eids)])
-                     (process-statement [r k v]
-                       (conj r (construct-statement k (keys v))))]
-               (let [db (pull-cursors connection schema roots)
-                     response (construct-response schema db roots)
-                     delete-statements (reduce-kv process-statement [] db)]
-                 (doseq [query delete-statements]
-                   (log/debugf "[%s]Purgin entity rows with %s" entity-id query)
-                   (postgres/execute! connection query *return-type*))
-                 (async/put! core/delta-client {:element entity-id :delta {:purge response}})
-                 response))
-             [])))))))
+         (binding [*operation-rules* #{:purge :delete}]
+           (let [roots (search-entity-roots connection schema)]
+             (if (some? roots)
+               (letfn [(construct-statement
+                         [table _eids]
+                         (log/debugf "[%s]Constructing purge for eids #%d: %s" table (count _eids) (str/join ", " _eids))
+                         [(str "delete from \"" table "\" where _eid=any(?)") (long-array _eids)])
+                       ; [(str "delete from \"" table "\" where _eid in (select _eid from \"" table "\" where _eid=any(?))") (long-array _eids)])
+                       (process-statement [r k v]
+                         (conj r (construct-statement k (keys v))))]
+                 (let [db (pull-cursors connection schema roots)
+                       response (construct-response schema db roots)
+                       delete-statements (reduce-kv process-statement [] db)]
+                   (doseq [query delete-statements]
+                     (log/debugf "[%s]Purgin entity rows with %s" entity-id query)
+                     (postgres/execute! connection query *return-type*))
+                   (async/put! core/delta-client {:element entity-id :delta {:purge response}})
+                   response))
+               []))))))))
 
 (comment
   (def selection
@@ -2364,8 +2407,10 @@
 
 (defn get-entity
   ([entity-id args selection]
+   (get-entity entity-id args selection #{:read :get}))
+  ([entity-id args selection operations]
    (assert (some? args) "No arguments to get entity for...")
-   (entity-accessible? entity-id #{:read})
+   (entity-accessible? entity-id operations)
    (log/debugf
     "[%s] Getting entity\nArgs:\n%s\nSelection:\n%s"
     entity-id (pprint args) (pprint selection))
@@ -2378,16 +2423,16 @@
                nil
                args)]
      (with-open [connection (jdbc/get-connection (:datasource *db*))]
-       (let [schema (binding [*operation-rules* #{:read}]
-                      (selection->schema entity-id selection args))
-             roots (search-entity-roots connection schema)]
-         (when (not-empty roots)
-           (let [roots' (pull-roots connection schema roots)
-                 response (first roots')]
-             (log/tracef
-              "[%s] Returning response\n%s"
-              entity-id (pprint response))
-             response)))))))
+       (binding [*operation-rules* operations]
+         (let [schema (selection->schema entity-id selection args)
+               roots (search-entity-roots connection schema)]
+           (when (not-empty roots)
+             (let [roots' (pull-roots connection schema roots)
+                   response (first roots')]
+               (log/tracef
+                "[%s] Returning response\n%s"
+                entity-id (pprint response))
+               response))))))))
 
 (defn get-entity-tree
   [entity-id root on selection]
@@ -2566,35 +2611,38 @@
                   (postgres/execute! connection sql-final *return-type*)))}))))))))
 
 (defn delete-entity
-  [entity-id args]
-  (let [{:keys [entity/table]} (binding [*operation-rules* #{:delete}]
-                                 (selection->schema entity-id nil nil))]
-    (boolean
-     (when (and (some? args) table)
-       (with-open [connection (jdbc/get-connection (:datasource *db*))]
-         (let [[statements data] (reduce-kv
-                                  (fn [[statements data] k v]
-                                    [(conj statements (str (name k) "=?"))
-                                     (conj data v)])
-                                  [[] []]
-                                  args)
-               sql (cond->
-                    [(format
-                      "delete from \"%s\" where %s"
-                      table
-                      (j-and statements))]
-                     (not-empty data) (into data))
-               _ (log/tracef
-                  "[%s] Deleting entity\n%s"
-                  entity-id sql)]
-           (postgres/execute! connection sql *return-type*)
-           (async/put! core/delta-client {:element entity-id :delta {:delete args}})
-           ; (async/put!
-           ;   core/client
-           ;   {:type :entity/delete
-           ;    :entity entity-id
-           ;    :args args})
-           true))))))
+  ([entity-id args]
+   (with-open [connection (jdbc/get-connection (:datasource *db*))]
+     (delete-entity connection entity-id args)))
+  ([connection entity-id args]
+   (binding [*operation-rules* #{:delete}]
+     (let [{:keys [entity/table]} (selection->schema entity-id nil nil)]
+       (enhance/apply-delete entity-id args nil)
+       (boolean
+        (when (and (some? args) table)
+          (let [[statements data] (reduce-kv
+                                   (fn [[statements data] k v]
+                                     [(conj statements (str (name k) "=?"))
+                                      (conj data v)])
+                                   [[] []]
+                                   args)
+                sql (cond->
+                     [(format
+                       "delete from \"%s\" where %s"
+                       table
+                       (j-and statements))]
+                      (not-empty data) (into data))
+                _ (log/tracef
+                   "[%s] Deleting entity\n%s"
+                   entity-id sql)]
+            (postgres/execute! connection sql *return-type*)
+            (async/put! core/delta-client {:element entity-id :delta {:delete args}})
+             ; (async/put!
+             ;   core/client
+             ;   {:type :entity/delete
+             ;    :entity entity-id
+             ;    :args args})
+            true)))))))
 
 ;; FIXME
 (defn slice-entity

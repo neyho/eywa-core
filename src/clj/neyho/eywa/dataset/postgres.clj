@@ -277,8 +277,10 @@
                    old-table (column-name name)
                    (normalize-name (str new-table \space name)))]
           ;; Add new scalar column to table
-          [(cond-> (str "alter table \"" old-table "\" add column if not exists " (column-name name) " " (type->ddl type))
-             (= "mandatory" constraint) (str " not null"))]))
+          [(str "alter table \"" old-table "\" add column if not exists " (column-name name) " " (type->ddl type))]
+          ;; TODO - remove mandatory
+          #_[(cond-> (str "alter table \"" old-table "\" add column if not exists " (column-name name) " " (type->ddl type))
+               (= "mandatory" constraint) (str " not null"))]))
       ;;
       (when (or
              (:name (core/diff entity)) ;; If entity name has changed check if there are some enums
@@ -293,29 +295,31 @@
           (cond-> []
             ;; If current constraint is mandatory or unique
             ;; and it wasn't before, than add not null constraint
-            (and
-             (not (#{"mandatory"} dc))
-             (#{"mandatory"} constraint))
-            (conj
-             (do
-               (log/debugf "Setting NOT NULL constraint in table %s column %s" old-table column)
-               (format
-                "alter table \"%s\" alter column %s set not null"
-                old-table column)))
-            (and
-             (#{"mandatory"} dc)
-             (or
-                ;; If current is not mandatory or unique but it previously was,
-                ;; than remove not null constraint
-              (not (#{"mandatory"} constraint))
-                ;; Or if attribute is removed, than remove not null constraint
-              (core/removed-attribute? attribute)))
-            (conj
-             (do
-               (log/debugf "[%s]Removing table %s column %s NOT NULL constraint" euuid old-table column)
-               (format
-                "alter table \"%s\" alter column %s drop not null"
-                old-table column)))
+            ;; DEPRECATED - mandatory should be enforced by application
+            ;; logic, not DB
+            ;; (and
+            ;;  (not (#{"mandatory"} dc))
+            ;;  (#{"mandatory"} constraint))
+            ;; (conj
+            ;;  (do
+            ;;    (log/debugf "Setting NOT NULL constraint in table %s column %s" old-table column)
+            ;;    (format
+            ;;     "alter table \"%s\" alter column %s set not null"
+            ;;     old-table column)))
+            ;; (and
+            ;;  (#{"mandatory"} dc)
+            ;;  (or
+            ;;   ;; If current is not mandatory or unique but it previously was,
+            ;;   ;; than remove not null constraint
+            ;;   (not (#{"mandatory"} constraint))
+            ;;     ;; Or if attribute is removed, than remove not null constraint
+            ;;   (core/removed-attribute? attribute)))
+            ;; (conj
+            ;;  (do
+            ;;    (log/debugf "[%s]Removing table %s column %s NOT NULL constraint" euuid old-table column)
+            ;;    (format
+            ;;     "alter table \"%s\" alter column %s drop not null"
+            ;;     old-table column)))
             ;; Change attribute name
             (and dn (not= (column-name dn) (column-name name)))
             (conj
@@ -1307,3 +1311,131 @@
           (catch Throwable ex
             (println "EX: " ex)
             (println statement)))))))
+
+(defn get-column-type
+  "Get current column type from database"
+  [table-name column-name]
+  (try
+    (execute-one! *db*
+                  ["SELECT data_type 
+        FROM information_schema.columns 
+        WHERE table_name = ? AND column_name = ? AND table_schema = 'public'"
+                   table-name column-name])
+    (catch Exception e
+      (log/warn "Could not get column type for" table-name column-name)
+      nil)))
+
+(defn fix-int-types
+  "Fix integer types by converting integer columns to bigint for:
+   - All int type attributes
+   - All references to user/group/role entities (foreign keys)
+   - Skip if column is already bigint"
+  []
+  (binding [*model* (dataset/deployed-model)]
+    (let [model (dataset/deployed-model)
+          entities (core/get-entities model)
+          statements (reduce
+                      (fn [statements entity]
+                        (let [entity-table (entity->table-name entity)
+
+                              ;; Handle modified_by column (always references user)
+                              modified-by-type (get-column-type entity-table "modified_by")
+                              modified-by-statements
+                              (if (and modified-by-type (= "integer" (:data_type modified-by-type)))
+                                [(format "ALTER TABLE \"%s\" ALTER COLUMN modified_by TYPE bigint" entity-table)]
+                                [])
+
+                              ;; Handle entity attributes
+                              attribute-statements
+                              (reduce
+                               (fn [attr-statements {:keys [name type] :as attribute}]
+                                 (if-not (contains? #{"user" "group" "role" "int"} type)
+                                   attr-statements
+                                   (let [column-name (normalize-name name)
+                                         current-type (get-column-type entity-table column-name)
+                                         needs-conversion? (and current-type (= "integer" (:data_type current-type)))]
+                                     (if needs-conversion?
+                                       (conj attr-statements
+                                             (format "ALTER TABLE \"%s\" ALTER COLUMN %s TYPE bigint"
+                                                     entity-table column-name))
+                                       attr-statements))))
+                               []
+                               (:attributes entity))]
+
+                          (concat statements modified-by-statements attribute-statements)))
+                      []
+                      entities)]
+
+      ;; Execute the statements
+      statements
+      (with-open [con (jdbc/get-connection (:datasource *db*))]
+        (doseq [statement statements]
+          (try
+            (execute-one! con [statement])
+            (println "✅" statement)
+            (catch Throwable ex
+              (println "❌ EX:" ex)
+              (println "   " statement))))))))
+
+(defn get-column-constraints
+  "Get column constraints from database including NOT NULL"
+  [table-name column-name]
+  (try
+    (execute-one! *db*
+                  ["SELECT column_name, is_nullable, data_type
+        FROM information_schema.columns 
+        WHERE table_name = ? AND column_name = ? AND table_schema = 'public'"
+                   table-name column-name])
+    (catch Exception e
+      (log/warn "Could not get column constraints for" table-name column-name)
+      nil)))
+
+(defn is-mandatory-attribute?
+  "Check if attribute has mandatory constraint in the dataset model"
+  [attribute]
+  (= "mandatory" (:constraint attribute)))
+
+(defn fix-mandatory-constraints
+  "Remove NOT NULL constraints from all mandatory fields in the dataset model.
+   This allows more flexible data entry by making all fields nullable at the database level
+   while still preserving the logical mandatory constraint in the dataset model."
+  []
+  (binding [*model* (dataset/deployed-model)]
+    (let [model (dataset/deployed-model)
+          entities (core/get-entities model)
+          statements (reduce
+                      (fn [statements entity]
+                        (let [entity-table (entity->table-name entity)
+
+                              ;; Get all mandatory attributes for this entity
+                              mandatory-attributes (filter is-mandatory-attribute? (:attributes entity))
+
+                              ;; Generate ALTER TABLE statements for mandatory attributes
+                              attribute-statements
+                              (reduce
+                               (fn [attr-statements {:keys [name] :as attribute}]
+                                 (let [column-name (normalize-name name)
+                                       column-info (get-column-constraints entity-table column-name)
+                                       has-not-null? (and column-info (= "NO" (:is_nullable column-info)))]
+                                   (if has-not-null?
+                                     (conj attr-statements
+                                           (format "ALTER TABLE \"%s\" ALTER COLUMN %s DROP NOT NULL"
+                                                   entity-table column-name))
+                                     attr-statements)))
+                               []
+                               mandatory-attributes)]
+
+                          (concat statements attribute-statements)))
+                      []
+                      entities)]
+      statements
+
+      ;; Execute the statements
+      (with-open [con (jdbc/get-connection (:datasource *db*))]
+        (doseq [statement statements]
+          (try
+            (execute-one! con [statement])
+            (println "✅" statement)
+            (catch Throwable ex
+              (println "❌ EX:" ex)
+              (println "   " statement))))))))

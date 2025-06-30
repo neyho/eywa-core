@@ -211,11 +211,11 @@ mutation {
                                          (str/join
                                           "\n"
                                           (keep
-                                           (fn [{:keys [from from-label to cardinality]}]
-                                             (when from-label
+                                           (fn [{:keys [from to-label to cardinality]}]
+                                             (when to-label
                                                (str
                                                 (:name from)
-                                                "---" (normalize-name from-label) \[ cardinality \] "--->"
+                                                "---" (normalize-name to-label) \[ cardinality \] "--->"
                                                 (:name to))))
                                            relations))))))))
                        []

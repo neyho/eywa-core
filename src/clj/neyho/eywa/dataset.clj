@@ -37,9 +37,6 @@
     (juxt :euuid :name)
     (dataset/get-entities (deployed-model)))))
 
-(defn get-deployed-model [_ _ _]
-  (deployed-model))
-
 (defonce subscription (async/chan 100))
 
 (defonce publisher (async/pub subscription :topic))

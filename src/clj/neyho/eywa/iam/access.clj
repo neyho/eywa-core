@@ -116,17 +116,6 @@
                    (boolean
                     (not-empty
                      (set/intersection roles (get-in *rules* [:relation relation direction rule])))))]
-           (comment
-             (def direction *1)
-             (def relation #uuid "466b811e-0ec5-4871-a24d-5b2990e6db3d")
-             (def direction :to)
-             (def rule :read))
-         ; (def relation relation)
-         ; (def rules rules)
-         ; (def roles roles)
-         ; (def direction direction)
-         ; (def rule (first rules))
-         ; (def roles #{#uuid "97b95ab8-4ca3-498d-b578-b12e6d1a2df8"})
            (some ok? rules)))
      (catch Throwable ex
        (log/error "[IAM] Couldn't evaluate relation-allows for roles %s" roles)

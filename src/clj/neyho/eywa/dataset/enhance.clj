@@ -15,7 +15,7 @@
 ;; Core Enhancement Protocol
 ;; ============================================================================
 
-(defmulti enhance-schema-for-access
+(defmulti schema
   "Enhances a query schema with access control conditions.
    
    Dispatches on entity UUID to allow entity-specific access patterns.
@@ -29,176 +29,41 @@
    Returns:
      Enhanced schema with additional access control conditions"
   (fn dispatch
-    ([db schema entity-id]
-     [(class db) entity-id]))
+    ([db _schema selection]
+     [(class db) (:entity _schema)]))
   :default ::default)
 
-(defmethod enhance-schema-for-access ::default
-  [_ schema entity-id]
+(defmethod schema ::default
+  [_ _schema _]
   ;; By default, no enhancement - rely on standard entity-level access control
-  schema)
+  _schema)
 
-;; ============================================================================
-;; Helper Functions
-;; ============================================================================
-
-(defn add-relation-condition
-  "Adds or merges a condition to a relation's args.
-   
-   If the relation doesn't exist, creates it with the condition.
-   If it exists, merges the condition with existing args."
-  [schema relation-key condition]
-  (update-in schema [:relations relation-key :args]
-             (fn [existing-args]
-               (if existing-args
-                 ;; Merge with existing conditions
-                 {:_and [existing-args condition]}
-                 ;; Set as new condition
-                 condition))))
-
-(defn force-relation-join
-  "Marks a relation as 'pinned' to force it to be included in the query.
-   
-   This ensures the relation will be JOINed even if not explicitly requested
-   in the original query."
-  [schema relation-key]
-  (assoc-in schema [:relations relation-key :pinned] true))
-
-(defn user-access-condition
-  "Creates a condition that checks if a user has access via direct assignment
-   or group membership.
+(defmulti args
+  "Enhances query arguments with access control conditions at any schema depth.
+   Called during search-stack-args processing.
    
    Args:
-     user-relation  - The relation name for direct user access (e.g., :read_users)
-     group-relation - The relation name for group access (e.g., :read_groups)
+     db        - Database instance
+     schema    - Current schema node being processed
+     entity-id - Entity UUID of the current schema node
+     path      - Vector of relation keys from root to current node
    
    Returns:
-     A condition map suitable for use in GraphQL-style queries"
-  ([user-relation group-relation]
-   (user-access-condition user-relation group-relation *user*))
-  ([user-relation group-relation user-id]
-   {:_or [{user-relation {:euuid {:_eq user-id}}}
-          {group-relation {:users {:euuid {:_eq user-id}}}}]}))
+     Enhanced schema with injected args"
+  (fn [db {entity-id :entity :as schema} [stack data]]
+    [(class db) entity-id])
+  :default ::default)
 
-(defn add-access-via-relation
-  "Adds access control to a schema via a related entity.
-   
-   This is the primary mechanism for implementing inherited permissions,
-   such as file access through folder permissions.
-   
-   Args:
-     schema         - The query schema
-     relation-key   - The relation to use for access control
-     user-relation  - The relation on the target entity for user access
-     group-relation - The relation on the target entity for group access
-   
-   Returns:
-     Enhanced schema with access control via the specified relation"
-  ([schema relation-key user-relation group-relation]
-   (add-access-via-relation schema relation-key user-relation group-relation *user*))
-  ([schema relation-key user-relation group-relation user-id]
-   (-> schema
-       (force-relation-join relation-key)
-       (add-relation-condition relation-key
-                               (user-access-condition user-relation
-                                                      group-relation
-                                                      user-id)))))
+(comment
+  (do
+    (ns-unmap 'neyho.eywa.dataset.enhance 'enhance-schema-for-access)
+    (ns-unalias 'neyho.eywa.dataset.enhance 'enhance-schema-for-access)
+    (ns-unmap 'neyho.eywa.dataset.enhance 'enhance-args-for-access)
+    (ns-unalias 'neyho.eywa.dataset.enhance 'enhance-schema-for-access)))
 
-;; ============================================================================
-;; Entity-Specific Enhancements
-;; ============================================================================
-
-;; Example: File entity with folder-based access control
-;; (defmethod enhance-schema-for-access #uuid "your-file-entity-uuid"
-;;   [schema entity-id]
-;;   (cond
-;;     ;; Superusers bypass folder-based access control
-;;     (access/superuser? *user*)
-;;     schema
-;;     
-;;     ;; Admin role might have different access pattern
-;;     (contains? *roles* #uuid "admin-role-uuid")
-;;     (add-access-via-relation schema :folder :admin_folders nil)
-;;     
-;;     ;; Regular users get folder-based access control
-;;     :else
-;;     (add-access-via-relation schema 
-;;                              :folder 
-;;                              :read_users 
-;;                              :read_groups)))
-
-;; ============================================================================
-;; Advanced Enhancement Patterns
-;; ============================================================================
-
-(defn add-hierarchical-access
-  "Adds access control that checks multiple levels of a hierarchy.
-   
-   Useful for nested folder structures where access can be inherited
-   from parent folders.
-   
-   Args:
-     schema        - The query schema
-     relation-path - Vector of relations to traverse (e.g., [:folder :parent])
-     max-depth     - Maximum depth to check"
-  [schema relation-path max-depth]
-  (let [conditions (for [depth (range 1 (inc max-depth))]
-                     (let [path (take depth (cycle relation-path))]
-                       (assoc-in {} path {:read_users {:euuid {:_eq *user*}}})))]
-    (-> schema
-        (force-relation-join (first relation-path))
-        (add-relation-condition (first relation-path)
-                                {:_or conditions}))))
-
-(defn add-temporal-access
-  "Adds time-based access control conditions.
-   
-   Args:
-     schema      - The query schema
-     relation    - The relation to check
-     time-field  - The field containing the time constraint
-     comparison  - The comparison operator (:_gt, :_lt, etc.)
-     time-value  - The time value to compare against"
-  [schema relation time-field comparison time-value]
-  (-> schema
-      (force-relation-join relation)
-      (add-relation-condition relation
-                              {time-field {comparison time-value}})))
-
-(defn add-attribute-based-access
-  "Adds access control based on entity attributes.
-   
-   Useful for classification-based access, department-based access, etc.
-   
-   Args:
-     schema     - The query schema  
-     relation   - The relation to check
-     attribute  - The attribute to check
-     values     - Set of allowed values"
-  [schema relation attribute values]
-  (-> schema
-      (force-relation-join relation)
-      (add-relation-condition relation
-                              {attribute {:_in values}})))
-
-(defn add-role-based-conditions
-  "Adds conditions based on user's roles.
-   
-   Args:
-     schema          - The query schema
-     role-conditions - Map of role UUID to condition function"
-  [schema role-conditions]
-  (reduce-kv
-   (fn [schema role-id condition-fn]
-     (if (contains? *roles* role-id)
-       (condition-fn schema)
-       schema))
-   schema
-   role-conditions))
-
-;; ============================================================================
-;; Debugging and Analysis
-;; ============================================================================
+(defmethod args ::default
+  [_ schema current-stack]
+  current-stack)
 
 (defn explain-enhancement
   "Returns a human-readable explanation of what enhancements were applied.
@@ -234,7 +99,7 @@
 ;; Integration Function
 ;; ============================================================================
 
-(defn enhance-schema
+(defn apply-schema
   "Main entry point for schema enhancement.
    
    Called by the query system to potentially add access control conditions
@@ -246,9 +111,129 @@
    
    Returns:
      Enhanced schema (or original if no enhancement needed)"
-  [schema entity-id]
+  [_schema selection]
   (if (and *user*)
-    (let [enhanced (enhance-schema-for-access neyho.eywa.db/*db* schema entity-id)]
-      (log-enhancement schema entity-id enhanced)
+    (let [enhanced (schema neyho.eywa.db/*db* _schema selection)]
+      (log-enhancement _schema (:entity _schema) enhanced)
       enhanced)
-    schema))
+    _schema))
+
+(defn ensure-path
+  "Creates a nested structure and optionally sets a value at the end.
+   
+   Examples:
+   (ensure-path {} [:a :b :c] :leaf-value)
+   => {:a {:b {:c :leaf-value}}}
+   
+   (ensure-path {} [:folder 0 :selections :read_users 0] {:selections {:euuid nil}})
+   => {:folder [{:selections {:read_users [{:selections {:euuid nil}}]}}]}"
+  ([m path]
+   (ensure-path m path {}))
+  ([m path leaf-value]
+   (if (empty? path)
+     leaf-value
+     (let [[k & ks] path
+           next-k (first ks)]
+       (cond
+         ;; Last key in path - set the value
+         (empty? ks)
+         (assoc m k leaf-value)
+
+         ;; Current key is numeric - ensure we have a vector
+         (number? k)
+         (let [v (if (vector? m) m [])
+               v' (if (< k (count v))
+                    v
+                    (into v (repeat (inc (- k (count v))) nil)))
+               existing (get v' k)
+               new-val (ensure-path existing ks leaf-value)]
+           (assoc v' k new-val))
+
+         ;; Next key is numeric - current value should be a vector
+         (number? next-k)
+         (assoc m k (ensure-path (get m k []) ks leaf-value))
+
+         ;; Regular map navigation
+         :else
+         (assoc m k (ensure-path (get m k {}) ks leaf-value)))))))
+
+(defmulti write
+  "Checks if the current user can perform the mutation.
+   
+   Args:
+     db         - Database instance
+     entity-id  - Entity UUID being mutated
+     data       - The mutation data
+     tx         - Current transaction
+   
+   Returns:
+     returns updated data ready for storage"
+  (fn [db entity-id data tx]
+    [(class db) entity-id])
+  :default ::default)
+
+(comment
+  (do
+    (methods write)
+    (ns-unmap 'neyho.eywa.dataset.enhance 'write)
+    (ns-unalias 'neyho.eywa.dataset.enhance 'write)))
+
+(defmethod write ::default
+  [_ _ data _]
+  ;; Default allows all mutations (relies on entity-level access)
+  data)
+
+(defn apply-write
+  ([entity-id data tx] (apply-write *db* entity-id data tx))
+  ([db entity-id data tx]
+   (write db entity-id data tx)))
+
+(defmulti delete
+  "Checks if the current user can perform the mutation.
+   
+   Args:
+     db         - Database instance
+     entity-id  - Entity UUID being mutated
+     data       - The mutation data
+     tx         - Current transaction
+   
+   Returns:
+     returns updated data ready for storage"
+  (fn [db entity-id data tx]
+    [(class db) entity-id])
+  :default ::default)
+
+(defmethod delete ::default
+  [_ _ data _]
+  ;; Default allows all mutations (relies on entity-level access)
+  data)
+
+(defn apply-delete
+  ([entity-id data tx] (apply-delete *db* entity-id data tx))
+  ([db entity-id data tx]
+   (delete db entity-id data tx)))
+
+(defmulti purge
+  "Checks if the current user can perform the mutation.
+   
+   Args:
+     db         - Database instance
+     entity-id  - Entity UUID being mutated
+     data       - The mutation data
+     tx         - Current transaction
+   
+   Returns:
+     returns updated data ready for storage"
+  (fn [db entity-id data tx]
+    [(class db) entity-id])
+  :default ::default)
+
+(defmethod purge ::default
+  [_ _ data _]
+  ;; Default allows all mutations (relies on entity-level access)
+  data)
+
+(defn apply-purge
+  ([entity-id data tx] (apply-purge *db* entity-id data tx))
+  ([db entity-id data tx]
+   (purge db entity-id data tx)))

@@ -12,6 +12,7 @@
    [com.walmartlabs.lacinia.parser.schema :refer [parse-schema]]))
 
 (comment
+  (-> @state :shards :neyho.eywa.file.service/shard)
   (-> compiled
       deref
       :Query

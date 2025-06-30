@@ -207,6 +207,22 @@
               (.pid process-handle))]
     (spit (str target) (str pid))))
 
+(patch/upgrade
+ :eywa/core
+ "0.4.0"
+ (try
+   (update/last-version "core")
+   (catch Throwable _
+     (when (update/table-exists?)
+       (update/delete-table)
+       (update/create-table)))))
+
+(patch/upgrade
+ :eywa/core
+ "0.5.0"
+ (neyho.eywa.dataset.postgres/fix-int-types)
+ (neyho.eywa.dataset.postgres/fix-mandatory-constraints))
+
 (defn stop
   []
   (oauth/stop)

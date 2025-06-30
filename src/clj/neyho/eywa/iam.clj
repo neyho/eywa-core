@@ -339,7 +339,27 @@
 (comment
   (binding [*user* user
             neyho.eywa.iam.access.context/*roles* roles]
-    (access/scope-allowed? scopes)))
+    (access/scope-allowed? scopes))
+  (dataset/sync-entity
+   iu/app
+   (->
+    (dataset/get-entity
+     iu/app
+     {:euuid #uuid "34c6eea5-3c95-4de1-a547-5e1b34ea16ea"}
+     {:euuid nil
+      :settings nil})
+    (update-in
+     [:settings "redirections"]
+     (comp distinct (fnil conj []))
+     "http://localhost:8000/eywa/callback"
+     "http://localhost:8000/eywa/silent-callback"
+     "http://localhost:8000/blipkit/callback"
+     "http://localhost:8000/blipkit/silent-callback")
+    (update-in
+     [:settings "logout-redirections"]
+     (comp distinct (fnil conj []))
+     "http://localhost:8000/eywa/"
+     "http://localhost:8000/blipkit/"))))
 
 (defn ensure-public
   []
@@ -353,11 +373,10 @@
 
 (defn level-iam
   []
-  (let [{current-version :name} (current-version)
-        ;;
-        {deployed-version :name}
-        (dataset/latest-deployed-version #uuid "c5c85417-0aef-4c44-9e86-8090647d6378")]
-    (patch/apply ::dataset deployed-version current-version)))
+  (let [{deployed-version :name} (dataset/latest-deployed-version #uuid "c5c85417-0aef-4c44-9e86-8090647d6378")]
+    (patch/apply ::dataset deployed-version)))
+
+(patch/current-version ::dataset (:name (<-transit (slurp (io/resource "dataset/iam.json")))))
 
 (patch/upgrade
  ::dataset "0.80.0"
@@ -374,6 +393,9 @@
                  "exports/role_iam_admin.json"
                  "exports/role_iam_user.json"]]
      (import-role role))))
+
+(comment
+  (patch/version ::dataset))
 
 (defn start
   []
