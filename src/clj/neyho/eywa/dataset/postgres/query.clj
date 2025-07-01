@@ -219,6 +219,7 @@
                 (let [{:keys [relations fields recursions table]
                        modifier :audit/who
                        modified-on :audit/when
+                       {mandatory-fields :mandatory} :constraints
                        :as entity} (find-entity entity-euuid)
                       {references true
                        fields false} (try
@@ -243,6 +244,18 @@
                                    (conj
                                     (map :key fields)
                                     :euuid))
+                      _ (when (not-empty mandatory-fields)
+                          (when-let [nil-fields (not-empty
+                                                 (filter
+                                                  (comp nil? val)
+                                                  (select-keys fields-data mandatory-fields)))]
+                            (throw
+                             (ex-info
+                              (str
+                               "Trying to set nil for mandatory fields: "
+                               (str/join ", " (map (comp name key) nil-fields)))
+                              {:data fields-data
+                               :mandatory mandatory-fields}))))
                       type-mapping (type-mapping entity)
                         ;; Cast data to Postgres
                       [fields-data avatars]

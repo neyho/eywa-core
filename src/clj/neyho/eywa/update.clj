@@ -82,16 +82,6 @@
   (when-not (= (last-version target) version)
     (add-version target version)))
 
-(patch/upgrade
- :eywa/core
- "0.4.0"
- (try
-   (last-version "core")
-   (catch Throwable _
-     (when (table-exists?)
-       (delete-table)
-       (create-table)))))
-
 (comment
   (compose/execute!
    (let [ddl (compose/mlf
