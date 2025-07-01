@@ -49,6 +49,34 @@
    {:username "admin"
     :password "admin"}))
 
+(defn add-eywa-client-redirects
+  [{:keys [redirections logout]}]
+  (let [client (neyho.eywa.dataset/get-entity
+                neyho.eywa.iam.uuids/app
+                {:id "MUMADPADAKQHSDFDGFAEJZJXUSFJGFOOYTWVAUDEFVPURUOP"}
+                {:euuid nil
+                 :settings nil})
+        updated-client (update client :settings
+                               (fn [current]
+                                 (->
+                                  current
+                                  (update "redirections"
+                                          (fn [_redirections]
+                                            (distinct
+                                             (into _redirections redirections))))
+                                  (update "logout-redirections"
+                                          (fn [_redirections]
+                                            (into _redirections logout))))))]
+    (neyho.eywa.dataset/stack-entity
+     neyho.eywa.iam.uuids/app
+     updated-client)))
+
+(comment
+  (add-eywa-client-redirects
+   {:redirections ["http://localhost:8000/eywa/callback"
+                   "http://localhost:8000/eywa/silent-callback"]
+    :logout ["http://localhost:8000/eywa"]}))
+
 (defn set-superuser
   ([] (set-superuser {:username  (env :eywa-user)
                       :password (env :eywa-password)}))

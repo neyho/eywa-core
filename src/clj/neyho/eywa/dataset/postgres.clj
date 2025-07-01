@@ -66,9 +66,10 @@
     "timestamp" "timestamp"
     ("json" "encrypted" "timeperiod") "jsonb"
     "transit" "text"
-    "user" (str "int references \"" (user-table) "\"(_eid) on delete set null")
-    "group" (str "int references \"" (group-table) "\"(_eid) on delete set null")
-    "role" (str "int references \"" (role-table) "\"(_eid) on delete set null")
+    "user" (str "bigint references \"" (user-table) "\"(_eid) on delete set null")
+    "group" (str "bigint references \"" (group-table) "\"(_eid) on delete set null")
+    "role" (str "bigint references \"" (role-table) "\"(_eid) on delete set null")
+    "int" "bigint"
     t))
 
 (defn attribute->ddl
@@ -797,7 +798,7 @@
              recursions (set (map (comp keyword normalize-name :to-label) recursions))
              mandatory-attributes (keep
                                    (fn [{:keys [constraint name]}]
-                                     (when (= constraint "mandatory")
+                                     (when (#{"mandatory" "unique+mandatory"} constraint)
                                        (keyword (normalize-name name))))
                                    (:attributes entity))
              entity-schema (cond->
