@@ -6,8 +6,6 @@
    [clojure.tools.logging :as log]
    [ring.util.response :as response]
    [ring.middleware.head :as head]
-   [neyho.eywa.transit
-    :refer [eywa-read-handlers]]
    [cheshire.core :as cheshire]
    [io.pedestal.interceptor :refer [interceptor]]
    [io.pedestal.interceptor.chain :as chain]
@@ -33,10 +31,10 @@
    {:name ::json-response
     :leave on-leave-json-response}))
 
-(def transit-body-params
-  (body-params/body-params
-   (body-params/default-parser-map
-    :transit-options [{:handlers eywa-read-handlers}])))
+; (def transit-body-params
+;   (body-params/body-params
+;    (body-params/default-parser-map
+;     :transit-options [{:handlers (eywa-read-handlers)}])))
 
 (def spa-interceptor
   {:name ::spa

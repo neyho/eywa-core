@@ -4,8 +4,7 @@
    clojure.data
     ;; DEPRECATED - only for version 1
    #?(:cljs
-      [helix.core :refer [create-context]])
-   [clojure.core.async :as async]))
+      [helix.core :refer [create-context]])))
 
 ;; DEPRECATED - only for version 1
 #?(:cljs (defonce ^:dynamic *dataset* (create-context)))
@@ -19,13 +18,14 @@
               (last xs)))]
     (reduce m maps)))
 
+(defn- not-initialized [msg]
+  (throw
+   (ex-info "Delta client not initialized"
+            {:message msg})))
+
 (defonce ^:dynamic *return-type* :graphql)
-(def delta-client (async/chan 1000))
-(def delta-publisher
-  (async/pub
-   delta-client
-   (fn [{:keys [element]}]
-     element)))
+(defonce ^:dynamic *delta-client* not-initialized)
+(defonce ^:dynamic *delta-publisher* not-initialized)
 
 (defn generate-uuid []
   #?(:clj (java.util.UUID/randomUUID)
@@ -79,17 +79,21 @@
     (generate-uuid))
   (add-attribute [{:keys [attributes] :as this} {:keys [euuid] :as attribute}]
     {:pre [(instance? ERDEntityAttribute attribute)]}
-    (let [entity (if (some? euuid)
-                   (update this :attributes (fnil conj [])
-                           (assoc attribute :seq (count attributes)))
-                   (update this :attributes (fnil conj [])
-                           (assoc attribute
-                             :euuid (generate-attribute-id this)
-                             :seq (count attributes))))]
+    (let [attribute (map->ERDEntityAttribute attribute)
+          euuid (if (some? euuid)
+                  euuid
+                  (generate-attribute-id this))
+          entity (update this :attributes (fnil conj [])
+                         (assoc attribute
+                           :euuid euuid
+                           :seq (count attributes)))]
       (if (= "unique" (:constraint attribute))
         (update-entity-unique-constraints
          entity
-         (fnil #(update % 0 conj euuid) [[]]))
+         (fnil
+          (fn [current]
+            (update current 0 (comp distinct conj) euuid))
+          [[]]))
         entity)))
   (get-attribute [{:keys [attributes]} euuid]
     (if-let [attribute (some #(when (= euuid (:euuid %)) %) attributes)]

@@ -514,7 +514,7 @@
   []
   (let [delta-chan (async/chan (async/sliding-buffer 1))
         close-chan (async/promise-chan)]
-    (async/sub core/delta-publisher iu/app delta-chan)
+    (async/sub core/*delta-publisher* iu/app delta-chan)
     ;; Start idle service that will listen on delta changes
     (async/go-loop
      [_ (async/<! delta-chan)]

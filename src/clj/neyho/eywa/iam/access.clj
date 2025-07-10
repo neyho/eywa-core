@@ -197,7 +197,7 @@
           delta-chan (async/chan (async/sliding-buffer 1))]
       (doseq [element all-euuids]
         (log/infof "[IAM] Subscribing to dataset delta channel for: %s" element)
-        (async/sub core/delta-publisher element delta-chan))
+        (async/sub core/*delta-publisher* element delta-chan))
       ;; Start idle service that will listen on delta changes
       (async/go-loop
        [_ (async/<! delta-chan)]

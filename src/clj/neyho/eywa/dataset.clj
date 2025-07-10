@@ -260,7 +260,8 @@
                        {:euuid euuid}
                        {:name nil
                         :euuid nil
-                        :versions [{:args {:_order_by [{:modified_on :asc}]}
+                        :versions [{:args {:_order_by [{:modified_on :asc}]
+                                           :_where {:deployed {:_boolean :TRUE}}}
                                     :selections {:name nil
                                                  :euuid nil
                                                  :model nil}}]})]
@@ -282,6 +283,8 @@
   (when destroy
     (log/infof "User %s destroying dataset %s" username (:name destroy))
     (dataset/destroy! *db* destroy)
+    (comment
+      (dataset/get-relations (-> destroy :versions first :model)))
     (async/put! subscription
                 {:topic :refreshedGlobalDataset
                  :data {:name "Global"
@@ -368,6 +371,13 @@
   ([db]
    (log/info "Initializing Datasets...")
    (try
+     (let [delta-client (async/chan 1000)
+           delta-publisher (async/pub
+                            delta-client
+                            (fn [{:keys [element]}]
+                              element))]
+       (alter-var-root #'neyho.eywa.dataset.core/*delta-client* (fn [_] delta-client))
+       (alter-var-root #'neyho.eywa.dataset.core/*delta-publisher* (fn [_] delta-publisher)))
      (dataset/reload db {:model (dataset/get-last-deployed db 0)})
      (lacinia/add-directive :hook wrap-hooks)
      (lacinia/add-shard ::dataset-directives (slurp (io/resource "dataset_directives.graphql")))

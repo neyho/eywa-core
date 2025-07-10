@@ -838,19 +838,19 @@
   (doseq [[{:keys [relation]} delta] many-relations]
     (log/debugf "[Datasets] Publishing relation delta: %s" relation)
     (async/put!
-     core/delta-client
+     core/*delta-client*
      {:element relation
       :delta delta}))
   (doseq [[{:keys [relation]} delta] one-relations]
     (log/debugf "[Datasets] Publishing relation delta: %s" relation)
     (async/put!
-     core/delta-client
+     core/*delta-client*
      {:element relation
       :delta delta}))
   (doseq [[table delta] entities]
     (log/debugf "[Datasets] Publishing entity delta: %s" (get entity-mapping table))
     (async/put!
-     core/delta-client
+     core/*delta-client*
      {:element (get entity-mapping table)
       :delta delta}))
   analysis)
@@ -2366,7 +2366,7 @@
                    (doseq [query delete-statements]
                      (log/debugf "[%s]Purgin entity rows with %s" entity-id query)
                      (postgres/execute! connection query *return-type*))
-                   (async/put! core/delta-client {:element entity-id :delta {:purge response}})
+                   (async/put! core/*delta-client* {:element entity-id :delta {:purge response}})
                    response))
                []))))))))
 
@@ -2649,7 +2649,7 @@
                    "[%s] Deleting entity\n%s"
                    entity-id sql)]
             (postgres/execute! connection sql *return-type*)
-            (async/put! core/delta-client {:element entity-id :delta {:delete args}})
+            (async/put! core/*delta-client* {:element entity-id :delta {:delete args}})
              ; (async/put!
              ;   core/client
              ;   {:type :entity/delete
@@ -2743,7 +2743,7 @@
                        queries)]
            ; (def relations relations)
            (doseq [[label {:keys [relation] :as slice}] relations]
-             (async/put! core/delta-client
+             (async/put! core/*delta-client*
                          {:element relation
                           :delta {:slice {label slice}}}))
            result))))))
