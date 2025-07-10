@@ -88,16 +88,17 @@
             info]
      :or {host "localhost"
           port 8080
+          routes #{}
           service-initializer identity}}]
    (log/infof "Starting %s server %s:%s" (env :eywa-bucket "EYWA") host port)
    (stop)
    (comment (def info nil))
-   (let [routes (or routes
-                    (route/expand-routes
-                     (clojure.set/union
-                       (default-routes info)
-                       graphql-routes
-                       oidc/routes)))
+   (let [routes (route/expand-routes
+                 (clojure.set/union
+                   (default-routes info)
+                   graphql-routes
+                   oidc/routes
+                   routes))
          router (route/router routes :map-tree)
          _server (->
                   {::http/type :jetty

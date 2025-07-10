@@ -50,26 +50,35 @@
     :password "admin"}))
 
 (defn add-eywa-client-redirects
-  [{:keys [redirections logout]}]
-  (let [client (neyho.eywa.dataset/get-entity
-                neyho.eywa.iam.uuids/app
-                {:id "MUMADPADAKQHSDFDGFAEJZJXUSFJGFOOYTWVAUDEFVPURUOP"}
-                {:euuid nil
-                 :settings nil})
-        updated-client (update client :settings
-                               (fn [current]
-                                 (->
-                                  current
-                                  (update "redirections"
-                                          (fn [_redirections]
-                                            (distinct
-                                             (into _redirections redirections))))
-                                  (update "logout-redirections"
-                                          (fn [_redirections]
-                                            (into _redirections logout))))))]
-    (neyho.eywa.dataset/stack-entity
-     neyho.eywa.iam.uuids/app
-     updated-client)))
+  ([]
+   (add-eywa-client-redirects
+    {:redirections (when-some [redirects (not-empty (env :eywa-iam-allowed-redirections))]
+                     (let [redirects (str/split redirects #"\s*,\s*")]
+                       (map str/trim redirects)))
+     :logout (when-some [redirects (not-empty (env :eywa-iam-allowed-logouts))]
+               (let [redirects (str/split redirects #"\s*,\s*")]
+                 (map str/trim redirects)))}))
+  ([{:keys [redirections logout]}]
+   (when (some not-empty [redirections logout])
+     (let [client (neyho.eywa.dataset/get-entity
+                   neyho.eywa.iam.uuids/app
+                   {:id "MUMADPADAKQHSDFDGFAEJZJXUSFJGFOOYTWVAUDEFVPURUOP"}
+                   {:euuid nil
+                    :settings nil})
+           updated-client (update client :settings
+                                  (fn [current]
+                                    (->
+                                     current
+                                     (update "redirections"
+                                             (fn [_redirections]
+                                               (distinct
+                                                (into _redirections redirections))))
+                                     (update "logout-redirections"
+                                             (fn [_redirections]
+                                               (into _redirections logout))))))]
+       (neyho.eywa.dataset/stack-entity
+        neyho.eywa.iam.uuids/app
+        updated-client)))))
 
 (comment
   (add-eywa-client-redirects
@@ -261,14 +270,17 @@
   (neyho.eywa.server/stop)
   nil)
 
+(def default-options
+  {:port (when-some [port (env :eywa-server-port "8080")]
+           (if (number? port) port (Integer/parseInt port)))
+   :host (env :eywa-server-host "0.0.0.0")
+   :info (patch/available-versions :eywa/core)})
+
 (defn start
   ([] (start (neyho.eywa.db.postgres/from-env)))
   ([db]
-   (start db
-          {:port (when-some [port (env :eywa-server-port "8080")]
-                   (if (number? port) port (Integer/parseInt port)))
-           :host (env :eywa-server-host "0.0.0.0")
-           :info (patch/available-versions [:eywa/core :eywa/robotics])}))
+   (patch/available-versions)
+   (start db default-options))
   ([db options]
    (stop)
    (neyho.eywa.transit/init)
@@ -279,6 +291,7 @@
    (neyho.eywa.dataset.encryption/start)
    (neyho.eywa.iam.oauth.store/start)
    (neyho.eywa.iam.access/start)
+   (add-eywa-client-redirects)
    (neyho.eywa.server/start options)
    (patch/apply
     :eywa/core
