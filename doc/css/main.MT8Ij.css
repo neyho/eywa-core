@@ -2693,25 +2693,25 @@ html[data-theme="light"] hr {
   margin-bottom: 2rem;
   overflow: hidden;
 }
-.eywa_docs_util__L75_C24 img {
+.eywa_docs_util__L79_C24 img {
   border-radius: 0.5rem;
 }
-.eywa_docs_util__L148_C22 {
+.eywa_docs_util__L152_C22 {
   background-color: var(--background);
   border-radius: 0.375rem;
 }
-.eywa_docs_util__L148_C22 .left {
+.eywa_docs_util__L152_C22 .left {
   padding-left: 0.5rem;
 }
-.eywa_docs_util__L148_C22 .right {
+.eywa_docs_util__L152_C22 .right {
   padding-right: 0.5rem;
 }
-.eywa_docs_util__L156_C23 {
+.eywa_docs_util__L160_C23 {
   align-items: center;
   display: flex;
   justify-content: center;
 }
-.eywa_docs_util__L167_C24 {
+.eywa_docs_util__L171_C24 {
   border-color: var(--border-normal);
   border-radius: 24px;
   border-width: 1px;
@@ -2721,7 +2721,7 @@ html[data-theme="light"] hr {
   margin-right: 0.25rem;
   width: 0.5rem;
 }
-.eywa_docs_util__L167_C24.selected {
+.eywa_docs_util__L171_C24.selected {
   background: var(--background-m1);
 }
 .eywa_docs_advanced__L77_C23 {
@@ -2916,26 +2916,26 @@ html[data-theme="light"] hr {
   padding-right: 0.5rem;
   user-select: none;
 }
-.eywa_docs__L103_C17 {
+.eywa_docs__L90_C17 {
   align-items: center;
   display: flex;
   flex-grow: 1;
   justify-content: center;
   min-height: 100px;
 }
-.eywa_docs__L105_C16 {
+.eywa_docs__L92_C16 {
   align-items: center;
   display: flex;
   margin-left: 0.5rem;
   max-height: 32px;
 }
-.eywa_docs__L113_C19 {
+.eywa_docs__L100_C19 {
   max-height: 32px;
 }
-.eywa_docs__L120_C18 .component-list .subcomponent > a.name {
+.eywa_docs__L107_C18 .component-list .subcomponent > a.name {
   font-size: 12px;
 }
-.eywa_docs__L120_C18 .container-block {
+.eywa_docs__L107_C18 .container-block {
   border-color: var(--border-normal);
   border-radius: 0.75rem;
   font-size: 0.6875rem;
@@ -2945,74 +2945,74 @@ html[data-theme="light"] hr {
   margin-top: 2rem;
   padding: 1rem;
 }
-.eywa_docs__L120_C18 .toddler-markdown section hr {
+.eywa_docs__L107_C18 .toddler-markdown section hr {
   margin-bottom: 2rem;
   margin-top: 2rem;
 }
-.eywa_docs__L120_C18 .container-block.tip {
+.eywa_docs__L107_C18 .container-block.tip {
   background-color: var(--background-positive);
 }
-.eywa_docs__L120_C18 table thead, .eywa_docs__L120_C18 table tbody {
+.eywa_docs__L107_C18 table thead, .eywa_docs__L107_C18 table tbody {
   padding-left: 0.5rem;
   padding-right: 0.5rem;
 }
-.eywa_docs__L120_C18 .container-block ul li {
+.eywa_docs__L107_C18 .container-block ul li {
   font-size: 0.6875rem;
   line-height: 1.125rem;
 }
-.eywa_docs__L120_C18 .container-block.danger {
+.eywa_docs__L107_C18 .container-block.danger {
   background-color: var(--background-negative);
   border-color: var(--border-negative);
 }
-.eywa_docs__L120_C18 table {
+.eywa_docs__L107_C18 table {
   background: var(--background-p1);
   border-radius: 0.75rem;
   margin-top: 1rem;
   padding: 1rem;
 }
-.eywa_docs__L120_C18 .container-block .icon {
+.eywa_docs__L107_C18 .container-block .icon {
   color: var(--color);
 }
-.eywa_docs__L120_C18 .component-list .component > a.name {
+.eywa_docs__L107_C18 .component-list .component > a.name {
   font-size: 14px;
 }
-.eywa_docs__L120_C18 .image-wrapper {
+.eywa_docs__L107_C18 .image-wrapper {
   display: flex;
   justify-content: center;
 }
-.eywa_docs__L120_C18 table thead th {
+.eywa_docs__L107_C18 table thead th {
   padding-bottom: 0.75rem;
   padding-top: 0.75rem;
 }
-.eywa_docs__L120_C18 .container-block.note, .eywa_docs__L120_C18 .container-block.info {
+.eywa_docs__L107_C18 .container-block.note, .eywa_docs__L107_C18 .container-block.info {
   background: var(--background-p1);
 }
-.eywa_docs__L120_C18 .container-block.warning {
+.eywa_docs__L107_C18 .container-block.warning {
   background-color: var(--background-warn);
   border-color: var(--border-negative);
 }
-.eywa_docs__L120_C18 .toddler-markdown section ul li {
+.eywa_docs__L107_C18 .toddler-markdown section ul li {
   margin-bottom: 0.25rem;
   margin-top: 0.25rem;
 }
-.eywa_docs__L120_C18 table td {
+.eywa_docs__L107_C18 table td {
   padding-left: 0.75rem;
   padding-right: 0.75rem;
 }
-.eywa_docs__L120_C18 .image-wrapper img {
+.eywa_docs__L107_C18 .image-wrapper img {
   border-color: var(--border-normal);
   border-radius: 0.5rem;
   border-width: 1px;
   margin-bottom: 1rem;
   margin-top: 1rem;
 }
-.eywa_docs__L120_C18 .container-block-title {
+.eywa_docs__L107_C18 .container-block-title {
   align-items: center;
   display: flex;
   font-weight: 600;
   margin-top: 0;
 }
-.eywa_docs_data__L30_C20 {
+.eywa_docs_data__L32_C20 {
   background-color: transparent;
   border-width: 0px;
 }
