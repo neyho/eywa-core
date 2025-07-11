@@ -1,1 +1,1 @@
-{:module-uris {:main.HLFmV [], :markdown.HLFmV ["/eywa/js/markdown.HLFmV.js"], :docs.HLFmV ["/eywa/js/docs.HLFmV.js"]}, :module-infos {:main.HLFmV nil, :markdown.HLFmV #{:main.HLFmV}, :docs.HLFmV #{:main.HLFmV}}}
+{:module-uris {:main.Qdcqs [], :markdown.Qdcqs ["/eywa/js/markdown.Qdcqs.js"], :docs.Qdcqs ["/eywa/js/docs.Qdcqs.js"]}, :module-infos {:main.Qdcqs nil, :markdown.Qdcqs #{:main.Qdcqs}, :docs.Qdcqs #{:main.Qdcqs}}}
