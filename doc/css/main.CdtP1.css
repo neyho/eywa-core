@@ -1165,31 +1165,31 @@ html[data-theme="light"] hr {
 
 .container-block.tip .icon {
   /*background-image: url('/icons/tip.svg');*/
-  -webkit-mask-image: url('/icons/tip.svg');
-  mask-image: url('/icons/tip.svg');
+  -webkit-mask-image: url('/eywa/icons/tip.svg');
+  mask-image: url('/eywa/icons/tip.svg');
 }
 
 .container-block.warning .icon {
-  -webkit-mask-image: url('/icons/warning.svg');
-  mask-image: url('/icons/warning.svg');
+  -webkit-mask-image: url('/eywa/icons/warning.svg');
+  mask-image: url('/eywa/icons/warning.svg');
 }
 
 .container-block.note .icon {
   /*background-image: url('/icons/note.svg');*/
-  -webkit-mask-image: url('/icons/note.svg');
-  mask-image: url('/icons/note.svg');
+  -webkit-mask-image: url('/eywa/icons/note.svg');
+  mask-image: url('/eywa/icons/note.svg');
 }
 
 .container-block.info .icon {
   /*background-image: url('/icons/info.svg');*/
-  -webkit-mask-image: url('/icons/info.svg');
-  mask-image: url('/icons/info.svg');
+  -webkit-mask-image: url('/eywa/icons/info.svg');
+  mask-image: url('/eywa/icons/info.svg');
 }
 
 .container-block.danger .icon {
   /*background-image: url('/icons/info.svg');*/
-  -webkit-mask-image: url('/icons/danger.svg');
-  mask-image: url('/icons/danger.svg');
+  -webkit-mask-image: url('/eywa/icons/danger.svg');
+  mask-image: url('/eywa/icons/danger.svg');
 }
 
 
@@ -2583,7 +2583,7 @@ html[data-theme="light"] hr {
   display: flex;
   flex-grow: 1;
 }
-.eywa_main__L46_C18 {
+.eywa_main__L47_C18 {
   align-items: center;
   box-sizing: border-box;
   display: flex;
@@ -2591,7 +2591,7 @@ html[data-theme="light"] hr {
   height: 2.5rem;
   padding-right: 0.25rem;
 }
-.eywa_main__L46_C18 .wrapper {
+.eywa_main__L47_C18 .wrapper {
   align-items: center;
   color: var(--color-inactive);
   cursor: pointer;
@@ -2599,94 +2599,94 @@ html[data-theme="light"] hr {
   font-size: 24px;
   margin-right: 1rem;
 }
-.eywa_main__L46_C18 .wrapper:first-child {
+.eywa_main__L47_C18 .wrapper:first-child {
   margin-right: 0;
 }
-.eywa_main__L46_C18 .tooltip-popup-area:hover {
+.eywa_main__L47_C18 .tooltip-popup-area:hover {
   color: var(--color-normal) ;
 }
-.eywa_main__L121_C25 {
+.eywa_main__L122_C25 {
   height: 50px;
   padding-left: 1rem;
   padding-right: 0.5rem;
 }
-.eywa_main__L129_C28 .message {
+.eywa_main__L130_C28 .message {
   max-width: 300px;
 }
-.eywa_main__L129_C28 hr {
+.eywa_main__L130_C28 hr {
   margin-bottom: 0.5rem;
   margin-top: 1.5rem;
 }
-.eywa_main__L129_C28 h4 {
+.eywa_main__L130_C28 h4 {
   margin-top: 8px !important;
 }
-.eywa_main__L129_C28 h1 {
+.eywa_main__L130_C28 h1 {
   font-size: 32px;
   margin-bottom: 1.5rem;
 }
-.eywa_main__L129_C28 p {
+.eywa_main__L130_C28 p {
   font-size: 12px;
   margin-top: 0.5rem;
 }
-.eywa_main__L129_C28 a {
+.eywa_main__L130_C28 a {
   color: var(--link-color);
   font-weight: 600;
 }
-.eywa_main__L129_C28 .toddler-markdown {
+.eywa_main__L130_C28 .toddler-markdown {
   margin-bottom: 1.5rem;
   margin-top: 1.5rem;
 }
-.eywa_main__L143_C29 {
+.eywa_main__L144_C29 {
   border-color: var(--border-normal);
   border-radius: 0.5rem;
   border-width: 1px;
   overflow: hidden;
 }
-.eywa_main__L150_C22 {
+.eywa_main__L151_C22 {
   align-items: center;
   height: 100%;
   width: 100%;
 }
-.eywa_main__L155_C23 {
+.eywa_main__L156_C23 {
   background: var(--background-p1);
   border-color: var(--border-normal);
   border-radius: 0.5rem;
   border-width: 1px;
   position: relative;
 }
-.eywa_main__L159_C26 {
+.eywa_main__L160_C26 {
   padding-bottom: 0.5rem;
   padding-left: 2rem;
   padding-right: 2rem;
   padding-top: 2rem;
 }
-.eywa_main__L167_C29 .message {
+.eywa_main__L168_C29 .message {
   max-width: 300px;
 }
-.eywa_main__L167_C29 hr {
+.eywa_main__L168_C29 hr {
   margin-bottom: 0.5rem;
   margin-top: 1.5rem;
 }
-.eywa_main__L167_C29 h4 {
+.eywa_main__L168_C29 h4 {
   margin-top: 8px !important;
 }
-.eywa_main__L167_C29 h1 {
+.eywa_main__L168_C29 h1 {
   font-size: 32px;
   margin-bottom: 1.5rem;
 }
-.eywa_main__L167_C29 p {
+.eywa_main__L168_C29 p {
   font-size: 12px;
   margin-top: 0.5rem;
 }
-.eywa_main__L167_C29 a {
+.eywa_main__L168_C29 a {
   color: var(--link-color);
   font-weight: 600;
 }
-.eywa_main__L167_C29 .toddler-markdown {
+.eywa_main__L168_C29 .toddler-markdown {
   margin-bottom: 1.5rem;
   margin-top: 1.5rem;
 }
-.eywa_main__L181_C30 {
+.eywa_main__L182_C30 {
   border-color: var(--border-normal);
   border-radius: 0.5rem;
   border-width: 1px;
