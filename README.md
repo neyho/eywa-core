@@ -237,7 +237,7 @@ and check if this incoming traffic is signed by trusted certificate.
 
 There are many more environment variables that can be configured. More about that
 look at official **[documentation](https://neyho.github.io/eywa/docs/overview)**
-specificaly documentation refering to **[environment](https://neyho.github.io/eywa/docs/advanced/environment)
+specificaly documentation refering to **[environment](https://neyho.github.io/eywa/docs/advanced/environment)**
 
 
 #### Features
