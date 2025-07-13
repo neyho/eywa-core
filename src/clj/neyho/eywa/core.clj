@@ -52,10 +52,12 @@
 (defn add-eywa-client-redirects
   ([]
    (add-eywa-client-redirects
-    {:redirections (when-some [redirects (not-empty (env :eywa-iam-allowed-redirections))]
+    {:redirections (when-some [redirects (not-empty (env :eywa-iam-allowed-redirections
+                                                         (env :eywa-oauth-allowed-redirections)))]
                      (let [redirects (str/split redirects #"\s*,\s*")]
                        (map str/trim redirects)))
-     :logout (when-some [redirects (not-empty (env :eywa-iam-allowed-logouts))]
+     :logout (when-some [redirects (not-empty (env :eywa-iam-allowed-logouts
+                                                   (env :eywa-oauth-allowed-logouts)))]
                (let [redirects (str/split redirects #"\s*,\s*")]
                  (map str/trim redirects)))}))
   ([{:keys [redirections logout]}]
@@ -133,6 +135,7 @@
   ([db]
    (neyho.eywa.transit/init)
    (println "Setting up DB")
+   (neyho.eywa.dataset/init-delta-pipe)
    (neyho.eywa.dataset.core/setup db)
    (set-superuser)))
 
@@ -172,7 +175,7 @@
 
 (defn valid-java?
   [info]
-  (if-some [{:keys [version]} info]
+  (if-some [version (:version info)]
     (condp #(.startsWith %2 %1) version
       "17." true
       "11." true
@@ -279,9 +282,10 @@
 (defn start
   ([] (start (neyho.eywa.db.postgres/from-env)))
   ([db]
-   (patch/available-versions)
    (start db default-options))
   ([db options]
+   (comment
+     (def db (neyho.eywa.db.postgres/from-env)))
    (stop)
    (neyho.eywa.transit/init)
    (oauth/start)

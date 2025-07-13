@@ -634,7 +634,7 @@
           (log/debugf "Adding entity %s to DB\n%s" n table-sql)
           (execute-one! tx [table-sql])
           (let [sql (format
-                     "alter table \"%s\" add column \"%s\" int references \"%s\"(_eid) on delete set null"
+                     "alter table \"%s\" add column \"%s\" bigint references \"%s\"(_eid) on delete set null"
                      table "modified_by" amt)]
             (log/tracef "Adding table audit reference[who] column\n%s" sql)
             (execute-one! tx [sql]))
@@ -1095,7 +1095,7 @@
        ;; Set this new database as default db
        (alter-var-root #'neyho.eywa.db/*db* (constantly db))
        ;;
-       (log/infof "Initializing tables for host\n%s" (pr-str db))
+       (log/infof "Initializing tables for host\n%s" (pr-str (dissoc db :password)))
        (core/create-deploy-history db)
        (log/info "Created __deploy_history")
        (as-> (<-transit (slurp (io/resource "dataset/iam.json"))) model

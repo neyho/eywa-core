@@ -365,19 +365,25 @@
   [dataset-euuid]
   (:model (latest-deployed-version dataset-euuid)))
 
+(defn init-delta-pipe
+  []
+  (let [delta-client (async/chan 1000)
+        delta-publisher (async/pub
+                         delta-client
+                         (fn [{:keys [element]}]
+                           element))]
+    (alter-var-root #'neyho.eywa.dataset.core/*delta-client* (fn [_] delta-client))
+    (alter-var-root #'neyho.eywa.dataset.core/*delta-publisher* (fn [_] delta-publisher))))
+
 (defn start
   "Function initializes EYWA datasets by loading last deployed model."
   ([] (start *db*))
   ([db]
    (log/info "Initializing Datasets...")
+   (comment
+     (def db *db*))
    (try
-     (let [delta-client (async/chan 1000)
-           delta-publisher (async/pub
-                            delta-client
-                            (fn [{:keys [element]}]
-                              element))]
-       (alter-var-root #'neyho.eywa.dataset.core/*delta-client* (fn [_] delta-client))
-       (alter-var-root #'neyho.eywa.dataset.core/*delta-publisher* (fn [_] delta-publisher)))
+     (init-delta-pipe)
      (dataset/reload db {:model (dataset/get-last-deployed db 0)})
      (lacinia/add-directive :hook wrap-hooks)
      (lacinia/add-shard ::dataset-directives (slurp (io/resource "dataset_directives.graphql")))

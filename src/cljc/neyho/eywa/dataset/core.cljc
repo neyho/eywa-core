@@ -19,9 +19,7 @@
     (reduce m maps)))
 
 (defn- not-initialized [msg]
-  (throw
-   (ex-info "Delta client not initialized"
-            {:message msg})))
+  (throw (ex-info "Delta client not initialized" {:message msg})))
 
 (defonce ^:dynamic *return-type* :graphql)
 (defonce ^:dynamic *delta-client* not-initialized)
