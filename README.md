@@ -79,7 +79,7 @@ EYWA simplifies complex workflows by combining **identity management** and **dat
 <!-- [![Clojars Project](https://img.shields.io/clojars/v/org.neyho/eywa-core-frontend.svg)](https://clojars.org/org.neyho/eywa-core-frontend) -->
 
 
-<p align="center"><img src="doc/screenshots/1.png" alt="Screenshot"/></div>
+<p align="center"><img src="doc/img/eywa_modeling.png" alt="Screenshot"/></div>
 
 ## Quickstart
 
