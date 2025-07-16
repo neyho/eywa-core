@@ -1203,37 +1203,92 @@
                             (case operation
                               :_count
                               (reduce
-                               (fn [schema {operations :selections}]
-                                 (reduce-kv
-                                  (fn [schema relation specifics]
-                                    (let [rkey (keyword (name relation))
-                                          rdata (get relations rkey)
-                                          relation (->
-                                                    rdata
-                                                    (dissoc :_count)
-                                                    (dissoc :relations)
-                                                    (clojure.set/rename-keys {:table :relation/table})
-                                                    (assoc
-                                                     :pinned true
-                                                     :entity/table (:to/table rdata)
-                                                     :relation/as (str (gensym "link_"))
-                                                     :entity/as (str (gensym "data_"))))]
-                                      (case specifics
-                                        (nil [nil]) (assoc-in schema [:_count rkey] relation)
-                                        (reduce
-                                         (fn [schema {:keys [alias args]}]
-                                           (let [akey (or alias rkey)]
-                                             (assoc-in schema [:_count akey]
-                                                       (cond-> relation
-                                                         args (assoc :args (clojure.set/rename-keys args {:_where :_maybe}))))))
-                                         schema
-                                         specifics))))
-                                  schema
-                                  operations))
-                               schema
-                               fields)
+                                (fn [schema {operations :selections}]
+                                  (reduce-kv
+                                    (fn [schema relation specifics]
+                                      (let [rkey (keyword (name relation))
+                                            rdata (get relations rkey)
+                                            relation (->
+                                                       rdata
+                                                       (dissoc :_count)
+                                                       (dissoc :relations)
+                                                       (clojure.set/rename-keys {:table :relation/table})
+                                                       (assoc
+                                                         :pinned true
+                                                         :entity/table (:to/table rdata)
+                                                         :relation/as (str (gensym "link_"))
+                                                         :entity/as (str (gensym "data_"))))]
+                                        (case specifics
+                                          (nil [nil]) (assoc-in schema [:_count rkey] relation)
+                                          (reduce
+                                            (fn [schema {:keys [alias args]}]
+                                              (let [akey (or alias rkey)]
+                                                (assoc-in schema [:_count akey]
+                                                          (cond-> relation
+                                                            args (assoc :args (clojure.set/rename-keys args {:_where :_maybe}))))))
+                                            schema
+                                            specifics))))
+                                    schema
+                                    operations))
+                                schema
+                                fields)
                               ;; ... rest of aggregate handling ...
-                              ))
+                              :_agg
+                              (reduce
+                                (fn [schema {operations :selections}]
+                                  (reduce-kv
+                                    (fn [schema relation [{specifics :selections}]]
+                                      (let [rkey (keyword (name relation))
+                                            rdata (get relations rkey)
+                                            relation (->
+                                                       rdata 
+                                                       (dissoc :_agg)
+                                                       (dissoc :relations)
+                                                       (clojure.set/rename-keys {:table :relation/table})
+                                                       (assoc 
+                                                         :pinned true
+                                                         :entity/table (:to/table rdata)
+                                                         :relation/as (str (gensym "link_"))
+                                                         :entity/as (str (gensym "data_"))))
+                                            schema (assoc-in schema [:_agg rkey] relation)]
+                                        (reduce-kv
+                                          (fn [schema operation [{aggregates :selections}]]
+                                            (let [operation (keyword (name operation))]
+                                              (reduce-kv
+                                                (fn [schema fkey selections]
+                                                  (let [fkey (keyword (name fkey))]
+                                                    (reduce
+                                                      (fn [schema {:keys [alias args]}]
+                                                        (let [field (or alias fkey)]
+                                                          (assoc-in schema [:_agg rkey operation field]
+                                                                    [fkey (when args {:args args})])))
+                                                      schema
+                                                      selections)))
+                                                schema
+                                                aggregates)))
+                                          schema
+                                          specifics)))
+                                    schema
+                                    operations))
+                                schema
+                                fields)
+                              ;;default
+                              (reduce
+                                (fn [schema {:keys [selections]}]
+                                  (reduce-kv
+                                    (fn [schema fkey selections]
+                                      (let [fkey (keyword (name fkey))]
+                                        (reduce
+                                          (fn [schema {:keys [alias args]}]
+                                            (let [field (or alias fkey)]
+                                              (assoc-in schema [operation field]
+                                                        [fkey (when args {:args args})])))
+                                          schema
+                                          selections)))
+                                    schema
+                                    selections))
+                                schema
+                                fields)))
                           schema
                           (select-keys selection aggregate-keys))))]
      ;; NEW: Apply access enhancement

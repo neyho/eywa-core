@@ -58,11 +58,9 @@
          (and has-token (not (contains? (get @*tokens* :access_token) token)))
          (chain/terminate not-authorized)
          ;;
-         (and
-          (access/enforced?)
-          (contains?
-           #{"true" "TRUE" "y" "yes" "1"}
-           (env :eywa-iam-allow-public)))
+         (contains?
+          #{"true" "TRUE" "y" "yes" "1"}
+          (env :eywa-iam-allow-public))
          ;;
          (let [public (:euuid *PUBLIC_ROLE*)
                public-user #:eywa {:user (select-keys *PUBLIC_USER* [:_eid :euuid :name :active])

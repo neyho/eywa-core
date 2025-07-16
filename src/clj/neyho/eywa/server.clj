@@ -39,7 +39,7 @@
 (defn default-routes
   [info]
   #{["/eywa/whoami" :get [authenticate coerce-body content-neg-intc user-data] :route-name :eywa.identity/get]
-    ["/eywa/info" :get [authenticate coerce-body content-neg-intc (make-info-interceptor info)] :route-name :eywa.version/get]})
+    ["/eywa/info" :get [coerce-body content-neg-intc (make-info-interceptor info)] :route-name :eywa.version/get]})
 
 (def graphql-routes
   (let [_schema (fn [] (deref neyho.eywa.lacinia/compiled))
