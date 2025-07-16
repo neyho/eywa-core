@@ -29,7 +29,7 @@
    [neyho.eywa.iam.oauth :as oauth])
   (:gen-class :main true))
 
-(patch/current-version :eywa/core "0.5.0")
+(patch/current-version :eywa/core "0.5.1")
 
 (defn setup
   ([] (setup (neyho.eywa.db.postgres/from-env)))
