@@ -61,7 +61,6 @@
          (contains?
           #{"true" "TRUE" "y" "yes" "1"}
           (env :eywa-iam-allow-public))
-         ;;
          (let [public (:euuid *PUBLIC_ROLE*)
                public-user #:eywa {:user (select-keys *PUBLIC_USER* [:_eid :euuid :name :active])
                                    :roles #{public}
