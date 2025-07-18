@@ -10,6 +10,7 @@
    [clojure.data.json :as json]
    [buddy.sign.util :refer [to-timestamp]]
    [buddy.core.codecs]
+   [buddy.hashers :as hashers]
    [io.pedestal.interceptor.chain :as chain]
    [neyho.eywa.iam
     :as iam
@@ -19,6 +20,7 @@
    [neyho.eywa.iam.uuids :as iu]
    [neyho.eywa.iam.oauth.core :as core
     :refer [pprint
+            get-client
             session-kill-hook
             access-token-expiry
             refresh-token-expiry
@@ -320,13 +322,82 @@
        "There is no valid session for refresh token that"
        "was provided"))))
 
+(defn validate-client-credentials
+  "Validates client credentials for client_credentials grant.
+   Returns the client if valid, nil otherwise."
+  [{:keys [client_id client_secret]}]
+  (when-let [client (get-client client_id)]
+    (let [{client-secret :secret
+           {allowed-grants "allowed-grants"} :settings} client
+          grants (set allowed-grants)]
+      (cond
+        ;; Check if client_credentials grant is allowed
+        (not (contains? grants "client_credentials"))
+        (do
+          (log/debugf "[%s] Client credentials grant not allowed for client" client_id)
+          nil)
+
+        ;; Check if client has a secret configured
+        (and (some? client-secret) (empty? client_secret))
+        (do
+          (log/debugf "[%s] Client secret required but not provided" client_id)
+          nil)
+
+        ;; Validate client secret if present
+        (and (some? client-secret)
+             (not (hashers/check client_secret client-secret)))
+        (do
+          (log/debugf "[%s] Invalid client secret provided" client_id)
+          nil)
+
+        ;; Client is valid
+        :else
+        (do
+          (log/debugf "[%s] Client credentials validated successfully" client_id)
+          client)))))
+
+(defmethod grant-token "client_credentials"
+  [{:keys [client_id client_secret scope] :as request}]
+  (log/debugf "[%s] Processing client credentials grant request" client_id)
+  (if-let [client (validate-client-credentials request)]
+    (let [;; Process the requested scope
+          ;; In client credentials, scope is typically limited to what the client is allowed
+          processed-scope (or scope "")
+
+          ;; Create request context for token generation
+          token-request (assoc request :scope processed-scope)]
+
+      (try
+        (let [tokens (generate client nil token-request)
+              response (json/write-str tokens)]
+          (log/debugf "[%s] Client credentials tokens generated successfully" client_id)
+          {:status 200
+           :headers {"Content-Type" "application/json;charset=UTF-8"
+                     "Pragma" "no-cache"
+                     "Cache-Control" "no-store"}
+           :body response})
+        (catch Exception e
+          (log/errorf e "[%s] Error generating tokens for client credentials" client_id)
+          (token-error
+           500
+           "server_error"
+           "An error occurred while generating tokens"))))
+
+    ;; Client validation failed
+    (do
+      (log/warnf "[%s] Client credentials validation failed" client_id)
+      (token-error
+       401
+       "invalid_client"
+       "Client authentication failed"))))
+
 (defn token-endpoint
   [{{:keys [grant_type] :as oauth-request} :params :as request}]
   (log/debugf "Received token endpoint request\n%s" (pprint request))
   (binding [core/*domain* (core/original-uri request)]
     (case grant_type
-      ;; Authorization code grant
-      ("authorization_code" "refresh_token" "urn:ietf:params:oauth:grant-type:device_code")
+      ;; Supported grant types
+      ("authorization_code" "refresh_token" "urn:ietf:params:oauth:grant-type:device_code" "client_credentials")
       (grant-token oauth-request)
       ;;else
       (core/handle-request-error

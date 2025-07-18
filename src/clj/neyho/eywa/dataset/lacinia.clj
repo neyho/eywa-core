@@ -791,7 +791,7 @@
                  (try
                    (get-entity *db* (:euuid entity) data (executor/selections-tree context))
                    (catch Throwable e
-                     (log/errorf e  "Couldn't resolve SYNC")
+                     (log/errorf e "Couldn't resolve SYNC")
                      (throw e))))}
                      ;; SEARCH
               (csk/->camelCaseKeyword (str "search " ename))
@@ -817,7 +817,7 @@
                       (lacinia.resolve/resolve-as
                        (search-entity *db* euuid data (executor/selections-tree context)))
                       (catch Throwable e
-                        (log/error e  "Couldn't search dataset")
+                        (log/error e "Couldn't search dataset")
                         (throw e))))}
                   args (assoc :args args))))
               ;; Add recursive getters
@@ -885,25 +885,26 @@
        entities))))
 
 (defn sync-mutation
-  [{{euuid :euuid} :eywa/entity
+  [{{euuid :euuid ename :name} :eywa/entity
     :as context} data _]
   (log-query context)
-  (let [{row :euuid} (sync-entity *db* euuid (val (first data)))
+  (let [entity-key (keyword (normalize-name ename))
+        entity-data (get data entity-key)
+        {row :euuid} (sync-entity *db* euuid entity-data)
         selection (executor/selections-tree context)
-        ; _ (log/infof
-        ;     :message "Getting entity"
-        ;     :entity ename :row row :selection selection)
         value (get-entity *db* euuid {:euuid row} selection)]
     value))
 
 (defn sync-list-mutation
   [{:keys [user roles]
-    {euuid :euuid} :eywa/entity
+    {euuid :euuid ename :name} :eywa/entity
     :as context}
    data
    _]
   (log-query context)
-  (let [rows (sync-entity *db* euuid (val (first data)))
+  (let [entity-key (keyword (normalize-name ename))
+        entity-data (get data entity-key)
+        rows (sync-entity *db* euuid entity-data)
         rows' (mapv :euuid rows)
         selection (executor/selections-tree context)
         value (search-entity
@@ -914,27 +915,31 @@
 
 (defn stack-mutation
   [{:keys [user roles] :as context
-    {euuid :euuid} :eywa/entity}
+    {euuid :euuid ename :name} :eywa/entity}
    data
    _]
   (log-query context)
-  (let [{row :euuid} (stack-entity *db* euuid (val (first data)))
+  (let [entity-key (keyword (normalize-name ename))
+        entity-data (get data entity-key)
+        {row :euuid} (stack-entity *db* euuid entity-data)
         selection (executor/selections-tree context)
         value (get-entity *db* euuid {:euuid row} selection)]
     value))
 
 (defn stack-list-mutation
   [{:keys [user roles]
-    {euuid :euuid} :eywa/entity
+    {euuid :euuid ename :name} :eywa/entity
     :as context}
    data
    _]
   (log-query context)
-  (let [rows (stack-entity *db* euuid (val (first data)))
+  (let [entity-key (keyword (normalize-name ename))
+        entity-data (get data entity-key)
+        rows (stack-entity *db* euuid entity-data)
         rows' (mapv :euuid rows)
         selection (executor/selections-tree context)
         value (search-entity
-               *db*  euuid
+               *db* euuid
                {:_where {:euuid {:_in rows'}}}
                selection)]
     value))
@@ -987,6 +992,7 @@
     (reduce
      (fn [mutations {ename :name :as entity}]
        (let [t (entity->gql-input-object ename)
+             entity-key (keyword (normalize-name ename))
              relations (core/focus-entity-relations model entity)
              to-relations (filter #(not-empty (:to-label %)) relations)]
          (cond->
@@ -994,14 +1000,14 @@
                    ;;
             (csk/->camelCaseKeyword (str "sync " ename))
             {:type (entity->gql-object ename)
-             :args {:data {:type (list 'non-null t)}}
+             :args {entity-key {:type (list 'non-null t)}}
              :resolve
              (fn sync [context data value]
                (sync-mutation (assoc context :eywa/entity entity) data value))}
                    ;; SYNC LIST
             (csk/->camelCaseKeyword (str "sync " ename " List"))
             {:type (list 'list (entity->gql-object ename))
-             :args {:data {:type (list 'list t)}}
+             :args {entity-key {:type (list 'list t)}}
              :resolve
              (fn syncList [context data value]
                (try
@@ -1012,7 +1018,7 @@
                    ;;
             (csk/->camelCaseKeyword (str "stack " ename " List"))
             {:type (list 'list (entity->gql-object ename))
-             :args {:data {:type (list 'list t)}}
+             :args {entity-key {:type (list 'list t)}}
              :resolve
              (fn stackList [context data value]
                (try
@@ -1023,7 +1029,7 @@
                    ;;
             (csk/->camelCaseKeyword (str "stack" ename))
             {:type (entity->gql-object ename)
-             :args {:data {:type (list 'non-null t)}}
+             :args {entity-key {:type (list 'non-null t)}}
              :resolve
              (fn stack [context data value]
                (try
@@ -1062,7 +1068,7 @@
             {:type (list 'list (entity->gql-object ename))
              :args {:_where {:type (entity->search-operator entity)}}
              :resolve
-             (fn purge [context  data value]
+             (fn purge [context data value]
                (try
                  (purge-mutation (assoc context :eywa/entity entity) data value)
                  (catch Throwable e
@@ -1076,7 +1082,7 @@
              {:type (entity->slice-object entity)
               :args {:_where {:type (entity->search-operator entity)}}
               :resolve
-              (fn slice [context  data value]
+              (fn slice [context data value]
                 (try
                   (slice-mutation (assoc context :eywa/entity entity) data value)
                   (catch Throwable e
